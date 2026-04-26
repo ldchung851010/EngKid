@@ -18,13 +18,6 @@ function terminal(): string[][] {
     grid[z][0] = 'WALL';
     grid[z][WIDTH - 1] = 'WALL';
   }
-  for (let x = 5; x <= 18; x++) grid[5][x] = 'COUNTER';
-  for (let z = 9; z <= 14; z += 2) {
-    grid[z][7] = 'CHAIR';
-    grid[z][8] = 'CHAIR';
-    grid[z][15] = 'CHAIR';
-    grid[z][16] = 'CHAIR';
-  }
   grid[2][11] = 'SIGN';
   grid[2][12] = 'SIGN';
   return grid;

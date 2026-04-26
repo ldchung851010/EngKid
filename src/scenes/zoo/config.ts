@@ -29,10 +29,6 @@ function fences(): string[][] {
     grid[z][0] = 'WALL';
     grid[z][WIDTH - 1] = 'WALL';
   }
-  for (let z = 3; z < 15; z++) {
-    grid[z][7] = 'WALL';
-    grid[z][14] = 'WALL';
-  }
   grid[15][10] = 'SIGN';
   grid[15][11] = 'SIGN';
   return grid;
@@ -45,7 +41,7 @@ export const zooConfig: SceneConfig = {
   cefrLevel: 'A1',
   targetVocabulary: ['lion', 'monkey', 'elephant', 'bird', 'tiger', 'big', 'small', 'where'],
   start: {
-    position: { x: 11, y: 2.7, z: 16 },
+    position: { x: 11, y: 2.8, z: 14.2 },
     lookAt: { x: 11, y: 2.2, z: 7 },
   },
   environment: {

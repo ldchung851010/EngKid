@@ -18,13 +18,6 @@ function walls(): string[][] {
     grid[z][0] = 'WALL';
     grid[z][WIDTH - 1] = 'WALL';
   }
-  for (let x = 3; x <= 16; x += 3) {
-    grid[6][x] = 'DESK';
-    grid[9][x] = 'DESK';
-    grid[12][x] = 'DESK';
-  }
-  grid[1][9] = 'SIGN';
-  grid[1][10] = 'SIGN';
   return grid;
 }
 

@@ -18,9 +18,6 @@ function lobby(): string[][] {
     grid[z][0] = 'WALL';
     grid[z][WIDTH - 1] = 'WALL';
   }
-  for (let x = 5; x <= 15; x++) grid[4][x] = 'COUNTER';
-  for (let x = 4; x <= 6; x++) grid[11][x] = 'CARPET';
-  for (let x = 13; x <= 15; x++) grid[11][x] = 'CARPET';
   return grid;
 }
 
