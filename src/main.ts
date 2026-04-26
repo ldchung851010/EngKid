@@ -134,12 +134,8 @@ async function speakNPC(node: DialogueNode): Promise<void> {
   if (!activeNPC) return;
 
   const text = node.npcText.replace('{score}', String(scoreTracker.getSessionScore(restaurantConfig.tasks.length).total));
-  try {
-    await tts.speak(text, activeNPC.voice, activeNPC.speechSpeed);
-  } catch {
-    // TTS unavailable — NPC text still visible in console
-    console.log(`[${activeNPC.name}]: ${text}`);
-  }
+  console.log(`[TTS] speaking as ${activeNPC.name} (${activeNPC.voice}, speed=${activeNPC.speechSpeed}): "${text.substring(0, 50)}..."`);
+  await tts.speak(text, activeNPC.voice, activeNPC.speechSpeed);
 }
 
 // ── Mic & Speech Pipeline ──────────────────────────────────────

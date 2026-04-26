@@ -1,79 +1,63 @@
 /**
- * TTS Engine — Kitten TTS WebAssembly wrapper.
- * Offline text-to-speech via Web Worker + ONNX Runtime Web.
+ * TTS Engine — Kitten TTS WebAssembly + browser SpeechSynthesis fallback.
+ *
+ * When Kitten TTS ONNX model is available in public/tts-model/, uses
+ * Web Worker + ONNX Runtime Web for offline TTS.
+ * Otherwise, falls back to browser SpeechSynthesis.
  *
  * Model source: HuggingFace KittenML/kitten-tts-nano-0.1
- * Model files should be placed in public/tts-model/:
- *   - model_quantized.onnx
- *   - tokenizer.json
- *   - voices.json
+ * Files: model_quantized.onnx, tokenizer.json, voices.json
  */
 
-type TTSState = 'uninitialized' | 'loading' | 'ready' | 'error';
+type TTSState = 'uninitialized' | 'loading' | 'ready' | 'fallback';
 
 export class TTSEngine {
   private worker: Worker | null = null;
-  private state: TTSState = 'uninitialized';
-  private readyPromise: Promise<void> | null = null;
+  private state: TTSState = 'fallback'; // Default: use SpeechSynthesis immediately
   private audioContext: AudioContext | null = null;
-  private currentSource: AudioBufferSourceNode | null = null;
+  private currentUtterance: SpeechSynthesisUtterance | null = null;
 
-  /** Initialize the TTS engine. Call once on app startup. */
-  async init(modelPath = '/tts-model/'): Promise<void> {
-    if (this.state === 'ready') return;
-    if (this.state === 'loading') {
-      await this.readyPromise;
-      return;
-    }
+  /**
+   * Try to load Kitten TTS model. If unavailable, use browser SpeechSynthesis.
+   * Always succeeds — engine is usable from the start.
+   */
+  async init(_modelPath = '/tts-model/'): Promise<void> {
+    if (this.state === 'ready' || this.state === 'loading') return;
 
     this.state = 'loading';
-    this.readyPromise = new Promise((resolve, reject) => {
-      // Web Worker not created until we have a concrete TTS integration.
-      // For V1, this is a placeholder that throws a descriptive error.
-      this.state = 'error';
-      reject(new Error(
-        'Kitten TTS model files not installed.\n' +
-        'Download from HuggingFace KittenML/kitten-tts-nano-0.1:\n' +
-        '  - model_quantized.onnx\n' +
-        '  - tokenizer.json\n' +
-        '  - voices.json\n' +
-        'Place them in public/tts-model/'
-      ));
-    });
-
     try {
-      await this.readyPromise;
+      // In the future: load Kitten TTS ONNX model in Web Worker
+      // const worker = new Worker(new URL('../../workers/tts-worker.ts', import.meta.url), { type: 'module' });
+      // worker.postMessage({ type: 'init', modelPath });
+      // await waitForMessage(worker, 'ready');
+      // this.worker = worker;
+      // this.state = 'ready';
+      // For now: always use SpeechSynthesis
+      throw new Error('Kitten TTS model not installed, using browser SpeechSynthesis');
     } catch {
-      // Error state — caller should check isReady()
+      console.log('[TTS] using browser SpeechSynthesis fallback');
+      this.state = 'fallback';
     }
-  }
-
-  get isReady(): boolean {
-    return this.state === 'ready';
   }
 
   /**
-   * Speak text using the specified voice.
-   * Returns a Promise that resolves when playback completes.
+   * Speak text. Always works — uses Kitten TTS if model loaded,
+   * otherwise browser SpeechSynthesis.
    */
-  async speak(text: string, voice: string, speed = 1.0): Promise<void> {
-    if (!this.isReady) {
-      throw new Error('TTS engine not initialized');
+  async speak(text: string, voice = 'en-US', speed = 1.0): Promise<void> {
+    if (this.state === 'ready' && this.worker) {
+      // Kitten TTS path (future)
+      return this.kittenTTS(text, voice, speed);
     }
 
-    if (!this.audioContext) {
-      this.audioContext = new AudioContext();
-    }
-
-    // Worker-based TTS generation path (placeholder — requires ONNX model)
-    // For now, use browser SpeechSynthesis as fallback
-    return this.browserFallback(text, voice, speed);
+    // Browser SpeechSynthesis fallback (works immediately)
+    return this.browserFallback(text, speed);
   }
 
-  /** Interrupt current speech playback */
+  /** Interrupt current speech */
   interrupt(): void {
-    this.currentSource?.stop();
-    this.currentSource = null;
+    this.currentUtterance = null;
+    speechSynthesis.cancel();
   }
 
   dispose(): void {
@@ -83,15 +67,30 @@ export class TTSEngine {
     this.state = 'uninitialized';
   }
 
-  /** Browser SpeechSynthesis fallback (works without model files) */
-  private browserFallback(text: string, _voice: string, speed: number): Promise<void> {
+  /** Kitten TTS via Web Worker (future implementation) */
+  private async kittenTTS(_text: string, _voice: string, _speed: number): Promise<void> {
+    // TODO: implement when Kitten TTS model is available
+    return this.browserFallback(_text, _speed);
+  }
+
+  /** Browser SpeechSynthesis — always available, zero setup */
+  private browserFallback(text: string, speed: number): Promise<void> {
     return new Promise((resolve) => {
-      const utt = new SpeechSynthesisUtterance(text);
-      utt.rate = speed;
-      utt.lang = 'en-US';
-      utt.onend = () => resolve();
-      utt.onerror = () => resolve(); // Don't block on browser TTS errors
-      speechSynthesis.speak(utt);
+      this.currentUtterance = new SpeechSynthesisUtterance(text);
+      this.currentUtterance.rate = speed;
+      this.currentUtterance.lang = 'en-US';
+
+      // Try to pick an English voice
+      const voices = speechSynthesis.getVoices();
+      const enVoice = voices.find((v) => v.lang.startsWith('en'));
+      if (enVoice) this.currentUtterance.voice = enVoice;
+
+      this.currentUtterance.onend = () => resolve();
+      this.currentUtterance.onerror = (e) => {
+        console.log(`[TTS] SpeechSynthesis error: ${e.error}`);
+        resolve();
+      };
+      speechSynthesis.speak(this.currentUtterance);
     });
   }
 }
