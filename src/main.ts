@@ -212,8 +212,10 @@ function isCurrentDialogue(npcId: string, nodeId: string, revision: number): boo
 
 function isNPCInRange(npc: NPCConfig): boolean {
   const radius = npc.interaction.radius ?? 3;
-  const npcPos = new THREE.Vector3(npc.position.x + 0.5, npc.position.y, npc.position.z + 0.5);
-  return camera.position.distanceTo(npcPos) <= radius;
+  const npcPos = new THREE.Vector3(npc.position.x + 0.5, 0, npc.position.z + 0.5);
+  const dx = camera.position.x - npcPos.x;
+  const dz = camera.position.z - npcPos.z;
+  return Math.sqrt(dx * dx + dz * dz) <= radius;
 }
 
 function findNode(npc: NPCConfig, nodeId: string): DialogueNode | undefined {
@@ -381,7 +383,10 @@ function checkNPCProximity(): void {
     const radius = npc.interaction.radius ?? 3;
     const alertRadius = radius + 1.5;
     const npcPos = new THREE.Vector3(npc.position.x + 0.5, npc.position.y, npc.position.z + 0.5);
-    const dist = camPos.distanceTo(npcPos);
+    // Use 2D horizontal distance so camera height doesn't affect trigger range
+    const dx = camPos.x - npcPos.x;
+    const dz = camPos.z - npcPos.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
 
     if (dist > radius) {
       npcsAwaitingExit.delete(npc.id);
