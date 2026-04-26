@@ -78,7 +78,7 @@ async function generate(text: string, voiceId: string, speed: number): Promise<v
 
     const feeds: Record<string, any> = {
       input_ids: new ort.Tensor('int64', inputIds, [1, inputBytes.length]),
-      voice_embedding: new ort.Tensor('float32', voice, [1, voice.length]),
+      style: new ort.Tensor('float32', voice, [1, voice.length]),
       speed: new ort.Tensor('float32', new Float32Array([speed]), [1]),
     };
 
