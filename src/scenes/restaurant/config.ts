@@ -163,5 +163,12 @@ export const restaurantConfig: SceneConfig = {
       scoreReward: 10,
       maxAttempts: 3,
     },
+    {
+      id: 'order_more',
+      description: 'Add more items to the order.',
+      trigger: { type: 'dialogue_node', npcId: 'waiter', nodeId: 'more_order' },
+      targetIntent: 'order_more',
+      scoreReward: 5,
+    },
   ],
 };

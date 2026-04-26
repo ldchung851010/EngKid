@@ -275,7 +275,11 @@ async function handleChildSpeech(transcript: string): Promise<void> {
     return;
   }
 
-  actor.send({ type: 'TASK_TRIGGERED', taskId: 'order_food' });
+  // Look up the task matching this intent
+  const task = restaurantConfig.tasks.find((t) => t.targetIntent === node.candidateIntents.find((c) => c.intentId === result.intentId)?.intentId);
+  if (task) {
+    actor.send({ type: 'TASK_TRIGGERED', taskId: task.id });
+  }
   setNPCStatus(npcId, 'thinking');
 
   const ctx = actor.getSnapshot().context;
