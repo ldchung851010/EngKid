@@ -51,12 +51,13 @@ export class ScoreTracker {
     task.completed = true;
     task.degraded = degraded;
 
-    // Compute vocabulary coverage
+    // Compute vocabulary coverage — bonus, not penalty. Matched words boost score.
     let vocabCoverage = 1.0;
     if (targetVocabulary && targetVocabulary.length > 0 && transcript) {
       const lower = transcript.toLowerCase();
       const matched = targetVocabulary.filter((w) => lower.includes(w.toLowerCase()));
-      vocabCoverage = matched.length / targetVocabulary.length;
+      // Bonus: up to +50% for matching all target words
+      vocabCoverage = 1.0 + 0.5 * (matched.length / targetVocabulary.length);
     }
 
     // Score = base × confidence × vocabulary-coverage, halved if degraded
