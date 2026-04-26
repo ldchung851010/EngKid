@@ -35,6 +35,16 @@ export const restaurantConfig: SceneConfig = {
   description: 'A cozy restaurant where you can order food from a friendly waiter.',
   cefrLevel: 'A1',
   targetVocabulary: ['hamburger', 'pizza', 'salad', 'pasta', 'water', 'juice', 'cola'],
+  start: {
+    position: { x: 9, y: 2.6, z: 14 },
+    lookAt: { x: 9, y: 2.5, z: 5 },
+  },
+  environment: {
+    skyColor: 0x87ceeb,
+    fogColor: 0x87ceeb,
+    fogNear: 20,
+    fogFar: 60,
+  },
 
   map: {
     width: RESTAURANT_WIDTH,

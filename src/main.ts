@@ -12,25 +12,29 @@ import { IntentRouter } from './engine/voice/IntentRouter.js';
 import { SpeechPipeline } from './engine/voice/SpeechPipeline.js';
 import { TTSEngine } from './engine/voice/TTSEngine.js';
 import { MicButton } from './engine/voice/MicButton.js';
-import { restaurantConfig } from './scenes/restaurant/config.js';
-import { restaurantHooks } from './scenes/restaurant/hooks.js';
-import { createRestaurantDecor } from './scenes/restaurant/visuals.js';
 import type { NPCConfig, DialogueNode, SceneConfig } from './engine/schema/SceneConfig.js';
+import { emptySceneHooks, type SceneHooks, type SceneModule } from './engine/runtime/SceneModule.js';
 
 // ── Dynamic Scene ─────────────────────────────────────────────
 const params = new URLSearchParams(location.search);
-const sceneId = params.get('scene') || 'restaurant';
-let activeSceneConfig: SceneConfig = restaurantConfig;
-let activeSceneHooks: typeof restaurantHooks = restaurantHooks;
+const requestedSceneId = params.get('scene') || 'restaurant';
+const sceneModules = import.meta.glob<SceneModule>('./scenes/*/index.ts', { eager: false, import: 'default' });
+let activeSceneModule: SceneModule | null = null;
+let activeSceneConfig: SceneConfig;
+let activeSceneHooks: Required<SceneHooks> = emptySceneHooks;
+let activeSceneId = 'restaurant';
 
-async function loadSceneConfig(): Promise<void> {
-  if (sceneId === 'restaurant') return;
-  const mod = await import(`./scenes/${sceneId}/config.ts`);
-  const key = Object.keys(mod).find((k) => k.endsWith('Config')) || Object.keys(mod)[0];
-  activeSceneConfig = mod[key] as SceneConfig;
-  const hMod = await import(`./scenes/${sceneId}/hooks.ts`);
-  const hKey = Object.keys(hMod)[0];
-  activeSceneHooks = hMod[hKey] as typeof restaurantHooks;
+async function loadSceneModule(): Promise<void> {
+  const load = sceneModules[`./scenes/${requestedSceneId}/index.ts`] ?? sceneModules['./scenes/restaurant/index.ts'];
+  if (!load) {
+    throw new Error(`No scene module found for "${requestedSceneId}"`);
+  }
+
+  const module = await load();
+  activeSceneModule = module;
+  activeSceneId = module.id;
+  activeSceneConfig = module.config;
+  activeSceneHooks = { ...emptySceneHooks, ...module.hooks };
 }
 
 // ── Scene Setup ────────────────────────────────────────────────
@@ -85,7 +89,7 @@ actor.subscribe((snapshot) => {
 
 function updateScoreHUD(): void {
   const hud = document.getElementById('score-hud')!;
-  const score = scoreTracker.getSessionScore(restaurantConfig.tasks.length);
+  const score = scoreTracker.getSessionScore(activeSceneConfig.tasks.length);
   hud.textContent = `⭐ ${score.total} | ${score.completedCount}/${score.totalTasks}`;
 }
 
@@ -187,7 +191,7 @@ async function startDialogue(npcId: string, nodeId: string): Promise<void> {
   console.log(`[Dialogue] NPC ${npcId} → "${node.npcText.substring(0, 50)}..."`);
   // Hook gate check
   const ctx = actor.getSnapshot().context;
-  if (!restaurantHooks.onBeforeDialogue(npcId, nodeId, ctx)) return;
+  if (!activeSceneHooks.onBeforeDialogue(npcId, nodeId, ctx)) return;
 
   activeNPC = npc;
   activeNodeId = nodeId;
@@ -231,7 +235,7 @@ async function saveProgress(): Promise<void> {
     await fetch('/api/progress', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sceneId, score: score.total, completed }),
+    body: JSON.stringify({ sceneId: activeSceneId, score: score.total, completed }),
     });
     showBackButton();
   } catch {
@@ -274,7 +278,7 @@ function findNode(npc: NPCConfig, nodeId: string): DialogueNode | undefined {
 async function speakNPC(node: DialogueNode): Promise<void> {
   if (!activeNPC) return;
 
-  const text = node.npcText.replace('{score}', String(scoreTracker.getSessionScore(restaurantConfig.tasks.length).total));
+  const text = node.npcText.replace('{score}', String(scoreTracker.getSessionScore(activeSceneConfig.tasks.length).total));
   console.log(`[TTS] speaking as ${activeNPC.name} (${activeNPC.voice}, speed=${activeNPC.speechSpeed}): "${text.substring(0, 50)}..."`);
   await tts.speak(text, activeNPC.voice, activeNPC.speechSpeed);
 }
@@ -313,7 +317,7 @@ async function handleChildSpeech(transcript: string): Promise<void> {
     endDialogue(npcId, true);
 
     // Check if a task was completed
-    const task = restaurantConfig.tasks.find(
+    const task = activeSceneConfig.tasks.find(
       (t) => t.trigger.type === 'dialogue_node' && t.trigger.npcId === npcId
     );
     if (task) {
@@ -337,7 +341,7 @@ async function handleChildSpeech(transcript: string): Promise<void> {
   console.log(`[Dialogue] ← intent: ${result.intentId} (confidence=${result.confidence})`);
 
   // Look up the task matching this intent and trigger it
-  const task = restaurantConfig.tasks.find((t) => t.targetIntent === result.intentId);
+  const task = activeSceneConfig.tasks.find((t) => t.targetIntent === result.intentId);
   if (task) {
     actor.send({ type: 'TASK_TRIGGERED', taskId: task.id });
   }
@@ -349,18 +353,20 @@ async function handleChildSpeech(transcript: string): Promise<void> {
     actor.send({ type: 'INTENT_MATCHED', intentId: result.intentId, confidence: result.confidence });
 
     // Score
-    const task = restaurantConfig.tasks.find((t) => t.targetIntent === result.intentId);
+    const task = activeSceneConfig.tasks.find((t) => t.targetIntent === result.intentId);
     if (task) {
       scoreTracker.recordAttempt(task.id);
+      const reward = activeSceneHooks.onIntentMatched(result.intentId, task.scoreReward, actor.getSnapshot().context);
       scoreTracker.completeTask(
         task.id,
-        task.scoreReward,
+        reward,
         result.confidence,
         false,
         transcript,
-        restaurantConfig.targetVocabulary
+        activeSceneConfig.targetVocabulary
       );
       actor.send({ type: 'TASK_COMPLETE' });
+      activeSceneHooks.onTaskComplete(task.id, actor.getSnapshot().context);
       updateScoreHUD();
     }
 
@@ -381,11 +387,6 @@ async function handleChildSpeech(transcript: string): Promise<void> {
       // Fallback: advance to fallback node or demonstrate
       const fallbackId = node.fallbackNodeId;
       if (fallbackId) {
-        scoreTracker.recordAttempt('order_food');
-        const task = restaurantConfig.tasks.find((t) => t.id === 'order_food');
-        if (task) {
-          scoreTracker.completeTask(task.id, task.scoreReward, 0, true, transcript, restaurantConfig.targetVocabulary);
-        }
         await startDialogue(npcId, fallbackId);
       }
     } else {
@@ -451,35 +452,51 @@ function checkNPCProximity(): void {
 // ── Scene Loading ──────────────────────────────────────────────
 async function loadScene(): Promise<void> {
   // Validate config
-  const errors = SceneLoader.validate(restaurantConfig);
+  const errors = SceneLoader.validate(activeSceneConfig);
   if (errors.length > 0) {
     console.error('Scene config validation failed:', errors);
     return;
   }
 
   // Build voxel world
-  const chunkData = SceneLoader.buildChunkData(restaurantConfig);
+  const chunkData = SceneLoader.buildChunkData(activeSceneConfig);
   world.loadMap(chunkData);
   if (sceneVisualGroup) {
     scene.remove(sceneVisualGroup);
     disposeObject3D(sceneVisualGroup);
   }
-  sceneVisualGroup = createRestaurantDecor();
-  scene.add(sceneVisualGroup);
+  sceneVisualGroup = activeSceneModule?.createVisuals?.() ?? null;
+  if (sceneVisualGroup) {
+    scene.add(sceneVisualGroup);
+  }
 
   // Spawn NPCs
-  currentNPCs = restaurantConfig.npcs;
+  currentNPCs = activeSceneConfig.npcs;
   spawnNPCs(currentNPCs);
 
-  // Position camera near doorway
-  camera.position.set(9, 2.6, 14);
-  camera.lookAt(9, 2.5, 5);
+  if (activeSceneConfig.environment) {
+    const skyColor = activeSceneConfig.environment.skyColor ?? 0x87ceeb;
+    const fogColor = activeSceneConfig.environment.fogColor ?? skyColor;
+    scene.background = new THREE.Color(skyColor);
+    scene.fog = new THREE.Fog(
+      fogColor,
+      activeSceneConfig.environment.fogNear ?? 20,
+      activeSceneConfig.environment.fogFar ?? 60
+    );
+  }
+
+  const start = activeSceneConfig.start ?? {
+    position: { x: activeSceneConfig.map.width / 2, y: 2.6, z: activeSceneConfig.map.depth - 2 },
+    lookAt: { x: activeSceneConfig.map.width / 2, y: 2.3, z: activeSceneConfig.map.depth / 2 },
+  };
+  camera.position.set(start.position.x, start.position.y, start.position.z);
+  camera.lookAt(start.lookAt.x, start.lookAt.y, start.lookAt.z);
 
   // Start session
-  actor.send({ type: 'LOAD_SCENE', sceneId: 'restaurant' });
+  actor.send({ type: 'LOAD_SCENE', sceneId: activeSceneId });
   actor.send({ type: 'ACTIVATE' });
 
-  console.log('🍽️ Restaurant scene loaded!');
+  console.log(`[scene] ${activeSceneConfig.name} loaded`);
 }
 
 // ── Startup: Load TTS → Then Scene ───────────────────────────
@@ -513,7 +530,7 @@ tts.onStatusChange((s) => {
 (async () => {
   try {
     await tts.init();
-    await loadSceneConfig();
+    await loadSceneModule();
     statusEl.textContent = 'Building scene...';
     await loadScene();
     isSceneReady = true;

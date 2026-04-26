@@ -58,6 +58,8 @@ export function validateConfig(config: unknown): ValidationResult {
   // map
   if (!c.map || typeof c.map !== 'object') {
     errors.push({ path: '$/map', message: 'Missing required field: map', keyword: 'required' });
+  } else {
+    validateMap(c.map, errors);
   }
 
   // npcs
@@ -75,6 +77,69 @@ export function validateConfig(config: unknown): ValidationResult {
   }
 
   return errors.length === 0 ? { valid: true } : { valid: false, errors };
+}
+
+function validateMap(map: unknown, errors: ConfigError[]): void {
+  const m = map as Record<string, unknown>;
+  const base = '$/map';
+  const width = m.width;
+  const height = m.height;
+  const depth = m.depth;
+
+  for (const field of ['width', 'height', 'depth']) {
+    if (!Number.isInteger(m[field]) || (m[field] as number) <= 0) {
+      errors.push({ path: `${base}/${field}`, message: `Map ${field} must be a positive integer`, keyword: 'type' });
+    }
+  }
+
+  if (!Array.isArray(m.layers) || m.layers.length === 0) {
+    errors.push({ path: `${base}/layers`, message: 'Map layers must be a non-empty array', keyword: 'type' });
+    return;
+  }
+
+  m.layers.forEach((layer, layerIndex) => {
+    const layerBase = `${base}/layers/${layerIndex}`;
+    if (!layer || typeof layer !== 'object') {
+      errors.push({ path: layerBase, message: 'Layer must be an object', keyword: 'type' });
+      return;
+    }
+
+    const l = layer as Record<string, unknown>;
+    if (!Number.isInteger(l.y)) {
+      errors.push({ path: `${layerBase}/y`, message: 'Layer y must be an integer', keyword: 'type' });
+    } else if (Number.isInteger(height) && ((l.y as number) < 0 || (l.y as number) >= (height as number))) {
+      errors.push({ path: `${layerBase}/y`, message: 'Layer y must be inside map height', keyword: 'minimum' });
+    }
+
+    if (!Array.isArray(l.grid)) {
+      errors.push({ path: `${layerBase}/grid`, message: 'Layer grid must be an array of rows', keyword: 'type' });
+      return;
+    }
+
+    if (Number.isInteger(depth) && l.grid.length !== depth) {
+      errors.push({ path: `${layerBase}/grid`, message: `Layer grid must have ${depth} rows`, keyword: 'minItems' });
+    }
+
+    l.grid.forEach((row, rowIndex) => {
+      const rowBase = `${layerBase}/grid/${rowIndex}`;
+      if (!Array.isArray(row)) {
+        errors.push({ path: rowBase, message: 'Layer grid row must be an array', keyword: 'type' });
+        return;
+      }
+      if (Number.isInteger(width) && row.length !== width) {
+        errors.push({ path: rowBase, message: `Layer grid row must have ${width} cells`, keyword: 'minItems' });
+      }
+      row.forEach((cell, cellIndex) => {
+        if (typeof cell !== 'string' || !(cell in BLOCK_TYPE_BY_ID)) {
+          errors.push({
+            path: `${rowBase}/${cellIndex}`,
+            message: `Unknown block type: ${String(cell)}`,
+            keyword: 'enum',
+          });
+        }
+      });
+    });
+  });
 }
 
 function validateNPC(npc: unknown, index: number, errors: ConfigError[]): void {
@@ -125,3 +190,4 @@ function validateTask(task: unknown, index: number, errors: ConfigError[]): void
     errors.push({ path: `${base}/scoreReward`, message: 'Task scoreReward must be a number', keyword: 'type' });
   }
 }
+import { BLOCK_TYPE_BY_ID } from '../renderer/BlockTypes.js';

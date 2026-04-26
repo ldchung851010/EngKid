@@ -13,6 +13,18 @@ export interface MapConfig {
   layers: BlockLayer[];
 }
 
+export interface SceneStartConfig {
+  position: { x: number; y: number; z: number };
+  lookAt: { x: number; y: number; z: number };
+}
+
+export interface SceneEnvironmentConfig {
+  skyColor?: number;
+  fogColor?: number;
+  fogNear?: number;
+  fogFar?: number;
+}
+
 // ── NPC Types ────────────────────────────────────────────────────
 export interface DialogueNode {
   id: string;
@@ -64,6 +76,8 @@ export interface SceneConfig {
   description: string;
   cefrLevel: 'A1' | 'A2';
   targetVocabulary: string[];
+  start?: SceneStartConfig;
+  environment?: SceneEnvironmentConfig;
   map: MapConfig;
   npcs: NPCConfig[];
   tasks: TaskConfig[];

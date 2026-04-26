@@ -1,7 +1,6 @@
 import type { SceneConfig } from '../schema/SceneConfig.js';
 import { validateConfig } from '../schema/ConfigValidator.js';
-import { VoxelWorld } from '../renderer/VoxelWorld.js';
-import { BlockType } from '../renderer/BlockTypes.js';
+import { BlockType, BLOCK_TYPE_BY_ID } from '../renderer/BlockTypes.js';
 import type { ChunkData } from '../renderer/ChunkBuilder.js';
 
 /**
@@ -26,15 +25,6 @@ export class SceneLoader {
     const data = new Uint8Array(size);
 
     const idx = (x: number, y: number, z: number) => x + z * width + y * width * depth;
-    const blockMap: Record<string, BlockType> = {
-      FLOOR: BlockType.FLOOR,
-      WALL: BlockType.WALL,
-      TABLE: BlockType.TABLE,
-      CHAIR: BlockType.CHAIR,
-      COUNTER: BlockType.COUNTER,
-      AIR: BlockType.AIR,
-    };
-
     // Fill AIR by default
     data.fill(BlockType.AIR);
 
@@ -44,7 +34,7 @@ export class SceneLoader {
         const row = layer.grid[z];
         if (!row) continue;
         for (let x = 0; x < Math.min(width, row.length); x++) {
-          const blockType = blockMap[row[x]] ?? BlockType.AIR;
+          const blockType = BLOCK_TYPE_BY_ID[row[x]] ?? BlockType.AIR;
           const y = layer.y;
           if (y >= 0 && y < height) {
             data[idx(x, y, z)] = blockType;
