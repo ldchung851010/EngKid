@@ -163,6 +163,7 @@ export class TTSEngine {
     audioContext?: AudioContext
   ): Promise<void> {
     const requestId = this.nextRequestId++;
+    console.log(`[TTS] requestSpeech id=${requestId} type=${type} text="${text.substring(0, 30)}..."`);
     return new Promise((resolve, reject) => {
       this.pendingRequests.set(requestId, {
         resolve,
@@ -185,6 +186,7 @@ export class TTSEngine {
     }
 
     if (msg.type === 'ready') {
+      console.log('[TTS] worker ready');
       this.setState('ready', 'TTS model loaded');
       return;
     }
@@ -194,14 +196,16 @@ export class TTSEngine {
       return;
     }
 
+    console.log('[TTS] unhandled worker message:', msg.type, msg);
     if (msg.type === 'error') {
       this.setState('error', msg.message);
     }
   }
 
   private async handleRequestMessage(msg: any): Promise<void> {
+    console.log(`[TTS] handleRequestMessage: type=${msg.type}, requestId=${msg.requestId}`);
     const pending = this.pendingRequests.get(msg.requestId);
-    if (!pending) return;
+    if (!pending) { console.log('[TTS] no pending request for', msg.requestId); return; }
 
     if (msg.type === 'cached') {
       this.pendingRequests.delete(msg.requestId);
