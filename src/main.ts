@@ -435,8 +435,8 @@ async function loadScene(): Promise<void> {
   preloadDialogueAudio();
 
   // Position camera near doorway
-  camera.position.set(9, 1.75, 14);
-  camera.lookAt(9, 1.45, 5);
+  camera.position.set(9, 2.6, 14);
+  camera.lookAt(9, 2.5, 5);
 
   // Start session
   actor.send({ type: 'LOAD_SCENE', sceneId: 'restaurant' });
