@@ -15,17 +15,16 @@ await app.register(cors, { origin: true });
 await app.register(multipart);
 
 // Start kitten-tts-server
-let ttsProcess: ChildProcess | null = null;
-
-function startTTSServer(): void {
+function startTTSServer(): ChildProcess {
   const binPath = new URL('../bin/kitten-tts-server', import.meta.url).pathname;
   const args = TTS_MODEL_PATH ? [TTS_MODEL_PATH, '--port', String(TTS_PORT)] : ['--port', String(TTS_PORT)];
   console.log(`[TTS] starting: ${binPath} ${args.join(' ')}`);
 
-  ttsProcess = spawn(binPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-  ttsProcess.stdout?.on('data', (d: Buffer) => console.log(`[TTS server] ${d.toString().trim()}`));
-  ttsProcess.stderr?.on('data', (d: Buffer) => console.log(`[TTS server] ${d.toString().trim()}`));
-  ttsProcess.on('exit', (code) => console.log(`[TTS] server exited code=${code}`));
+  const proc = spawn(binPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+  proc.stdout?.on('data', (d: Buffer) => console.log(`[TTS server] ${d.toString().trim()}`));
+  proc.stderr?.on('data', (d: Buffer) => console.log(`[TTS server] ${d.toString().trim()}`));
+  proc.on('exit', (code) => console.log(`[TTS] server exited code=${code}`));
+  return proc;
 }
 
 // Wait for TTS server to be ready
@@ -41,8 +40,7 @@ async function waitForTTS(timeoutMs = 15000): Promise<void> {
   throw new Error('TTS server failed to start');
 }
 
-// Start TTS and wait
-startTTSServer();
+const ttsProcess = startTTSServer();
 await waitForTTS();
 
 // Routes
@@ -65,10 +63,10 @@ try {
   console.log('🚀 Server listening on http://localhost:3001');
 } catch (err) {
   app.log.error(err);
-  ttsProcess?.kill();
+  ttsProcess.kill();
   process.exit(1);
 }
 
 // Cleanup
-process.on('SIGTERM', () => ttsProcess?.kill());
-process.on('SIGINT', () => { ttsProcess?.kill(); process.exit(0); });
+process.on('SIGTERM', () => ttsProcess.kill());
+process.on('SIGINT', () => { ttsProcess.kill(); process.exit(0); });
