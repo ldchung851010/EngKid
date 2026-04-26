@@ -60,6 +60,7 @@ const npcStatusIndicators = new Map<string, NPCStatusIndicator>();
 
 // ── Session State Machine ──────────────────────────────────────
 const actor = createActor(sessionMachine);
+actor.start();
 
 actor.subscribe((snapshot) => {
   console.log(`[session] → ${snapshot.value}`);
@@ -269,6 +270,7 @@ async function handleChildSpeech(transcript: string): Promise<void> {
     );
     if (task) {
       actor.send({ type: 'TASK_COMPLETE' });
+      updateScoreHUD();
     }
     return;
   }
@@ -306,6 +308,7 @@ async function handleChildSpeech(transcript: string): Promise<void> {
         restaurantConfig.targetVocabulary
       );
       actor.send({ type: 'TASK_COMPLETE' });
+      updateScoreHUD();
     }
 
     if (nextNodeId) {
