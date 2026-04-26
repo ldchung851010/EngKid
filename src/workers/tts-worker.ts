@@ -27,7 +27,8 @@ async function loadModel(modelPath: string): Promise<void> {
   const voicesResp = await fetch(`${modelPath}voices.json`);
   const voicesData = await voicesResp.json();
   for (const [key, embedding] of Object.entries(voicesData)) {
-    voices[key] = new Float32Array(embedding as number[]);
+    // voices.json has format: { "voice-name": [[256 floats]] }
+    voices[key] = new Float32Array((embedding as number[][])[0]);
   }
 
   postMsg({ type: 'progress', status: `Loading TTS model (~24MB)...` });
@@ -82,7 +83,7 @@ async function generate(text: string, voiceId: string, speed: number): Promise<v
     };
 
     const results = await ttsSession.run(feeds);
-    const audioData = new Float32Array(results.audio.data);
+    const audioData = new Float32Array(results.waveform.data);
 
     postMsg({
       type: 'audio',

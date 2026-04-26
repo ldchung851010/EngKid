@@ -84,7 +84,7 @@ export const restaurantConfig: SceneConfig = {
       role: 'A friendly waiter at the restaurant who takes food orders from customers.',
       position: { x: 6, y: 0, z: 3 },
       appearance: 'waiter_male_01',
-      voice: 'expr-m-01',
+      voice: 'expr-voice-2-m',
       speechSpeed: 0.85,
       interaction: { type: 'proximity', radius: 3 },
       dialogueTree: [
