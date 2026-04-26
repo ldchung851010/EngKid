@@ -17,12 +17,23 @@ export interface TTSEngineStatus {
 }
 
 type StatusCallback = (status: TTSEngineStatus) => void;
+type PendingRequest = {
+  resolve: () => void;
+  reject: (err: Error) => void;
+  text: string;
+  voice: string;
+  speed: number;
+  audioContext?: AudioContext;
+  cacheOnly: boolean;
+};
 
 export class TTSEngine {
   private worker: Worker | null = null;
   private audioContext: AudioContext | null = null;
   private currentSource: AudioBufferSourceNode | null = null;
   private useBrowserFallback = false;
+  private nextRequestId = 1;
+  private pendingRequests = new Map<number, PendingRequest>();
   private status: TTSEngineStatus = {
     state: 'uninitialized',
     progress: '',
@@ -63,17 +74,7 @@ export class TTSEngine {
 
       this.setState('loading', 'Loading ONNX Runtime...');
 
-      // Listen for worker messages
-      this.worker.onmessage = (e: MessageEvent) => {
-        const msg = e.data;
-        if (msg.type === 'progress') {
-          this.setState('loading', msg.status);
-        } else if (msg.type === 'ready') {
-          this.setState('ready', 'TTS model loaded');
-        } else if (msg.type === 'error') {
-          this.setState('error', msg.message);
-        }
-      };
+      this.worker.onmessage = (e: MessageEvent) => this.handleWorkerMessage(e.data);
 
       this.worker.onerror = (err) => {
         this.setState('error', `Worker error: ${err.message}`);
@@ -121,52 +122,12 @@ export class TTSEngine {
       throw err;
     }
 
-    return new Promise((resolve, reject) => {
-      this.worker!.onmessage = async (e: MessageEvent) => {
-        const msg = e.data;
-        if (msg.type === 'audio') {
-          try {
-            const { data, sampleRate } = msg;
-            const audioData = data instanceof Float32Array ? data : new Float32Array(data);
-            const peak = this.getPeak(audioData);
+    return this.requestSpeech('generate', text, voice, speed, audioContext);
+  }
 
-            if (audioData.length === 0 || peak < 0.002) {
-              this.enableBrowserFallback(new Error(`Generated TTS audio is silent (peak=${peak})`));
-              await this.speakWithBrowser(text, voice, speed);
-              resolve();
-              return;
-            }
-
-            if (audioContext.state === 'suspended') {
-              await audioContext.resume();
-            }
-
-            const audioBuffer = audioContext.createBuffer(1, audioData.length, sampleRate);
-            audioBuffer.copyToChannel(audioData, 0);
-            const source = audioContext.createBufferSource();
-            this.currentSource = source;
-            source.buffer = audioBuffer;
-            source.connect(audioContext.destination);
-            source.onended = () => {
-              if (this.currentSource === source) this.currentSource = null;
-              resolve();
-            };
-            source.start();
-          } catch (err) {
-            if (this.enableBrowserFallback(err)) {
-              this.speakWithBrowser(text, voice, speed).then(resolve, reject);
-              return;
-            }
-            reject(err);
-          }
-        } else if (msg.type === 'error') {
-          this.enableBrowserFallback(new Error(msg.message));
-          this.speakWithBrowser(text, voice, speed).then(resolve, reject);
-        }
-      };
-
-      this.worker!.postMessage({ type: 'generate', text, voiceId: voice, speed });
-    });
+  async preload(text: string, voice: string, speed = 1.0): Promise<void> {
+    if (this.useBrowserFallback || this.status.state !== 'ready' || !this.worker) return;
+    return this.requestSpeech('preload', text, voice, speed);
   }
 
   /** Interrupt current speech */
@@ -190,7 +151,119 @@ export class TTSEngine {
     this.interrupt();
     this.worker?.terminate();
     this.worker = null;
+    this.pendingRequests.clear();
     this.status = { state: 'uninitialized', progress: '', error: null };
+  }
+
+  private requestSpeech(
+    type: 'generate' | 'preload',
+    text: string,
+    voice: string,
+    speed: number,
+    audioContext?: AudioContext
+  ): Promise<void> {
+    const requestId = this.nextRequestId++;
+    return new Promise((resolve, reject) => {
+      this.pendingRequests.set(requestId, {
+        resolve,
+        reject,
+        text,
+        voice,
+        speed,
+        audioContext,
+        cacheOnly: type === 'preload',
+      });
+
+      this.worker!.postMessage({ type, requestId, text, voiceId: voice, speed });
+    });
+  }
+
+  private handleWorkerMessage(msg: any): void {
+    if (msg.type === 'progress') {
+      this.setState(this.status.state === 'ready' ? 'ready' : 'loading', msg.status);
+      return;
+    }
+
+    if (msg.type === 'ready') {
+      this.setState('ready', 'TTS model loaded');
+      return;
+    }
+
+    if (msg.requestId !== undefined) {
+      void this.handleRequestMessage(msg);
+      return;
+    }
+
+    if (msg.type === 'error') {
+      this.setState('error', msg.message);
+    }
+  }
+
+  private async handleRequestMessage(msg: any): Promise<void> {
+    const pending = this.pendingRequests.get(msg.requestId);
+    if (!pending) return;
+
+    if (msg.type === 'cached') {
+      this.pendingRequests.delete(msg.requestId);
+      pending.resolve();
+      return;
+    }
+
+    if (msg.type === 'error') {
+      this.pendingRequests.delete(msg.requestId);
+      if (pending.cacheOnly) {
+        pending.resolve();
+        return;
+      }
+      const err = new Error(msg.message);
+      if (this.enableBrowserFallback(err)) {
+        this.speakWithBrowser(pending.text, pending.voice, pending.speed).then(pending.resolve, pending.reject);
+        return;
+      }
+      pending.reject(err);
+      return;
+    }
+
+    if (msg.type !== 'audio') return;
+
+    try {
+      const { data, sampleRate } = msg;
+      const audioData = data instanceof Float32Array ? data : new Float32Array(data);
+      const peak = this.getPeak(audioData);
+
+      if (audioData.length === 0 || peak < 0.002) {
+        this.pendingRequests.delete(msg.requestId);
+        this.enableBrowserFallback(new Error(`Generated TTS audio is silent (peak=${peak})`));
+        await this.speakWithBrowser(pending.text, pending.voice, pending.speed);
+        pending.resolve();
+        return;
+      }
+
+      const audioContext = pending.audioContext ?? await this.ensureAudioContext();
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
+
+      const audioBuffer = audioContext.createBuffer(1, audioData.length, sampleRate);
+      audioBuffer.copyToChannel(audioData, 0);
+      const source = audioContext.createBufferSource();
+      this.currentSource = source;
+      source.buffer = audioBuffer;
+      source.connect(audioContext.destination);
+      source.onended = () => {
+        if (this.currentSource === source) this.currentSource = null;
+        this.pendingRequests.delete(msg.requestId);
+        pending.resolve();
+      };
+      source.start();
+    } catch (err) {
+      this.pendingRequests.delete(msg.requestId);
+      if (this.enableBrowserFallback(err)) {
+        this.speakWithBrowser(pending.text, pending.voice, pending.speed).then(pending.resolve, pending.reject);
+        return;
+      }
+      pending.reject(err instanceof Error ? err : new Error(String(err)));
+    }
   }
 
   private getPeak(data: Float32Array): number {

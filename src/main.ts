@@ -45,6 +45,14 @@ const scoreTracker = new ScoreTracker();
 
 let currentNPCs: NPCConfig[] = [];
 let npcMeshes: THREE.Mesh[] = [];
+type NPCStatus = 'alert' | 'thinking' | 'question' | null;
+interface NPCStatusIndicator {
+  sprite: THREE.Sprite;
+  texture: THREE.CanvasTexture;
+  material: THREE.SpriteMaterial;
+  canvas: HTMLCanvasElement;
+}
+const npcStatusIndicators = new Map<string, NPCStatusIndicator>();
 
 // ── Session State Machine ──────────────────────────────────────
 const actor = createActor(sessionMachine);
@@ -69,10 +77,14 @@ function spawnNPCs(npcs: NPCConfig[]): void {
     (mesh.material as THREE.Material)?.dispose();
   }
   npcMeshes = [];
+  for (const indicator of npcStatusIndicators.values()) {
+    indicator.texture.dispose();
+    indicator.material.dispose();
+  }
+  npcStatusIndicators.clear();
 
   const npcGeo = new THREE.BoxGeometry(0.6, 1.8, 0.6);
   const npcMat = new THREE.MeshStandardMaterial({ color: 0x4fc3f7 });
-  const labelCanvas = document.createElement('canvas');
 
   for (const npc of npcs) {
     const mesh = new THREE.Mesh(npcGeo, npcMat);
@@ -83,6 +95,7 @@ function spawnNPCs(npcs: NPCConfig[]): void {
     npcMeshes.push(mesh);
 
     // Simple name label via sprite
+    const labelCanvas = document.createElement('canvas');
     labelCanvas.width = 128;
     labelCanvas.height = 32;
     const ctx = labelCanvas.getContext('2d')!;
@@ -97,7 +110,57 @@ function spawnNPCs(npcs: NPCConfig[]): void {
     labelSprite.position.set(0, 1.3, 0);
     labelSprite.scale.set(2, 0.5, 1);
     mesh.add(labelSprite);
+
+    createNPCStatusIndicator(npc.id, mesh);
   }
+}
+
+function createNPCStatusIndicator(npcId: string, parent: THREE.Mesh): void {
+  const canvas = document.createElement('canvas');
+  canvas.width = 96;
+  canvas.height = 96;
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+  const sprite = new THREE.Sprite(material);
+  sprite.position.set(0, 2.05, 0);
+  sprite.scale.set(0.75, 0.75, 1);
+  sprite.visible = false;
+  parent.add(sprite);
+  npcStatusIndicators.set(npcId, { sprite, texture, material, canvas });
+}
+
+function setNPCStatus(npcId: string, status: NPCStatus): void {
+  const indicator = npcStatusIndicators.get(npcId);
+  if (!indicator) return;
+
+  indicator.sprite.visible = status !== null;
+  if (status === null) return;
+
+  const ctx = indicator.canvas.getContext('2d')!;
+  ctx.clearRect(0, 0, indicator.canvas.width, indicator.canvas.height);
+
+  const styles: Record<Exclude<NPCStatus, null>, { text: string; fill: string; textColor: string; font: string }> = {
+    alert: { text: '!', fill: '#ffd54f', textColor: '#332400', font: 'bold 58px sans-serif' },
+    thinking: { text: '...', fill: '#ffffff', textColor: '#263238', font: 'bold 38px sans-serif' },
+    question: { text: '?', fill: '#64b5f6', textColor: '#ffffff', font: 'bold 54px sans-serif' },
+  };
+  const style = styles[status];
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.arc(48, 48, 34, 0, Math.PI * 2);
+  ctx.fillStyle = style.fill;
+  ctx.fill();
+  ctx.restore();
+
+  ctx.fillStyle = style.textColor;
+  ctx.font = style.font;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(style.text, 48, status === 'thinking' ? 42 : 50);
+  indicator.texture.needsUpdate = true;
 }
 
 // ── Dialogue Flow ──────────────────────────────────────────────
@@ -125,6 +188,7 @@ async function startDialogue(npcId: string, nodeId: string): Promise<void> {
   dialogueRetries = 0;
   const revision = ++dialogueRevision;
 
+  setNPCStatus(npcId, 'thinking');
   await speakNPC(node);
 
   if (!isCurrentDialogue(npcId, nodeId, revision)) return;
@@ -144,6 +208,7 @@ async function startDialogue(npcId: string, nodeId: string): Promise<void> {
 function endDialogue(npcId: string, waitForExit: boolean): void {
   dialogueRevision++;
   micButton.hide();
+  setNPCStatus(npcId, null);
   activeNodeId = null;
   activeNPC = null;
 
@@ -186,8 +251,34 @@ const micButton = new MicButton(micContainer, pipeline, async (transcript) => {
 });
 
 function showMicWithHints(node: DialogueNode): void {
+  if (activeNPC) {
+    setNPCStatus(activeNPC.id, 'question');
+  }
   micButton.setHints(node.hintExamples);
   micButton.show();
+}
+
+function preloadDialogueAudio(): void {
+  for (const npc of currentNPCs) {
+    const rootNode = npc.dialogueTree[0];
+    if (!rootNode || rootNode.npcText.includes('{score}')) continue;
+
+    void tts.preload(rootNode.npcText, npc.voice, npc.speechSpeed).catch(() => {
+      // Preload is a best-effort latency optimization.
+    });
+  }
+}
+
+async function preloadOpeningAudio(): Promise<void> {
+  const preloadJobs = restaurantConfig.npcs
+    .map((npc) => {
+      const rootNode = npc.dialogueTree[0];
+      if (!rootNode || rootNode.npcText.includes('{score}')) return null;
+      return tts.preload(rootNode.npcText, npc.voice, npc.speechSpeed);
+    })
+    .filter((job): job is Promise<void> => job !== null);
+
+  await Promise.allSettled(preloadJobs);
 }
 
 // ── Intent Routing & Dialogue Progression ──────────────────────
@@ -215,6 +306,7 @@ async function handleChildSpeech(transcript: string): Promise<void> {
   }
 
   actor.send({ type: 'TASK_TRIGGERED', taskId: 'order_food' });
+  setNPCStatus(npcId, 'thinking');
 
   const ctx = actor.getSnapshot().context;
   console.log(`[Dialogue] → IntentRouter with ${node.candidateIntents.length} candidates: [${node.candidateIntents.map(c => c.intentId).join(',')}]`);
@@ -282,6 +374,7 @@ async function handleChildSpeech(transcript: string): Promise<void> {
       );
       if (!isCurrentDialogue(npcId, nodeId, revision) || !activeNPC) return;
 
+      setNPCStatus(npcId, 'thinking');
       try {
         await tts.speak(nudgeText, activeNPC.voice, activeNPC.speechSpeed);
       } catch { /* fallback if TTS fails */ }
@@ -297,6 +390,7 @@ function checkNPCProximity(): void {
   for (const npc of currentNPCs) {
     if (npc.interaction.type !== 'proximity') continue;
     const radius = npc.interaction.radius ?? 3;
+    const alertRadius = radius + 1.5;
     const npcPos = new THREE.Vector3(npc.position.x + 0.5, npc.position.y, npc.position.z + 0.5);
     const dist = camPos.distanceTo(npcPos);
 
@@ -306,6 +400,10 @@ function checkNPCProximity(): void {
       if (activeNPC?.id === npc.id) {
         // Walked away
         endDialogue(npc.id, false);
+      } else if (dist <= alertRadius) {
+        setNPCStatus(npc.id, 'alert');
+      } else {
+        setNPCStatus(npc.id, null);
       }
       continue;
     }
@@ -313,6 +411,7 @@ function checkNPCProximity(): void {
     if (npcsAwaitingExit.has(npc.id)) continue;
 
     if (!activeNPC) {
+      setNPCStatus(npc.id, 'thinking');
       // First time in range — start dialogue
       const rootNode = npc.dialogueTree[0];
       if (rootNode) {
@@ -338,6 +437,7 @@ async function loadScene(): Promise<void> {
   // Spawn NPCs
   currentNPCs = restaurantConfig.npcs;
   spawnNPCs(currentNPCs);
+  preloadDialogueAudio();
 
   // Position camera near doorway
   camera.position.set(6, 2, 10);
@@ -355,6 +455,13 @@ const overlay = document.getElementById('loading-overlay')!;
 const spinner = document.getElementById('loading-spinner')!;
 const statusEl = document.getElementById('loading-status')!;
 const errorEl = document.getElementById('loading-error')!;
+let isSceneReady = false;
+
+function hideLoadingOverlay(): void {
+  if (!isSceneReady) return;
+  overlay.style.display = 'none';
+  errorEl.style.display = 'none';
+}
 
 tts.onStatusChange((s) => {
   statusEl.textContent = s.progress;
@@ -372,15 +479,19 @@ tts.onStatusChange((s) => {
     `;
   }
   if (s.state === 'ready') {
-    overlay.style.display = 'none';
-    errorEl.style.display = 'none';
+    hideLoadingOverlay();
   }
 });
 
 (async () => {
   try {
     await tts.init();
+    statusEl.textContent = 'Preparing dialogue audio...';
+    await preloadOpeningAudio();
+    statusEl.textContent = 'Building scene...';
     await loadScene();
+    isSceneReady = true;
+    hideLoadingOverlay();
   } catch (err) {
     console.error('Startup failed:', err);
   }

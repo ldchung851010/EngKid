@@ -8,6 +8,9 @@ let ort: any = null;
 let ttsSession: any = null;
 let voicesData: Record<string, number[][]> = {};
 let vocab: Record<string, number> = {};
+const audioCache = new Map<string, { data: Float32Array; sampleRate: number }>();
+let phonemizeFn: ((text: string, language: string) => Promise<string | string[]>) | null = null;
+let generationQueue = Promise.resolve();
 
 function postMsg(msg: Record<string, unknown>): void {
   (self as unknown as Worker).postMessage(msg);
@@ -36,9 +39,13 @@ function chunkText(text: string): string[] {
 // ── Tokenizer ──────────────────────────────────────────────────
 
 async function tokenize(text: string): Promise<BigInt64Array> {
-  const { phonemize } = await import('phonemizer');
-  const phonemes = await phonemize(text, 'en-us');
-  const chars = `$${phonemes}$`.split('');
+  if (!phonemizeFn) {
+    const { phonemize } = await import('phonemizer');
+    phonemizeFn = phonemize;
+  }
+
+  const phonemes = await phonemizeFn(text, 'en-us');
+  const chars = `$${String(phonemes)}$`.split('');
 
   const ids = chars.map((ch) => {
     const id = vocab[ch];
@@ -50,6 +57,10 @@ async function tokenize(text: string): Promise<BigInt64Array> {
   });
 
   return BigInt64Array.from(ids.map((n) => BigInt(n)));
+}
+
+function makeCacheKey(text: string, voiceId: string, speed: number): string {
+  return `${voiceId}|${speed}|${cleanText(text)}`;
 }
 
 // ── Model Loading ──────────────────────────────────────────────
@@ -83,13 +94,27 @@ async function loadModel(modelPath: string): Promise<void> {
     executionProviders: [{ name: 'wasm', simd: true }],
   });
   postMsg({ type: 'progress', status: 'Using WASM backend' });
+
+  postMsg({ type: 'progress', status: 'Warming up TTS...' });
+  await generate('Hello.', Object.keys(voicesData)[0] ?? '', 1, true);
 }
 
 // ── Speech Generation ──────────────────────────────────────────
 
-async function generate(text: string, voiceId: string, speed: number): Promise<void> {
+async function generate(text: string, voiceId: string, speed: number, cacheOnly = false, requestId?: number): Promise<void> {
   if (!ttsSession) {
-    postMsg({ type: 'error', message: 'Model not loaded' });
+    postMsg({ type: 'error', message: 'Model not loaded', requestId });
+    return;
+  }
+
+  const cacheKey = makeCacheKey(text, voiceId, speed);
+  const cached = audioCache.get(cacheKey);
+  if (cached) {
+    if (cacheOnly) {
+      postMsg({ type: 'cached', requestId });
+    } else {
+      postMsg({ type: 'audio', data: cached.data.slice(), sampleRate: cached.sampleRate, requestId, cached: true });
+    }
     return;
   }
 
@@ -97,7 +122,7 @@ async function generate(text: string, voiceId: string, speed: number): Promise<v
   let voiceEmb = voicesData[voiceId];
   if (!voiceEmb) {
     voiceEmb = Object.values(voicesData)[0];
-    if (!voiceEmb) { postMsg({ type: 'error', message: 'No voices' }); return; }
+    if (!voiceEmb) { postMsg({ type: 'error', message: 'No voices', requestId }); return; }
   }
   const style = new Float32Array(voiceEmb[0]); // inner 256-dim vector
 
@@ -150,7 +175,7 @@ async function generate(text: string, voiceId: string, speed: number): Promise<v
 
     // Merge all chunks
     if (audioChunks.length === 0) {
-      postMsg({ type: 'error', message: 'No audio generated' });
+      postMsg({ type: 'error', message: 'No audio generated', requestId });
       return;
     }
 
@@ -172,9 +197,15 @@ async function generate(text: string, voiceId: string, speed: number): Promise<v
       for (let i = 0; i < merged.length; i++) merged[i] *= gain;
     }
 
-    postMsg({ type: 'audio', data: merged, sampleRate });
+    audioCache.set(cacheKey, { data: merged.slice(), sampleRate });
+
+    if (cacheOnly) {
+      postMsg({ type: 'cached', requestId });
+    } else {
+      postMsg({ type: 'audio', data: merged, sampleRate, requestId, cached: false });
+    }
   } catch (err) {
-    postMsg({ type: 'error', message: String(err) });
+    postMsg({ type: 'error', message: String(err), requestId });
   }
 }
 
@@ -187,7 +218,11 @@ self.onmessage = async (e: MessageEvent) => {
       await loadModel(msg.modelPath);
       postMsg({ type: 'ready' });
     } else if (msg.type === 'generate') {
-      await generate(msg.text, msg.voiceId, msg.speed);
+      generationQueue = generationQueue.then(() => generate(msg.text, msg.voiceId, msg.speed, false, msg.requestId));
+      await generationQueue;
+    } else if (msg.type === 'preload') {
+      generationQueue = generationQueue.then(() => generate(msg.text, msg.voiceId, msg.speed, true, msg.requestId));
+      await generationQueue;
     }
   } catch (err) {
     postMsg({ type: 'error', message: String(err) });
