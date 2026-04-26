@@ -115,11 +115,29 @@ export const restaurantConfig: SceneConfig = {
             {
               intentId: 'order_more',
               description: 'The child wants to order more food or drinks',
-              nextNodeId: 'greeting',
+              nextNodeId: 'more_order',
             },
             {
               intentId: 'order_done',
               description: "The child says no, no thanks, no thank you, that's all, or otherwise declines to order anything else",
+              nextNodeId: 'goodbye',
+            },
+          ],
+          fallbackNodeId: 'goodbye',
+        },
+        {
+          id: 'more_order',
+          npcText: 'Sure! What else would you like?',
+          hintExamples: ["No, that's all", 'No, thank you', 'Can I have some juice?'],
+          candidateIntents: [
+            {
+              intentId: 'order_more',
+              description: 'The child wants to order more food or drinks',
+              nextNodeId: 'more_order',
+            },
+            {
+              intentId: 'order_done',
+              description: "The child says no, no thanks, that's all, or otherwise declines to order anything else",
               nextNodeId: 'goodbye',
             },
           ],
