@@ -18,9 +18,9 @@ export interface BlockVisual {
 
 export const BLOCK_VISUALS: Record<BlockType, BlockVisual> = {
   [BlockType.AIR]: { color: 0x000000, transparent: true }, // never rendered
-  [BlockType.FLOOR]: { color: 0xc8b89d, roughness: 0.9 },  // warm wood
-  [BlockType.WALL]: { color: 0xe8e0d5, roughness: 0.8 },   // cream plaster
-  [BlockType.TABLE]: { color: 0x8b5e3c, roughness: 0.7 },   // dark wood
-  [BlockType.CHAIR]: { color: 0xa0522d, roughness: 0.7 },   // sienna
-  [BlockType.COUNTER]: { color: 0x696969, roughness: 0.5, metalness: 0.3 }, // gray
+  [BlockType.FLOOR]: { color: 0xffe0b2, roughness: 0.85 },  // warm cartoon tile
+  [BlockType.WALL]: { color: 0xfff8e1, roughness: 0.82 },   // sunny cafe plaster
+  [BlockType.TABLE]: { color: 0xffb74d, roughness: 0.65 },
+  [BlockType.CHAIR]: { color: 0x4fc3f7, roughness: 0.65 },
+  [BlockType.COUNTER]: { color: 0xff8a65, roughness: 0.55 },
 };

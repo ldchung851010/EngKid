@@ -1,5 +1,28 @@
 import type { SceneConfig } from '../../engine/schema/SceneConfig.js';
 
+const RESTAURANT_WIDTH = 18;
+const RESTAURANT_HEIGHT = 4;
+const RESTAURANT_DEPTH = 16;
+
+function createLayer(fill: string): string[][] {
+  return Array.from({ length: RESTAURANT_DEPTH }, () => Array(RESTAURANT_WIDTH).fill(fill));
+}
+
+function createWallLayer(): string[][] {
+  const grid = createLayer('AIR');
+  for (let x = 0; x < RESTAURANT_WIDTH; x++) {
+    grid[0][x] = 'WALL';
+  }
+  for (let z = 0; z < RESTAURANT_DEPTH - 1; z++) {
+    grid[z][0] = 'WALL';
+    grid[z][RESTAURANT_WIDTH - 1] = 'WALL';
+  }
+  for (let x = 0; x < RESTAURANT_WIDTH; x++) {
+    if (x < 6 || x > 11) grid[RESTAURANT_DEPTH - 1][x] = 'WALL';
+  }
+  return grid;
+}
+
 /**
  * V1 Restaurant Scene — hardcoded config.
  *
@@ -14,66 +37,13 @@ export const restaurantConfig: SceneConfig = {
   targetVocabulary: ['hamburger', 'pizza', 'salad', 'pasta', 'water', 'juice', 'cola'],
 
   map: {
-    width: 12,
-    height: 4,
-    depth: 12,
+    width: RESTAURANT_WIDTH,
+    height: RESTAURANT_HEIGHT,
+    depth: RESTAURANT_DEPTH,
     layers: [
-      // Floor (y=0): all FLOOR
-      { y: 0, grid: Array.from({ length: 12 }, () => Array(12).fill('FLOOR')) },
-      // Walls + furniture (y=1)
-      {
-        y: 1,
-        grid: [
-          ['WALL', 'WALL',  'WALL',  'WALL',  'WALL',  'WALL',  'WALL',  'WALL',  'WALL',  'WALL',  'WALL',  'WALL'],
-          ['WALL', 'AIR',   'AIR',   'CHAIR', 'AIR',   'CHAIR', 'AIR',   'AIR',   'CHAIR', 'AIR',   'AIR',   'WALL'],
-          ['WALL', 'CHAIR', 'AIR',   'TABLE', 'AIR',   'AIR',   'AIR',   'AIR',   'TABLE', 'AIR',   'CHAIR', 'WALL'],
-          ['WALL', 'AIR',   'CHAIR', 'AIR',   'AIR',   'AIR',   'COUNTER','COUNTER','COUNTER','COUNTER','AIR', 'WALL'],
-          ['WALL', 'CHAIR', 'AIR',   'TABLE', 'AIR',   'AIR',   'AIR',   'AIR',   'TABLE', 'AIR',   'CHAIR', 'WALL'],
-          ['WALL', 'AIR',   'AIR',   'CHAIR', 'AIR',   'CHAIR', 'AIR',   'AIR',   'CHAIR', 'AIR',   'AIR',   'WALL'],
-          ['WALL', 'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'WALL'],
-          ['WALL', 'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'WALL'],
-          ['WALL', 'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'WALL'],
-          ['WALL', 'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'WALL'],
-          ['WALL', 'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'AIR',   'WALL'],
-          ['WALL', 'WALL',  'WALL',  'WALL',  'WALL',  'WALL',  'AIR',   'AIR',   'WALL',  'WALL',  'WALL',  'WALL'],
-        ],
-      },
-      // Walls (y=2): perimeter only
-      {
-        y: 2,
-        grid: [
-          ['WALL','WALL','WALL','WALL','WALL','WALL','WALL','WALL','WALL','WALL','WALL','WALL'],
-          ['WALL','AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'WALL'],
-          ['WALL','AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'WALL'],
-          ['WALL','AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'WALL'],
-          ['WALL','AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'WALL'],
-          ['WALL','AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'WALL'],
-          ['WALL','AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'WALL'],
-          ['WALL','AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'WALL'],
-          ['WALL','AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'WALL'],
-          ['WALL','AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'WALL'],
-          ['WALL','AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'WALL'],
-          ['WALL','WALL','WALL','WALL','WALL','WALL','AIR', 'AIR', 'WALL','WALL','WALL','WALL'],
-        ],
-      },
-      // Walls (y=3): perimeter only
-      {
-        y: 3,
-        grid: [
-          ['WALL','WALL','WALL','WALL','WALL','WALL','WALL','WALL','WALL','WALL','WALL','WALL'],
-          ['WALL','AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'WALL'],
-          ['WALL','AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'WALL'],
-          ['WALL','AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'WALL'],
-          ['WALL','AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'WALL'],
-          ['WALL','AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'WALL'],
-          ['WALL','AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'WALL'],
-          ['WALL','AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'WALL'],
-          ['WALL','AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'WALL'],
-          ['WALL','AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'WALL'],
-          ['WALL','AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'AIR', 'WALL'],
-          ['WALL','WALL','WALL','WALL','WALL','WALL','AIR', 'AIR', 'WALL','WALL','WALL','WALL'],
-        ],
-      },
+      { y: 0, grid: createLayer('FLOOR') },
+      { y: 1, grid: createWallLayer() },
+      { y: 2, grid: createWallLayer() },
     ],
   },
 
@@ -81,8 +51,8 @@ export const restaurantConfig: SceneConfig = {
     {
       id: 'waiter',
       name: 'Tom',
-      role: 'A friendly waiter at the restaurant who takes food orders from customers.',
-      position: { x: 6, y: 0, z: 3 },
+      role: 'A cheerful cartoon waiter who welcomes children, helps them order food, and encourages polite restaurant English.',
+      position: { x: 9, y: 0, z: 4 },
       appearance: 'waiter_male_01',
       voice: 'expr-voice-2-m',
       speechSpeed: 0.85,

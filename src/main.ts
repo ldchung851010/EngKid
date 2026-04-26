@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { createActor } from 'xstate';
 import { VoxelWorld } from './engine/renderer/VoxelWorld.js';
 import { CameraController } from './engine/renderer/CameraController.js';
+import { createVoxelCharacter } from './engine/renderer/CharacterFactory.js';
+import { createTextSprite, disposeObject3D } from './engine/renderer/ScenePrimitives.js';
 import { SceneLoader } from './engine/runtime/SceneLoader.js';
 import { sessionMachine } from './engine/runtime/SessionMachine.js';
 import type { SessionContext } from './engine/runtime/SessionMachine.js';
@@ -12,6 +14,7 @@ import { TTSEngine } from './engine/voice/TTSEngine.js';
 import { MicButton } from './engine/voice/MicButton.js';
 import { restaurantConfig } from './scenes/restaurant/config.js';
 import { restaurantHooks } from './scenes/restaurant/hooks.js';
+import { createRestaurantDecor } from './scenes/restaurant/visuals.js';
 import type { NPCConfig, DialogueNode } from './engine/schema/SceneConfig.js';
 
 // ── Scene Setup ────────────────────────────────────────────────
@@ -44,7 +47,8 @@ const intentRouter = new IntentRouter('/api');
 const scoreTracker = new ScoreTracker();
 
 let currentNPCs: NPCConfig[] = [];
-let npcMeshes: THREE.Mesh[] = [];
+let npcMeshes: THREE.Group[] = [];
+let sceneVisualGroup: THREE.Group | null = null;
 type NPCStatus = 'alert' | 'thinking' | 'question' | null;
 interface NPCStatusIndicator {
   sprite: THREE.Sprite;
@@ -71,51 +75,30 @@ function updateScoreHUD(): void {
 // ── NPC Rendering ──────────────────────────────────────────────
 function spawnNPCs(npcs: NPCConfig[]): void {
   // Clear old NPCs
-  for (const mesh of npcMeshes) {
-    scene.remove(mesh);
-    mesh.geometry?.dispose();
-    (mesh.material as THREE.Material)?.dispose();
+  for (const group of npcMeshes) {
+    scene.remove(group);
+    disposeObject3D(group);
   }
   npcMeshes = [];
-  for (const indicator of npcStatusIndicators.values()) {
-    indicator.texture.dispose();
-    indicator.material.dispose();
-  }
   npcStatusIndicators.clear();
 
-  const npcGeo = new THREE.BoxGeometry(0.6, 1.8, 0.6);
-  const npcMat = new THREE.MeshStandardMaterial({ color: 0x4fc3f7 });
-
   for (const npc of npcs) {
-    const mesh = new THREE.Mesh(npcGeo, npcMat);
-    mesh.position.set(npc.position.x + 0.5, npc.position.y + 0.9, npc.position.z + 0.5);
-    mesh.castShadow = true;
-    mesh.userData = { npcId: npc.id };
-    scene.add(mesh);
-    npcMeshes.push(mesh);
+    const group = createVoxelCharacter(npc);
+    group.userData = { npcId: npc.id };
+    scene.add(group);
+    npcMeshes.push(group);
 
     // Simple name label via sprite
-    const labelCanvas = document.createElement('canvas');
-    labelCanvas.width = 128;
-    labelCanvas.height = 32;
-    const ctx = labelCanvas.getContext('2d')!;
-    ctx.fillStyle = '#fff';
-    ctx.font = '16px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(npc.name, 64, 22);
+    const labelSprite = createTextSprite(npc.name, 128, 40, '#ffffff', 'bold 18px sans-serif');
+    labelSprite.position.set(0, 2.1, 0);
+    labelSprite.scale.set(1.4, 0.42, 1);
+    group.add(labelSprite);
 
-    const labelTex = new THREE.CanvasTexture(labelCanvas);
-    const labelSpriteMat = new THREE.SpriteMaterial({ map: labelTex, transparent: true });
-    const labelSprite = new THREE.Sprite(labelSpriteMat);
-    labelSprite.position.set(0, 1.3, 0);
-    labelSprite.scale.set(2, 0.5, 1);
-    mesh.add(labelSprite);
-
-    createNPCStatusIndicator(npc.id, mesh);
+    createNPCStatusIndicator(npc.id, group);
   }
 }
 
-function createNPCStatusIndicator(npcId: string, parent: THREE.Mesh): void {
+function createNPCStatusIndicator(npcId: string, parent: THREE.Object3D): void {
   const canvas = document.createElement('canvas');
   canvas.width = 96;
   canvas.height = 96;
@@ -433,6 +416,12 @@ async function loadScene(): Promise<void> {
   // Build voxel world
   const chunkData = SceneLoader.buildChunkData(restaurantConfig);
   world.loadMap(chunkData);
+  if (sceneVisualGroup) {
+    scene.remove(sceneVisualGroup);
+    disposeObject3D(sceneVisualGroup);
+  }
+  sceneVisualGroup = createRestaurantDecor();
+  scene.add(sceneVisualGroup);
 
   // Spawn NPCs
   currentNPCs = restaurantConfig.npcs;
@@ -440,8 +429,8 @@ async function loadScene(): Promise<void> {
   preloadDialogueAudio();
 
   // Position camera near doorway
-  camera.position.set(6, 2, 10);
-  camera.lookAt(6, 1, 5);
+  camera.position.set(9, 1.85, 14);
+  camera.lookAt(9, 1.2, 5);
 
   // Start session
   actor.send({ type: 'LOAD_SCENE', sceneId: 'restaurant' });
