@@ -16,7 +16,7 @@ export class CameraController {
   private isPointerLocked = false;
 
   // Config
-  private moveSpeed = 8;
+  private moveSpeed = 3;
   private lookSensitivity = 0.002;
 
   // Bound handlers (for cleanup)
@@ -31,7 +31,19 @@ export class CameraController {
 
     this.euler.setFromQuaternion(camera.quaternion);
 
-    this.onKeyDown = (e) => this.keys.add(e.code);
+    this.onKeyDown = (e) => {
+      // Q toggles pointer lock (free mouse for UI)
+      if (e.code === 'KeyQ') {
+        if (this.isPointerLocked) {
+          document.exitPointerLock();
+          return;
+        } else {
+          this.domElement.requestPointerLock();
+          return;
+        }
+      }
+      this.keys.add(e.code);
+    };
     this.onKeyUp = (e) => this.keys.delete(e.code);
     this.onMouseMove = (e) => this.handleMouseMove(e);
     this.onClick = () => this.domElement.requestPointerLock();
@@ -52,13 +64,13 @@ export class CameraController {
     if (!this.enabled || !this.isPointerLocked) return;
 
     // Deceleration
-    this.velocity.x *= 0.9;
-    this.velocity.z *= 0.9;
+    this.velocity.x *= 0.8;
+    this.velocity.z *= 0.8;
 
     // WASD input
     this.direction.set(0, 0, 0);
-    if (this.keys.has('KeyW')) this.direction.z -= 1;
-    if (this.keys.has('KeyS')) this.direction.z += 1;
+    if (this.keys.has('KeyW')) this.direction.z += 1;
+    if (this.keys.has('KeyS')) this.direction.z -= 1;
     if (this.keys.has('KeyA')) this.direction.x -= 1;
     if (this.keys.has('KeyD')) this.direction.x += 1;
 
@@ -66,8 +78,8 @@ export class CameraController {
       this.direction.normalize();
       // Rotate direction by camera yaw
       const speed = this.moveSpeed * delta;
-      this.velocity.x += this.direction.x * speed * 0.15;
-      this.velocity.z += this.direction.z * speed * 0.15;
+      this.velocity.x = this.direction.x * speed;
+      this.velocity.z = this.direction.z * speed;
     }
 
     // Apply yaw rotation to velocity
