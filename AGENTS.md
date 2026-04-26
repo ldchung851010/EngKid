@@ -34,6 +34,7 @@ server/            # 后端 API 代理（API Key 保护）
 docs/
   brainstorms/     # 需求文档
   plans/           # 规划文档
+  solutions/       # 已解决问题的知识库（YAML frontmatter，按分类组织：integration-issues/、build-errors/ 等），实施新功能或调试时可查阅
 tests/
   unit/
   headless/

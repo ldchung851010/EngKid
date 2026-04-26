@@ -8,6 +8,7 @@ let ort: any = null;
 let ttsSession: any = null;
 let voicesData: Record<string, number[][]> = {};
 let vocab: Record<string, number> = {};
+const assetFetchOptions: RequestInit = { cache: 'no-cache' };
 
 function postMsg(msg: Record<string, unknown>): void {
   (self as unknown as Worker).postMessage(msg);
@@ -56,36 +57,33 @@ async function tokenize(text: string): Promise<BigInt64Array> {
 
 async function loadModel(modelPath: string): Promise<void> {
   postMsg({ type: 'progress', status: 'Loading ONNX Runtime...' });
-  ort = await import('onnxruntime-web');
+  const ortModulePath = '/onnx-runtime/ort.bundle.min.mjs';
+  ort = await import(/* @vite-ignore */ ortModulePath);
   ort.env.wasm.wasmPaths = '/onnx-runtime/';
 
   // Load tokenizer
   postMsg({ type: 'progress', status: 'Loading tokenizer...' });
-  const tokResp = await fetch(`${modelPath}tokenizer.json`);
+  const tokResp = await fetch(`${modelPath}tokenizer.json`, assetFetchOptions);
   const tokData = await tokResp.json();
   vocab = tokData.model.vocab;
 
   // Load voices
   postMsg({ type: 'progress', status: 'Loading voice embeddings...' });
-  const voicesResp = await fetch(`${modelPath}voices.json`);
+  const voicesResp = await fetch(`${modelPath}voices.json`, assetFetchOptions);
   voicesData = await voicesResp.json();
 
   // Load model
   postMsg({ type: 'progress', status: 'Loading TTS model (~23MB)...' });
-  const modelResp = await fetch(`${modelPath}model_quantized.onnx`);
+  const modelResp = await fetch(`${modelPath}model_quantized.onnx`, assetFetchOptions);
+  if (!modelResp.ok) {
+    throw new Error(`Failed to load TTS model: ${modelResp.status} ${modelResp.statusText}`);
+  }
   const modelBuffer = await modelResp.arrayBuffer();
 
-  try {
-    ttsSession = await ort.InferenceSession.create(modelBuffer, {
-      executionProviders: [{ name: 'webgpu' }, 'wasm'],
-    });
-    postMsg({ type: 'progress', status: 'Using WebGPU backend' });
-  } catch {
-    ttsSession = await ort.InferenceSession.create(modelBuffer, {
-      executionProviders: ['wasm'],
-    });
-    postMsg({ type: 'progress', status: 'Using WASM backend' });
-  }
+  ttsSession = await ort.InferenceSession.create(modelBuffer, {
+    executionProviders: [{ name: 'wasm', simd: true }],
+  });
+  postMsg({ type: 'progress', status: 'Using WASM backend' });
 }
 
 // ── Speech Generation ──────────────────────────────────────────

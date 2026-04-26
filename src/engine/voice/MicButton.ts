@@ -12,8 +12,9 @@ export class MicButton {
   private container: HTMLElement;
 
   private pipeline: SpeechPipeline;
-  private onTranscript: (text: string) => void;
+  private onTranscript: (text: string) => void | Promise<void>;
   private isRecording = false;
+  private isProcessing = false;
 
   constructor(
     container: HTMLElement,
@@ -50,6 +51,11 @@ export class MicButton {
   /** Hide the mic button */
   hide(): void {
     this.container.style.display = 'none';
+    if (this.isRecording) {
+      this.isRecording = false;
+      this.button.classList.remove('recording');
+      this.pipeline.reset();
+    }
   }
 
   /** Update hint bubbles from scene config */
@@ -70,17 +76,25 @@ export class MicButton {
   }
 
   private async onPress(): Promise<void> {
-    if (this.isRecording) return;
-    this.isRecording = true;
+    if (this.isRecording || this.isProcessing || this.pipeline.currentState !== 'idle') return;
+    if (this.container.style.display === 'none') return;
 
-    this.button.classList.add('recording');
-    this.label.textContent = 'Release to send';
+    this.label.textContent = 'Starting...';
 
     try {
-      await this.pipeline.startRecording();
+      const started = await this.pipeline.startRecording();
+      if (!started) {
+        this.label.textContent = 'Hold to speak';
+        return;
+      }
+
+      this.isRecording = true;
+      this.button.classList.add('recording');
+      this.label.textContent = 'Release to send';
     } catch {
       this.isRecording = false;
       this.button.classList.remove('recording');
+      this.pipeline.reset();
       this.label.textContent = 'Mic not allowed';
       setTimeout(() => {
         this.label.textContent = 'Hold to speak';
@@ -91,6 +105,7 @@ export class MicButton {
   private async onRelease(): Promise<void> {
     if (!this.isRecording) return;
     this.isRecording = false;
+    this.isProcessing = true;
 
     this.button.classList.remove('recording');
     this.button.classList.add('processing');
@@ -107,7 +122,7 @@ export class MicButton {
         }, 1500);
       } else if (transcript) {
         this.label.textContent = `You said: "${transcript}"`;
-        this.onTranscript(transcript);
+        await this.onTranscript(transcript);
         setTimeout(() => {
           this.label.textContent = 'Hold to speak';
         }, 2000);
@@ -124,6 +139,7 @@ export class MicButton {
       }, 2000);
     } finally {
       this.button.classList.remove('processing');
+      this.isProcessing = false;
     }
   }
 }

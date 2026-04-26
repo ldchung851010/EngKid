@@ -34,7 +34,11 @@ export class CameraController {
     this.onKeyDown = (e) => this.keys.add(e.code);
     this.onKeyUp = (e) => this.keys.delete(e.code);
     this.onMouseMove = (e) => this.handleMouseMove(e);
-    this.onClick = () => this.domElement.requestPointerLock();
+    this.onClick = () => {
+      this.domElement.requestPointerLock().catch(() => {
+        // Some embedded browsers disallow pointer lock; keyboard movement still works.
+      });
+    };
 
     this.domElement.addEventListener('click', this.onClick);
     document.addEventListener('keydown', this.onKeyDown);
@@ -49,7 +53,7 @@ export class CameraController {
   }
 
   update(delta: number): void {
-    if (!this.enabled || !this.isPointerLocked) return;
+    if (!this.enabled) return;
 
     // Deceleration
     this.velocity.x *= 0.8;

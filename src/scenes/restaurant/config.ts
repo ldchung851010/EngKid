@@ -145,6 +145,11 @@ export const restaurantConfig: SceneConfig = {
               description: 'The child wants to order more food or drinks',
               nextNodeId: 'greeting',
             },
+            {
+              intentId: 'order_done',
+              description: "The child says no, no thanks, no thank you, that's all, or otherwise declines to order anything else",
+              nextNodeId: 'goodbye',
+            },
           ],
           fallbackNodeId: 'goodbye',
         },

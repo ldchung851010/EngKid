@@ -104,6 +104,8 @@ function spawnNPCs(npcs: NPCConfig[]): void {
 let activeNodeId: string | null = null;
 let activeNPC: NPCConfig | null = null;
 let dialogueRetries = 0;
+let dialogueRevision = 0;
+const npcsAwaitingExit = new Set<string>();
 const MAX_RETRIES = 3;
 
 async function startDialogue(npcId: string, nodeId: string): Promise<void> {
@@ -121,9 +123,43 @@ async function startDialogue(npcId: string, nodeId: string): Promise<void> {
   activeNPC = npc;
   activeNodeId = nodeId;
   dialogueRetries = 0;
+  const revision = ++dialogueRevision;
 
   await speakNPC(node);
+
+  if (!isCurrentDialogue(npcId, nodeId, revision)) return;
+  if (!isNPCInRange(npc)) {
+    endDialogue(npcId, false);
+    return;
+  }
+
+  if (node.isTerminal || node.candidateIntents.length === 0) {
+    endDialogue(npcId, true);
+    return;
+  }
+
   showMicWithHints(node);
+}
+
+function endDialogue(npcId: string, waitForExit: boolean): void {
+  dialogueRevision++;
+  micButton.hide();
+  activeNodeId = null;
+  activeNPC = null;
+
+  if (waitForExit) {
+    npcsAwaitingExit.add(npcId);
+  }
+}
+
+function isCurrentDialogue(npcId: string, nodeId: string, revision: number): boolean {
+  return dialogueRevision === revision && activeNPC?.id === npcId && activeNodeId === nodeId;
+}
+
+function isNPCInRange(npc: NPCConfig): boolean {
+  const radius = npc.interaction.radius ?? 3;
+  const npcPos = new THREE.Vector3(npc.position.x + 0.5, npc.position.y, npc.position.z + 0.5);
+  return camera.position.distanceTo(npcPos) <= radius;
 }
 
 function findNode(npc: NPCConfig, nodeId: string): DialogueNode | undefined {
@@ -158,18 +194,19 @@ function showMicWithHints(node: DialogueNode): void {
 async function handleChildSpeech(transcript: string): Promise<void> {
   if (!activeNPC || !activeNodeId) return;
 
+  const npcId = activeNPC.id;
+  const nodeId = activeNodeId;
+  const revision = dialogueRevision;
   const node = findNode(activeNPC, activeNodeId);
   if (!node) return;
 
   // If terminal or no candidates, end dialogue
   if (node.isTerminal || node.candidateIntents.length === 0) {
-    micButton.hide();
-    activeNodeId = null;
-    activeNPC = null;
+    endDialogue(npcId, true);
 
     // Check if a task was completed
     const task = restaurantConfig.tasks.find(
-      (t) => t.trigger.type === 'dialogue_node' && t.trigger.npcId === activeNPC?.id
+      (t) => t.trigger.type === 'dialogue_node' && t.trigger.npcId === npcId
     );
     if (task) {
       actor.send({ type: 'TASK_COMPLETE' });
@@ -185,6 +222,8 @@ async function handleChildSpeech(transcript: string): Promise<void> {
     name: activeNPC.name,
     role: activeNPC.role,
   }, node.candidateIntents, ctx.conversationHistory);
+
+  if (!isCurrentDialogue(npcId, nodeId, revision)) return;
 
   console.log(`[Dialogue] ← intent: ${result.intentId} (confidence=${result.confidence})`);
 
@@ -211,9 +250,9 @@ async function handleChildSpeech(transcript: string): Promise<void> {
 
     if (nextNodeId) {
       console.log(`[Dialogue] advancing to node: ${nextNodeId}`);
-      await startDialogue(activeNPC.id, nextNodeId);
+      await startDialogue(npcId, nextNodeId);
     } else {
-      micButton.hide();
+      endDialogue(npcId, true);
     }
   } else {
     // No match — retry or nudge
@@ -231,7 +270,7 @@ async function handleChildSpeech(transcript: string): Promise<void> {
         if (task) {
           scoreTracker.completeTask(task.id, task.scoreReward, 0, true, transcript, restaurantConfig.targetVocabulary);
         }
-        await startDialogue(activeNPC.id, fallbackId);
+        await startDialogue(npcId, fallbackId);
       }
     } else {
       // Generate nudge
@@ -241,9 +280,12 @@ async function handleChildSpeech(transcript: string): Promise<void> {
         node.candidateIntents,
         ctx.conversationHistory
       );
+      if (!isCurrentDialogue(npcId, nodeId, revision) || !activeNPC) return;
+
       try {
         await tts.speak(nudgeText, activeNPC.voice, activeNPC.speechSpeed);
       } catch { /* fallback if TTS fails */ }
+      if (!isCurrentDialogue(npcId, nodeId, revision)) return;
       showMicWithHints(node);
     }
   }
@@ -258,17 +300,24 @@ function checkNPCProximity(): void {
     const npcPos = new THREE.Vector3(npc.position.x + 0.5, npc.position.y, npc.position.z + 0.5);
     const dist = camPos.distanceTo(npcPos);
 
-    if (dist <= radius && !activeNPC) {
+    if (dist > radius) {
+      npcsAwaitingExit.delete(npc.id);
+
+      if (activeNPC?.id === npc.id) {
+        // Walked away
+        endDialogue(npc.id, false);
+      }
+      continue;
+    }
+
+    if (npcsAwaitingExit.has(npc.id)) continue;
+
+    if (!activeNPC) {
       // First time in range — start dialogue
       const rootNode = npc.dialogueTree[0];
       if (rootNode) {
         startDialogue(npc.id, rootNode.id);
       }
-    } else if (dist > radius && activeNPC?.id === npc.id) {
-      // Walked away
-      micButton.hide();
-      activeNPC = null;
-      activeNodeId = null;
     }
   }
 }
@@ -298,13 +347,6 @@ async function loadScene(): Promise<void> {
   actor.send({ type: 'LOAD_SCENE', sceneId: 'restaurant' });
   actor.send({ type: 'ACTIVATE' });
 
-  // Init TTS (try browser fallback)
-  try {
-    await tts.init();
-  } catch {
-    console.log('TTS model not loaded — using browser SpeechSynthesis fallback');
-  }
-
   console.log('🍽️ Restaurant scene loaded!');
 }
 
@@ -331,6 +373,7 @@ tts.onStatusChange((s) => {
   }
   if (s.state === 'ready') {
     overlay.style.display = 'none';
+    errorEl.style.display = 'none';
   }
 });
 

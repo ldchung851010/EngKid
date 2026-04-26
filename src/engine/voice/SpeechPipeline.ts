@@ -41,11 +41,23 @@ export class SpeechPipeline {
     console.log(`[Pipeline] ${msg}`);
   }
 
+  reset(): void {
+    if (this.recorder?.state === 'recording') {
+      this.recorder.stop();
+    }
+    this.stream?.getTracks().forEach((t) => t.stop());
+    this.stream = null;
+    this.recorder = null;
+    this.chunks = [];
+    this.recordStartTime = 0;
+    this.setState('idle');
+  }
+
   /** Request mic permission and start recording */
-  async startRecording(): Promise<void> {
+  async startRecording(): Promise<boolean> {
     if (this.state !== 'idle') {
       this.log(`⚠️ startRecording ignored — state is ${this.state}`);
-      return;
+      return false;
     }
     this.log('🎤 requesting mic...');
 
@@ -73,6 +85,7 @@ export class SpeechPipeline {
       this.recordStartTime = Date.now();
       this.setState('listening');
       this.log(`recording started (mime=${mimeType})`);
+      return true;
     } catch (err) {
       this.log(`❌ mic error: ${err}`);
       this.setState('error');
@@ -131,11 +144,15 @@ export class SpeechPipeline {
           const text = data.text ?? '';
           this.log(`← ASR text: "${text}"`);
           this.callbacks.onTranscript(text);
+          this.setState('idle');
           resolve(text);
         } catch (err) {
           this.log(`❌ pipeline error: ${err}`);
-          this.setState('error');
+          this.setState('idle');
           resolve('');
+        } finally {
+          this.chunks = [];
+          this.recordStartTime = 0;
         }
       };
 
