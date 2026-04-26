@@ -56,7 +56,7 @@ export const restaurantConfig: SceneConfig = {
       role: 'A cheerful cartoon waiter who welcomes children, helps them order food, and encourages polite restaurant English.',
       position: { x: 9, y: 0, z: 4 },
       appearance: 'waiter_male_01',
-      voice: 'expr-voice-2-m',
+      voice: 'Kiki',
       speechSpeed: 0.85,
       interaction: { type: 'proximity', radius: 3 },
       dialogueTree: [
