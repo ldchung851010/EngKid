@@ -2,8 +2,8 @@
  * Speech Pipeline — Push-to-Talk UI → MediaRecorder → ASR → Intent Router.
  *
  * Flow:
- *   press mic → start recording → release → stop → WebM blob
- *   → Mediabunny WAV conversion → POST /api/asr → transcript
+ *   press mic/Q → start recording → release → stop → WebM blob
+ *   → browser WAV conversion → POST /api/asr → transcript
  *   → IntentRouter.route() → matched intent
  */
 
@@ -37,9 +37,17 @@ export class SpeechPipeline {
     this.callbacks.onStateChange(state);
   }
 
+  private log(msg: string): void {
+    console.log(`[Pipeline] ${msg}`);
+  }
+
   /** Request mic permission and start recording */
   async startRecording(): Promise<void> {
-    if (this.state !== 'idle') return;
+    if (this.state !== 'idle') {
+      this.log(`⚠️ startRecording ignored — state is ${this.state}`);
+      return;
+    }
+    this.log('🎤 requesting mic...');
 
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
@@ -55,11 +63,7 @@ export class SpeechPipeline {
         ? 'audio/webm;codecs=opus'
         : 'audio/webm';
 
-      this.recorder = new MediaRecorder(this.stream, {
-        mimeType,
-        audioBitsPerSecond: 16000,
-      });
-
+      this.recorder = new MediaRecorder(this.stream, { mimeType, audioBitsPerSecond: 16000 });
       this.chunks = [];
       this.recorder.ondataavailable = (e) => {
         if (e.data.size > 0) this.chunks.push(e.data);
@@ -68,7 +72,9 @@ export class SpeechPipeline {
       this.recorder.start();
       this.recordStartTime = Date.now();
       this.setState('listening');
+      this.log(`recording started (mime=${mimeType})`);
     } catch (err) {
+      this.log(`❌ mic error: ${err}`);
       this.setState('error');
       throw err;
     }
@@ -76,7 +82,11 @@ export class SpeechPipeline {
 
   /** Stop recording and process audio. Returns transcript or null if too short. */
   async stopRecording(): Promise<string | null> {
-    if (!this.recorder || this.state !== 'listening') return null;
+    if (!this.recorder || this.state !== 'listening') {
+      this.log(`⚠️ stopRecording ignored — state is ${this.state}`);
+      return null;
+    }
+    this.log('⏹ stopRecording(), waiting for onstop...');
 
     return new Promise((resolve) => {
       this.recorder!.onstop = async () => {
@@ -86,37 +96,44 @@ export class SpeechPipeline {
         this.recorder = null;
 
         const duration = Date.now() - this.recordStartTime;
+        this.log(`recording stopped: ${duration}ms, ${this.chunks.length} chunks`);
+
         if (duration < this.MIN_DURATION_MS || this.chunks.length === 0) {
+          this.log(`⚠️ too short (min ${this.MIN_DURATION_MS}ms), discarding`);
           this.setState('idle');
           resolve(null);
           return;
         }
 
         this.setState('transcribing');
-
         const blob = new Blob(this.chunks, { type: 'audio/webm' });
+        this.log(`WebM blob: ${(blob.size / 1024).toFixed(1)}KB`);
+
         try {
-          // Convert WebM → WAV via Mediabunny (browser-side)
+          // Convert WebM → WAV via browser AudioContext
+          this.log('converting WebM → WAV...');
           const wav = await this.convertToWav(blob);
+          this.log(`WAV ready: ${(wav.size / 1024).toFixed(1)}KB`);
 
           // Send to ASR backend proxy
+          this.log('POST /api/asr...');
           const formData = new FormData();
           formData.append('file', wav, 'recording.wav');
 
-          const response = await fetch('/api/asr', {
-            method: 'POST',
-            body: formData,
-          });
+          const response = await fetch('/api/asr', { method: 'POST', body: formData });
 
           if (!response.ok) {
+            this.log(`❌ /api/asr returned ${response.status}`);
             throw new Error(`ASR failed: ${response.status}`);
           }
 
           const data = await response.json();
           const text = data.text ?? '';
+          this.log(`← ASR text: "${text}"`);
           this.callbacks.onTranscript(text);
           resolve(text);
-        } catch {
+        } catch (err) {
+          this.log(`❌ pipeline error: ${err}`);
           this.setState('error');
           resolve('');
         }
@@ -126,34 +143,18 @@ export class SpeechPipeline {
     });
   }
 
-  /**
-   * Convert WebM audio blob to WAV format using Mediabunny.
-   * If Mediabunny is not available, sends WebM directly and relies
-   * on the server to handle conversion.
-   */
-  private async convertToWav(_webmBlob: Blob): Promise<Blob> {
-    // Mediabunny integration placeholder — for V1, pass WebM through
-    // and handle conversion server-side or via AudioContext.decode + WAV encode
-    //
-    // Production path:
-    //   const audioCtx = new AudioContext({ sampleRate: 16000 });
-    //   const buffer = await audioCtx.decodeAudioData(await webmBlob.arrayBuffer());
-    //   return encodeWAV(buffer); // custom WAV encoder
-    //
-    // For now, return the original blob. GLM-ASR-2512 accepts webm for some
-    // endpoints, or the server proxy handles conversion.
-
-    // Quick client-side WAV conversion via AudioContext
+  /** Convert WebM audio blob to WAV via browser AudioContext */
+  private async convertToWav(webmBlob: Blob): Promise<Blob> {
     try {
       const audioCtx = new AudioContext({ sampleRate: 16000 });
-      const arrayBuffer = await _webmBlob.arrayBuffer();
+      const arrayBuffer = await webmBlob.arrayBuffer();
       const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
       const wavBlob = this.encodeWAV(audioBuffer);
       audioCtx.close();
       return wavBlob;
-    } catch {
-      // Fallback: return original, server handles it
-      return _webmBlob;
+    } catch (err) {
+      this.log(`⚠️ WAV conversion failed (${err}), sending raw WebM`);
+      return webmBlob;
     }
   }
 
@@ -161,7 +162,7 @@ export class SpeechPipeline {
   private encodeWAV(audioBuffer: AudioBuffer): Blob {
     const numChannels = 1;
     const sampleRate = audioBuffer.sampleRate;
-    const format = 1; // PCM
+    const format = 1;
     const bitsPerSample = 16;
 
     const data = audioBuffer.getChannelData(0);
@@ -169,12 +170,9 @@ export class SpeechPipeline {
     const buffer = new ArrayBuffer(44 + dataLength);
     const view = new DataView(buffer);
 
-    // RIFF header
     this.writeString(view, 0, 'RIFF');
     view.setUint32(4, 36 + dataLength, true);
     this.writeString(view, 8, 'WAVE');
-
-    // fmt chunk
     this.writeString(view, 12, 'fmt ');
     view.setUint32(16, 16, true);
     view.setUint16(20, format, true);
@@ -183,8 +181,6 @@ export class SpeechPipeline {
     view.setUint32(28, sampleRate * numChannels * (bitsPerSample / 8), true);
     view.setUint16(32, numChannels * (bitsPerSample / 8), true);
     view.setUint16(34, bitsPerSample, true);
-
-    // data chunk
     this.writeString(view, 36, 'data');
     view.setUint32(40, dataLength, true);
 

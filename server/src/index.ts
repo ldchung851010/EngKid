@@ -4,10 +4,21 @@ import multipart from '@fastify/multipart';
 import { asrRoutes } from './routes/asr.js';
 import { intentRoutes } from './routes/intent.js';
 
-const app = Fastify({ logger: true });
+const app = Fastify({
+  logger: true, // built-in pino logger
+});
 
 await app.register(cors, { origin: true });
 await app.register(multipart);
+
+// Request logging middleware
+app.addHook('onRequest', async (request) => {
+  console.log(`[server] ← ${request.method} ${request.url}`);
+});
+
+app.addHook('onResponse', async (request, reply) => {
+  console.log(`[server] → ${reply.statusCode} ${request.method} ${request.url} (${Math.round(reply.elapsedTime)}ms)`);
+});
 
 await app.register(asrRoutes, { prefix: '/api' });
 await app.register(intentRoutes, { prefix: '/api' });

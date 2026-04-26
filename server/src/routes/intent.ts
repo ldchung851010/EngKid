@@ -2,8 +2,10 @@ import type { FastifyInstance } from 'fastify';
 
 export async function intentRoutes(app: FastifyInstance) {
   app.post('/intent', async (request, reply) => {
+    const start = Date.now();
     const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
     if (!DEEPSEEK_API_KEY) {
+      console.log('[Intent] ❌ DEEPSEEK_API_KEY not configured');
       return reply.status(500).send({ error: 'DEEPSEEK_API_KEY not configured' });
     }
 
@@ -13,6 +15,8 @@ export async function intentRoutes(app: FastifyInstance) {
       candidateIntents: Array<{ intentId: string; description: string }>;
       conversationHistory: Array<{ role: string; text: string }>;
     };
+
+    console.log(`[Intent] ← transcript="${body.transcript}", candidates=[${body.candidateIntents.map(c => c.intentId).join(',')}]`);
 
     const prompt = `You are an intent router for a children's English learning game.
 
@@ -34,23 +38,37 @@ Rules:
 
 Return ONLY a JSON object: {"intentId": "<id or 'none'>", "confidence": <0.0-1.0>}`;
 
-    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [{ role: 'user', content: prompt }],
-        response_format: { type: 'json_object' },
-        temperature: 0.1,
-        max_tokens: 100,
-      }),
-    });
+    try {
+      const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [{ role: 'user', content: prompt }],
+          response_format: { type: 'json_object' },
+          temperature: 0.1,
+          max_tokens: 100,
+        }),
+      });
 
-    const result = await response.json();
-    const content = JSON.parse(result.choices?.[0]?.message?.content ?? '{"intentId":"none","confidence":0}');
-    return reply.send(content);
+      const result = await response.json();
+      const elapsed = Date.now() - start;
+
+      if (!response.ok) {
+        console.log(`[Intent] ❌ DeepSeek error (${response.status}):`, JSON.stringify(result));
+        return reply.status(response.status).send(result);
+      }
+
+      const content = JSON.parse(result.choices?.[0]?.message?.content ?? '{"intentId":"none","confidence":0}');
+      console.log(`[Intent] → DeepSeek: ${response.status} in ${elapsed}ms, result=${JSON.stringify(content)}`);
+      return reply.send(content);
+    } catch (err) {
+      const elapsed = Date.now() - start;
+      console.log(`[Intent] ❌ fetch failed after ${elapsed}ms:`, err);
+      return reply.status(502).send({ error: 'Intent upstream unavailable' });
+    }
   });
 }

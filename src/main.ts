@@ -111,8 +111,9 @@ async function startDialogue(npcId: string, nodeId: string): Promise<void> {
   if (!npc) return;
 
   const node = findNode(npc, nodeId);
-  if (!node) return;
+  if (!node) { console.log(`[Dialogue] ⚠️ node ${nodeId} not found`); return; }
 
+  console.log(`[Dialogue] NPC ${npcId} → "${node.npcText.substring(0, 50)}..."`);
   // Hook gate check
   const ctx = actor.getSnapshot().context;
   if (!restaurantHooks.onBeforeDialogue(npcId, nodeId, ctx)) return;
@@ -183,10 +184,13 @@ async function handleChildSpeech(transcript: string): Promise<void> {
   actor.send({ type: 'TASK_TRIGGERED', taskId: 'order_food' });
 
   const ctx = actor.getSnapshot().context;
+  console.log(`[Dialogue] → IntentRouter with ${node.candidateIntents.length} candidates: [${node.candidateIntents.map(c => c.intentId).join(',')}]`);
   const result = await intentRouter.route(transcript, {
     name: activeNPC.name,
     role: activeNPC.role,
   }, node.candidateIntents, ctx.conversationHistory);
+
+  console.log(`[Dialogue] ← intent: ${result.intentId} (confidence=${result.confidence})`);
 
   if (result.intentId !== 'none') {
     // Matched! Advance dialogue
@@ -210,6 +214,7 @@ async function handleChildSpeech(transcript: string): Promise<void> {
     }
 
     if (nextNodeId) {
+      console.log(`[Dialogue] advancing to node: ${nextNodeId}`);
       await startDialogue(activeNPC.id, nextNodeId);
     } else {
       micButton.hide();
@@ -217,6 +222,7 @@ async function handleChildSpeech(transcript: string): Promise<void> {
   } else {
     // No match — retry or nudge
     dialogueRetries++;
+    console.log(`[Dialogue] no match, retry ${dialogueRetries}/${MAX_RETRIES}`);
     actor.send({ type: 'INTENT_NONE' });
 
     if (dialogueRetries >= MAX_RETRIES) {
