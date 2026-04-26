@@ -7,6 +7,8 @@ import { intentRoutes } from './routes/intent.js';
 import { ttsRoutes } from './routes/tts.js';
 import { progressRoutes } from './routes/progress.js';
 import { scenesRoutes } from './routes/scenes.js';
+import { quotesRoutes } from './routes/quotes.js';
+import { ensureQuotesGenerated } from './utils/quoteGenerator.js';
 
 const TTS_PORT = parseInt(process.env.TTS_PORT || '8081');
 const TTS_MODEL_PATH = process.env.TTS_MODEL_PATH ||
@@ -55,11 +57,15 @@ app.addHook('onResponse', async (request, reply) => {
   console.log(`[server] → ${reply.statusCode} ${request.method} ${request.url} (${Math.round(reply.elapsedTime)}ms)`);
 });
 
+// Pre-generate quote audio files
+await ensureQuotesGenerated(TTS_PORT);
+
 await app.register(asrRoutes, { prefix: '/api' });
 await app.register(intentRoutes, { prefix: '/api' });
 await app.register(ttsRoutes(TTS_PORT), { prefix: '/api' });
 await app.register(progressRoutes, { prefix: '/api' });
 await app.register(scenesRoutes, { prefix: '/api' });
+await app.register(quotesRoutes(), { prefix: '/api' });
 
 app.get('/api/health', async () => ({ status: 'ok', tts: 'ready' }));
 

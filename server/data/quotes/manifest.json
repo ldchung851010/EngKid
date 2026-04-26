@@ -1,0 +1,54 @@
+{
+  "quotes": [
+    {
+      "id": 0,
+      "text": "Hey there! Ready to learn some awesome English today?",
+      "audioFile": "quote-0.wav"
+    },
+    {
+      "id": 1,
+      "text": "Meow! You are doing pawsome! Keep it up!",
+      "audioFile": "quote-1.wav"
+    },
+    {
+      "id": 2,
+      "text": "Did you know? Practice makes purr-fect!",
+      "audioFile": "quote-2.wav"
+    },
+    {
+      "id": 3,
+      "text": "Wow! You are such a clever learner!",
+      "audioFile": "quote-3.wav"
+    },
+    {
+      "id": 4,
+      "text": "Let's go on a fun English adventure together!",
+      "audioFile": "quote-4.wav"
+    },
+    {
+      "id": 5,
+      "text": "High five! You are getting better every day!",
+      "audioFile": "quote-5.wav"
+    },
+    {
+      "id": 6,
+      "text": "Remember: every big journey starts with a small step!",
+      "audioFile": "quote-6.wav"
+    },
+    {
+      "id": 7,
+      "text": "You are a superstar learner! Shine bright!",
+      "audioFile": "quote-7.wav"
+    },
+    {
+      "id": 8,
+      "text": "Learning English is like a fun game. Let's play!",
+      "audioFile": "quote-8.wav"
+    },
+    {
+      "id": 9,
+      "text": "I believe in you! You can do amazing things!",
+      "audioFile": "quote-9.wav"
+    }
+  ]
+}

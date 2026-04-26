@@ -25,6 +25,86 @@ function getSceneEmoji(scene: SceneInfo): string {
   return sceneEmoji[scene.id] || '🎯';
 }
 
+interface QuoteItem {
+  id: number;
+  text: string;
+  audioFile: string;
+}
+
+let quoteList: QuoteItem[] = [];
+let currentAudio: HTMLAudioElement | null = null;
+let defaultBubbleText = '';
+let bubbleHideTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function loadQuotes(): Promise<void> {
+  try {
+    const res = await fetch('/api/quotes');
+    if (res.ok) {
+      const manifest = await res.json() as { quotes: QuoteItem[] };
+      quoteList = manifest.quotes;
+      console.log(`[quotes] loaded ${quoteList.length} quotes`);
+    }
+  } catch (err) {
+    console.warn('[quotes] failed to load:', err);
+  }
+}
+
+function playRandomQuote(kittenEl: HTMLElement, bubble: HTMLElement): void {
+  if (quoteList.length === 0) return;
+
+  // Stop any playing audio
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+  }
+  if (bubbleHideTimer) {
+    clearTimeout(bubbleHideTimer);
+    bubbleHideTimer = null;
+  }
+
+  const quote = quoteList[Math.floor(Math.random() * quoteList.length)];
+  const audio = new Audio(`/api/quotes/${quote.id}/audio`);
+  currentAudio = audio;
+
+  // Show quote text in bubble
+  showBubble(bubble, quote.text);
+
+  // Visual feedback: speaking state
+  kittenEl.classList.remove('kitten-idle');
+  kittenEl.classList.add('kitten-speaking');
+
+  audio.addEventListener('ended', () => {
+    kittenEl.classList.remove('kitten-speaking');
+    kittenEl.classList.add('kitten-idle');
+    currentAudio = null;
+    // Restore default bubble text, then auto-hide after delay
+    if (defaultBubbleText) {
+      showBubble(bubble, defaultBubbleText);
+      bubbleHideTimer = setTimeout(() => bubble.classList.add('hidden'), 5000);
+    }
+  });
+
+  audio.addEventListener('error', () => {
+    kittenEl.classList.remove('kitten-speaking');
+    kittenEl.classList.add('kitten-idle');
+    currentAudio = null;
+    if (defaultBubbleText) {
+      showBubble(bubble, defaultBubbleText);
+      bubbleHideTimer = setTimeout(() => bubble.classList.add('hidden'), 5000);
+    }
+  });
+
+  audio.play().catch((err) => {
+    console.warn('[quotes] audio play failed:', err);
+    kittenEl.classList.remove('kitten-speaking');
+    kittenEl.classList.add('kitten-idle');
+    if (defaultBubbleText) {
+      showBubble(bubble, defaultBubbleText);
+      bubbleHideTimer = setTimeout(() => bubble.classList.add('hidden'), 5000);
+    }
+  });
+}
+
 async function loadPortal(): Promise<void> {
   const loading = document.getElementById('portal-loading')!;
   const grid = document.getElementById('cards-grid')!;
@@ -33,6 +113,14 @@ async function loadPortal(): Promise<void> {
   const bubble = document.getElementById('kitten-bubble')!;
 
   kitten.classList.add('kitten-idle');
+
+  // Click kitten to play a random quote
+  kitten.addEventListener('click', () => {
+    playRandomQuote(kitten, bubble);
+  });
+
+  // Pre-load quotes in background
+  loadQuotes();
 
   try {
     const [scenesRes, progressRes] = await Promise.all([
@@ -86,18 +174,18 @@ async function loadPortal(): Promise<void> {
       grid.appendChild(card);
     }
 
-    // Owl status based on progress
+    // Kitten status based on progress
     const completedCount = scenes.filter((s) => s.completed).length;
     if (completedCount === scenes.length && scenes.length > 0) {
-      showBubble(bubble, 'Amazing! You completed everything! 🌟');
-      kitten.className = 'kitten-idle';
+      defaultBubbleText = 'Amazing! You completed everything! 🌟';
     } else if (completedCount > 0) {
-      showBubble(bubble, `You finished ${completedCount} scene(s)! Keep going! 🐱`);
+      defaultBubbleText = `You finished ${completedCount} scene(s)! Keep going! 🐱`;
     } else {
-      showBubble(bubble, 'Pick a scene to start learning! 📚');
+      defaultBubbleText = 'Pick a scene to start learning! 📚';
     }
+    showBubble(bubble, defaultBubbleText);
 
-    setTimeout(() => bubble.classList.add('hidden'), 6000);
+    bubbleHideTimer = setTimeout(() => bubble.classList.add('hidden'), 6000);
   } catch (err) {
     console.error('Portal load failed:', err);
     loading.innerHTML = '<p>Failed to load scenes. Make sure the server is running.</p>';

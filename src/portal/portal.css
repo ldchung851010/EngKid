@@ -197,6 +197,42 @@ body {
   98%           { transform: rotate(0deg); }
 }
 
+/* ── Speaking state (when clicked) ───────────────────────── */
+/* Toggle smile ↔ o – dash (same position, no transform) */
+.kitten-speaking .mouth-smile {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.kitten-speaking .mouth-o {
+  animation: speak-o 0.5s ease-in-out infinite;
+}
+.kitten-speaking .mouth-dash {
+  animation: speak-dash 0.5s ease-in-out infinite;
+}
+@keyframes speak-o {
+  0%, 45% { opacity: 1; }
+  55%, 100% { opacity: 0; }
+}
+@keyframes speak-dash {
+  0%, 45% { opacity: 0; }
+  55%, 100% { opacity: 1; }
+}
+
+/* Keep ears still while speaking */
+.kitten-speaking .kitten-ears .ear-left,
+.kitten-speaking .kitten-ears .ear-right {
+  animation: none;
+  transform: none;
+}
+
+.kitten-speaking .kitten-blush {
+  animation: blush-pulse 1.2s ease-in-out infinite;
+}
+@keyframes blush-pulse {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 0.7; }
+}
+
 /* ── Speech bubble ───────────────────────────────────────── */
 #kitten-bubble {
   position: absolute;
