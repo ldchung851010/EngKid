@@ -7,3 +7,4 @@ public/tts-model/*.onnx
 /server/bin/
 /server/model/
 server/model/
+server/data/*.db*
