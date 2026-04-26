@@ -5,6 +5,8 @@ import { spawn, type ChildProcess } from 'child_process';
 import { asrRoutes } from './routes/asr.js';
 import { intentRoutes } from './routes/intent.js';
 import { ttsRoutes } from './routes/tts.js';
+import { progressRoutes } from './routes/progress.js';
+import { scenesRoutes } from './routes/scenes.js';
 
 const TTS_PORT = parseInt(process.env.TTS_PORT || '8081');
 const TTS_MODEL_PATH = process.env.TTS_MODEL_PATH ||
@@ -56,6 +58,8 @@ app.addHook('onResponse', async (request, reply) => {
 await app.register(asrRoutes, { prefix: '/api' });
 await app.register(intentRoutes, { prefix: '/api' });
 await app.register(ttsRoutes(TTS_PORT), { prefix: '/api' });
+await app.register(progressRoutes, { prefix: '/api' });
+await app.register(scenesRoutes, { prefix: '/api' });
 
 app.get('/api/health', async () => ({ status: 'ok', tts: 'ready' }));
 
