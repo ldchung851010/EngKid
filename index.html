@@ -3,137 +3,47 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Scene Engine — English Learning</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; font-family: sans-serif; }
-    #app { width: 100%; height: 100%; position: relative; }
-
-    /* Loading / Error overlay */
-    #loading-overlay {
-      position: fixed; inset: 0; background: #1a1a2e;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      color: #fff; z-index: 100;
-    }
-    #loading-overlay h1 { font-size: 28px; margin-bottom: 16px; }
-    #loading-spinner {
-      width: 40px; height: 40px;
-      border: 4px solid rgba(255,255,255,0.2);
-      border-top-color: #4fc3f7;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin-bottom: 12px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    #loading-status { font-size: 14px; color: #aaa; }
-    #loading-error {
-      display: none; color: #f44336; font-size: 14px;
-      margin-top: 12px; text-align: center; max-width: 400px;
-      line-height: 1.6;
-    }
-
-    /* Score HUD */
-    #score-hud {
-      position: fixed;
-      top: 16px;
-      right: 16px;
-      background: rgba(0,0,0,0.7);
-      color: #ffd700;
-      padding: 10px 18px;
-      border-radius: 10px;
-      font-size: 18px;
-      font-weight: bold;
-      pointer-events: none;
-      z-index: 10;
-    }
-
-    /* Mic Button */
-    #mic-container {
-      position: fixed;
-      bottom: 32px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-      z-index: 10;
-    }
-
-    #mic-button {
-      width: 72px;
-      height: 72px;
-      border-radius: 50%;
-      border: 3px solid #4caf50;
-      background: #fff;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 28px;
-      transition: all 0.2s;
-      user-select: none;
-      -webkit-user-select: none;
-      touch-action: manipulation;
-    }
-    #mic-button.recording {
-      background: #f44336;
-      border-color: #d32f2f;
-      transform: scale(1.15);
-      box-shadow: 0 0 20px rgba(244,67,54,0.5);
-    }
-    #mic-button.processing {
-      background: #ff9800;
-      border-color: #f57c00;
-      pointer-events: none;
-    }
-
-    #mic-label {
-      color: #fff;
-      font-size: 13px;
-      text-shadow: 0 1px 3px rgba(0,0,0,0.6);
-    }
-
-    /* Hint Bubbles */
-    #hint-bubbles {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      justify-content: center;
-      max-width: 360px;
-    }
-    .hint-bubble {
-      background: rgba(255,255,255,0.9);
-      color: #333;
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 13px;
-      cursor: pointer;
-      transition: background 0.15s;
-      white-space: nowrap;
-    }
-    .hint-bubble:hover {
-      background: #e3f2fd;
-    }
-  </style>
+  <title>Scene Engine — Learn English!</title>
+  <link rel="stylesheet" href="/src/portal/portal.css" />
 </head>
 <body>
-  <div id="loading-overlay">
-    <h1>🎮 Scene Engine</h1>
-    <div id="loading-spinner"></div>
-    <div id="loading-status">Starting TTS server...</div>
-    <div id="loading-error"></div>
-  </div>
-  <div id="app">
-    <div id="score-hud">⭐ 0</div>
-    <div id="mic-container" style="display:none;">
-      <div id="hint-bubbles"></div>
-      <div id="mic-button">🎤</div>
-      <div id="mic-label">Hold Q or click mic to speak</div>
+  <div id="portal">
+    <!-- Owl mascot -->
+    <div id="owl-container">
+      <div id="owl" class="owl-idle">
+        <div class="owl-body"></div>
+        <div class="owl-eye-left"></div>
+        <div class="owl-eye-right"></div>
+        <div class="owl-beak"></div>
+        <div class="owl-wing-left"></div>
+        <div class="owl-wing-right"></div>
+      </div>
+      <div id="owl-bubble" class="hidden">Welcome back!</div>
+    </div>
+
+    <!-- Top bar: tree + score --->
+    <div id="top-bar">
+      <div id="score-tree">
+        <svg viewBox="0 0 120 280" id="tree-svg"></svg>
+      </div>
+      <div id="score-display">
+        <span id="star-count">0</span>
+        <span id="star-label">stars</span>
+      </div>
+    </div>
+
+    <!-- Scene cards -->
+    <div id="cards-container">
+      <div id="cards-grid"></div>
+    </div>
+
+    <!-- Loading / Error overlay -->
+    <div id="portal-loading" class="overlay">
+      <div class="spinner"></div>
+      <p>Loading scenes...</p>
     </div>
   </div>
 
-  <script type="module" src="/src/main.ts"></script>
+  <script type="module" src="/src/portal/portal.ts"></script>
 </body>
 </html>

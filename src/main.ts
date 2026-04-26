@@ -15,7 +15,23 @@ import { MicButton } from './engine/voice/MicButton.js';
 import { restaurantConfig } from './scenes/restaurant/config.js';
 import { restaurantHooks } from './scenes/restaurant/hooks.js';
 import { createRestaurantDecor } from './scenes/restaurant/visuals.js';
-import type { NPCConfig, DialogueNode } from './engine/schema/SceneConfig.js';
+import type { NPCConfig, DialogueNode, SceneConfig } from './engine/schema/SceneConfig.js';
+
+// ── Dynamic Scene ─────────────────────────────────────────────
+const params = new URLSearchParams(location.search);
+const sceneId = params.get('scene') || 'restaurant';
+let activeSceneConfig: SceneConfig = restaurantConfig;
+let activeSceneHooks: typeof restaurantHooks = restaurantHooks;
+
+async function loadSceneConfig(): Promise<void> {
+  if (sceneId === 'restaurant') return;
+  const mod = await import(`./scenes/${sceneId}/config.ts`);
+  const key = Object.keys(mod).find((k) => k.endsWith('Config')) || Object.keys(mod)[0];
+  activeSceneConfig = mod[key] as SceneConfig;
+  const hMod = await import(`./scenes/${sceneId}/hooks.ts`);
+  const hKey = Object.keys(hMod)[0];
+  activeSceneHooks = hMod[hKey] as typeof restaurantHooks;
+}
 
 // ── Scene Setup ────────────────────────────────────────────────
 const app = document.getElementById('app')!;
@@ -204,7 +220,39 @@ function endDialogue(npcId: string, waitForExit: boolean): void {
 
   if (waitForExit) {
     npcsAwaitingExit.add(npcId);
+    saveProgress();
   }
+}
+
+async function saveProgress(): Promise<void> {
+  const score = scoreTracker.getSessionScore(activeSceneConfig.tasks.length);
+  const completed = score.completedCount === score.totalTasks;
+  try {
+    await fetch('/api/progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sceneId, score: score.total, completed }),
+    });
+    showBackButton();
+  } catch {
+    console.warn('Failed to save progress');
+  }
+}
+
+function showBackButton(): void {
+  if (document.getElementById('back-button')) return;
+  const btn = document.createElement('div');
+  btn.id = 'back-button';
+  btn.innerHTML = '← Back to scenes';
+  Object.assign(btn.style, {
+    position: 'fixed', bottom: '24px', right: '24px',
+    background: 'rgba(255,255,255,0.9)', color: '#333',
+    padding: '12px 24px', borderRadius: '12px',
+    fontSize: '16px', fontWeight: '700', cursor: 'pointer',
+    zIndex: '100', boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+  });
+  btn.addEventListener('click', () => { location.href = '/'; });
+  document.body.appendChild(btn);
 }
 
 function isCurrentDialogue(npcId: string, nodeId: string, revision: number): boolean {
@@ -465,6 +513,7 @@ tts.onStatusChange((s) => {
 (async () => {
   try {
     await tts.init();
+    await loadSceneConfig();
     statusEl.textContent = 'Building scene...';
     await loadScene();
     isSceneReady = true;

@@ -1,0 +1,168 @@
+/* ── Portal Layout ─────────────────────────────────────────── */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%; height: 100%;
+  font-family: 'Segoe UI', 'Fredoka', sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  overflow-x: hidden;
+}
+#portal { max-width: 1100px; margin: 0 auto; padding: 30px 24px; position: relative; min-height: 100vh; }
+
+/* ── Overlay ──────────────────────────────────────────────── */
+.overlay {
+  position: fixed; inset: 0;
+  background: rgba(30,30,60,0.9);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 1000; font-size: 18px;
+}
+.overlay.hidden { display: none; }
+.spinner {
+  width: 40px; height: 40px;
+  border: 4px solid rgba(255,255,255,0.2);
+  border-top-color: #ffd700;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 16px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Owl ──────────────────────────────────────────────────── */
+#owl-container {
+  position: absolute; top: 20px; left: 20px; z-index: 10;
+}
+#owl { position: relative; width: 70px; height: 80px; }
+.owl-body {
+  width: 60px; height: 55px; background: #8d6e63; border-radius: 50%;
+  position: absolute; bottom: 0; left: 5px;
+}
+.owl-eye-left, .owl-eye-right {
+  width: 20px; height: 24px; background: #fff; border-radius: 50%;
+  position: absolute; top: 10px;
+}
+.owl-eye-left::after, .owl-eye-right::after {
+  content: ''; width: 10px; height: 12px; background: #333; border-radius: 50%;
+  position: absolute; top: 6px; left: 5px;
+}
+.owl-eye-left { left: 12px; }
+.owl-eye-right { left: 38px; }
+.owl-beak {
+  width: 0; height: 0;
+  border-left: 6px solid transparent; border-right: 6px solid transparent;
+  border-top: 8px solid #ff8f00;
+  position: absolute; top: 36px; left: 29px;
+}
+.owl-wing-left, .owl-wing-right {
+  width: 14px; height: 30px; background: #6d4c41; border-radius: 50%;
+  position: absolute; top: 18px;
+}
+.owl-wing-left { left: -4px; transform: rotate(-20deg); }
+.owl-wing-right { left: 60px; transform: rotate(20deg); }
+
+/* Owl animations */
+.owl-idle .owl-body { animation: owl-breathe 3s ease-in-out infinite; }
+@keyframes owl-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+.owl-blink .owl-eye-left::after, .owl-blink .owl-eye-right::after {
+  animation: owl-blink 4s ease-in-out infinite;
+}
+@keyframes owl-blink {
+  0%, 90%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.05); }
+}
+#owl-bubble {
+  position: absolute; top: -40px; left: 60px;
+  background: #fff; color: #333;
+  padding: 8px 14px; border-radius: 12px;
+  font-size: 13px; white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  transition: opacity 0.3s;
+}
+#owl-bubble::after {
+  content: ''; position: absolute; bottom: -6px; left: 16px;
+  width: 0; height: 0;
+  border-left: 6px solid transparent; border-right: 6px solid transparent;
+  border-top: 6px solid #fff;
+}
+#owl-bubble.hidden { opacity: 0; pointer-events: none; }
+
+/* ── Top Bar ──────────────────────────────────────────────── */
+#top-bar { display: flex; align-items: center; gap: 20px; margin-bottom: 40px; padding-left: 100px; }
+#score-tree { width: 60px; height: 140px; }
+#score-tree svg { width: 100%; height: 100%; }
+#score-display { text-align: center; }
+#star-count { font-size: 42px; font-weight: 900; display: block; line-height: 1; }
+#star-label { font-size: 14px; opacity: 0.7; }
+
+/* ── Cards ─────────────────────────────────────────────────── */
+#cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 24px;
+}
+
+.card {
+  background: rgba(255,255,255,0.12);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 28px 22px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+  overflow: hidden;
+  border: 2px solid transparent;
+}
+.card:hover:not(.locked) {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+}
+.card.locked {
+  opacity: 0.5; cursor: not-allowed;
+  filter: grayscale(0.6);
+}
+.card.completed {
+  border-color: #4caf50;
+  background: rgba(76,175,80,0.15);
+}
+
+.card-name {
+  font-size: 22px; font-weight: 700; margin-bottom: 8px;
+}
+.card-desc {
+  font-size: 14px; opacity: 0.8; margin-bottom: 16px;
+  line-height: 1.4;
+}
+.card-footer {
+  display: flex; justify-content: space-between; align-items: center;
+}
+.card-score { font-size: 18px; font-weight: 700; color: #ffd700; }
+.card-badge {
+  font-size: 20px;
+}
+.card-lock {
+  position: absolute; top: 14px; right: 14px;
+  font-size: 22px; opacity: 0.6;
+}
+.card-cefr {
+  font-size: 11px; text-transform: uppercase;
+  background: rgba(255,255,255,0.2);
+  padding: 2px 8px; border-radius: 6px;
+}
+
+/* ── Transition Animation ─────────────────────────────────── */
+.card.entering {
+  animation: cardExit 0.4s ease-in forwards;
+}
+@keyframes cardExit {
+  to { transform: scale(1.1); opacity: 0; }
+}
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (max-width: 640px) {
+  #owl-container { display: none; }
+  #top-bar { padding-left: 0; justify-content: center; }
+  #cards-grid { grid-template-columns: 1fr; }
+}
