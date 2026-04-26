@@ -4,3 +4,4 @@ node_modules/
 server/node_modules/
 node_modulesdist/
 public/tts-model/*.onnx
+/server/bin/

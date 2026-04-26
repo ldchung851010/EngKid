@@ -249,29 +249,6 @@ function showMicWithHints(node: DialogueNode): void {
   micButton.show();
 }
 
-function preloadDialogueAudio(): void {
-  for (const npc of currentNPCs) {
-    const rootNode = npc.dialogueTree[0];
-    if (!rootNode || rootNode.npcText.includes('{score}')) continue;
-
-    void tts.preload(rootNode.npcText, npc.voice, npc.speechSpeed).catch(() => {
-      // Preload is a best-effort latency optimization.
-    });
-  }
-}
-
-async function preloadOpeningAudio(): Promise<void> {
-  const preloadJobs = restaurantConfig.npcs
-    .map((npc) => {
-      const rootNode = npc.dialogueTree[0];
-      if (!rootNode || rootNode.npcText.includes('{score}')) return null;
-      return tts.preload(rootNode.npcText, npc.voice, npc.speechSpeed);
-    })
-    .filter((job): job is Promise<void> => job !== null);
-
-  await Promise.allSettled(preloadJobs);
-}
-
 // ── Intent Routing & Dialogue Progression ──────────────────────
 async function handleChildSpeech(transcript: string): Promise<void> {
   if (!activeNPC || !activeNodeId) return;
@@ -437,7 +414,6 @@ async function loadScene(): Promise<void> {
   // Spawn NPCs
   currentNPCs = restaurantConfig.npcs;
   spawnNPCs(currentNPCs);
-  preloadDialogueAudio();
 
   // Position camera near doorway
   camera.position.set(9, 2.6, 14);
@@ -469,13 +445,8 @@ tts.onStatusChange((s) => {
     spinner.style.display = 'none';
     errorEl.style.display = 'block';
     errorEl.innerHTML = `
-      <strong>TTS model failed to load</strong><br><br>
-      ${s.error}<br><br>
-      Download from HuggingFace:<br>
-      <code>KittenML/kitten-tts-nano-0.1</code><br><br>
-      Place these files in <code>public/tts-model/</code>:<br>
-      &bull; <code>model_quantized.onnx</code><br>
-      &bull; <code>voices.json</code><br>
+      <strong>TTS server failed to start</strong><br><br>
+      Make sure <code>kitten-tts-server</code> is in <code>server/bin/</code>.
     `;
   }
   if (s.state === 'ready') {
@@ -486,8 +457,6 @@ tts.onStatusChange((s) => {
 (async () => {
   try {
     await tts.init();
-    statusEl.textContent = 'Preparing dialogue audio...';
-    await preloadOpeningAudio();
     statusEl.textContent = 'Building scene...';
     await loadScene();
     isSceneReady = true;
