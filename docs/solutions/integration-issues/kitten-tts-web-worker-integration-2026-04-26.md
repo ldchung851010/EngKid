@@ -1,114 +1,129 @@
 ---
-title: Kitten TTS ONNX Web Worker integration — 7 pitfalls and fixes
+title: Kitten TTS ONNX Web Worker 集成 — 7 个坑与修复
 date: 2026-04-26
 category: integration-issues
 module: voice-engine
 problem_type: integration_issue
 component: tooling
 symptoms:
-  - "Kitten TTS ONNX model loaded but produced no audio output"
-  - "ONNX Runtime error: input 'style' is missing in 'feeds'"
-  - "ONNX model failed to load from HuggingFace (404 on expected filenames)"
-  - "Voice embeddings loaded but ONNX inference returned NaN or silent waveform"
+  - "Kitten TTS ONNX 模型加载成功但无音频输出"
+  - "ONNX Runtime 报错：input 'style' is missing in 'feeds'"
+  - "从 HuggingFace 下载模型文件 404（文件名与预期不符）"
+  - "Voice embedding 加载后推理输出 NaN 或静音波形"
+  - "ONNX Runtime Web 因 WASM 文件未部署而崩溃"
 severity: high
 root_cause: incomplete_setup
 resolution_type: environment_setup
 tags: [kitten-tts, onnx-runtime-web, web-worker, tts, phonemizer, three-js, wasm]
 ---
 
-# Kitten TTS ONNX Web Worker integration — 7 pitfalls and fixes
+# Kitten TTS ONNX Web Worker 集成 — 7 个坑与修复
 
-## Problem
+## 问题
 
-Integrating Kitten TTS (ONNX model) into a browser app via Web Worker produced no audio output despite the model appearing to load successfully. Multiple silent failures occurred across model file sourcing, dependency setup, and input tensor formatting.
+在浏览器端通过 Web Worker 集成 Kitten TTS（ONNX 推理）生成语音，模型加载看似成功但无音频输出。从模型文件获取到依赖安装、再到输入张量格式，共踩了 7 个坑才跑通完整链路。
 
-## Symptoms
+## 症状
 
-- ONNX Runtime warning: `Some nodes were not assigned to the preferred execution providers` (benign, but alarming)
-- `Error: input 'style' is missing in 'feeds'` — model expected different tensor names than supplied
-- HuggingFace file download returned 404 for expected paths (`model_quantized.onnx`, `voices.json`)
-- Model loaded and inference ran without errors, but produced silence (NaN or near-zero waveform)
-- ONNX Runtime Web crashed because WASM files were not served
+- ONNX Runtime 警告 `Some nodes were not assigned to the preferred execution providers`（实际无害，但容易误判为问题）
+- `Error: input 'style' is missing in 'feeds'` —— 传给模型的张量名不对
+- `huggingface_hub` 下载返回 404 —— 实际文件名与文档不一致
+- 推理执行无报错，但输出波形全为 NaN 或接近 0
+- ONNX Runtime Web 崩溃 —— WASM 文件路径未配置
 
-## What Didn't Work
+## 排查与失败的尝试
 
-**Attempt 1: Direct ONNX inference with raw text bytes.**
-Passed `TextEncoder.encode(text)` directly as `input_ids` tensor. The model expects phoneme token IDs, not UTF-8 bytes. Inference ran but produced garbage audio.
+**尝试 1：把原始文本字节直接当 `input_ids` 送进模型**
+用 `TextEncoder.encode(text)` 生成的字节直接作为 `input_ids` 张量。模型推理不报错，但输出为无效音频。Kitten TTS 的 ONNX 模型实际期望**音素 token ID**，不是 UTF-8 字节。
 
-**Attempt 2: Voice embedding as flat array.**
-`voices.json` has format `{ "voice-name": [[256 floats]] }` — the inner array is the actual embedding, but `new Float32Array(embedding)` flattened the outer wrapper, producing an incorrect [1]-dim tensor instead of [256].
+**尝试 2：把 voice embedding 当一维数组**
+`voices.json` 结构是 `{ "voice-name": [[256 floats]] }` —— 真正的 embedding 是内层 256 维向量。`new Float32Array(embedding)` 把外层包装展开成了错误的 [1] 维张量。
 
-**Attempt 3: Using browser SpeechSynthesis as fallback.**
-The TTS engine checked `isReady` before `speak()`, and `init()` always failed (Kitten TTS model not installed), so `isReady` was always `false` — the fallback was unreachable. Architectural deadlock: the fallback path was behind a gate that required the primary path to succeed.
+**尝试 3：用浏览器 SpeechSynthesis 兜底**
+TTS 引擎在 `speak()` 前检查 `isReady` 状态，而 `init()` 永远因模型文件缺失报错，导致 `isReady` 恒为 `false`，兜底路径永远走不到。架构死锁：fallback 被 primary 的成功门槛堵死。
 
-## Solution
+## 解决方案
 
-Seven distinct fixes, applied in this order:
+按排查顺序，共 7 个修复：
 
-### 1. Model file names on HuggingFace differ from expectations
+### 1. HuggingFace 仓库实际文件名与文档不同
 
-The repo `KittenML/kitten-tts-nano-0.1` contains:
-- `kitten_tts_nano_v0_1.onnx` (not `model_quantized.onnx`)
-- `voices.npz` (not `voices.json` — NumPy format, requires conversion)
-- `config.json` (metadata, no model data)
-- **No `tokenizer.json`** — must be sourced from elsewhere
+仓库 `KittenML/kitten-tts-nano-0.1` 的实际文件：
+- `kitten_tts_nano_v0_1.onnx`（不是 `model_quantized.onnx`）
+- `voices.npz`（不是 `voices.json`，是 NumPy 格式需转换）
+- `config.json`（元数据，不含模型数据）
+- **没有 `tokenizer.json`**（必须从别处获取）
 
-**Fix:** Use `huggingface_hub` Python library to download the actual filenames, rename ONNX file, convert `voices.npz` to JSON, and manually copy `tokenizer.json` from the working demo.
+用 Python `huggingface_hub` 库下载正确文件名，重命名 ONNX，把 `voices.npz` 转成 JSON：
 
-### 2. Voice embedding is nested — extract inner array
+```python
+from huggingface_hub import hf_hub_download
+import numpy as np, json
 
-`voices.json` structure:
-```json
-{ "expr-voice-2-m": [[0.112, 0.021, ...256 floats...]] }
+hf_hub_download('KittenML/kitten-tts-nano-0.1', 'kitten_tts_nano_v0_1.onnx', local_dir='public/tts-model/')
+hf_hub_download('KittenML/kitten-tts-nano-0.1', 'voices.npz', local_dir='public/tts-model/')
+
+os.rename('public/tts-model/kitten_tts_nano_v0_1.onnx', 'public/tts-model/model_quantized.onnx')
+
+data = np.load('public/tts-model/voices.npz')
+voices = {key: data[key].tolist() for key in data.files}
+json.dump(voices, open('public/tts-model/voices.json', 'w'))
 ```
 
-**Fix:**
+### 2. Voice embedding 是嵌套数组，需要取内层
+
+```json
+{ "expr-voice-2-m": [[0.112, 0.021, ...256 个 float...]] }
+```
+
 ```typescript
-// ❌ Wrong — extracts the wrapper
+// ❌ 错误 —— 取了外层 wrapper，只拿到 [1] 维
 voices[key] = new Float32Array(embedding as number[]);
 
-// ✅ Correct — extracts the inner 256-dim vector
+// ✅ 正确 —— 取内层 256 维向量
 voices[key] = new Float32Array((embedding as number[][])[0]);
 ```
 
-### 3. ONNX model input tensor names
+### 3. ONNX 模型真正的输入/输出张量名
 
-Check model signature before coding:
+用 Python 检查模型签名再写代码：
+
 ```python
 import onnx
 model = onnx.load("model_quantized.onnx")
 for inp in model.graph.input:
     print(f"  {inp.name}: {[d.dim_value for d in inp.type.tensor_type.shape.dim]}")
+for out in model.graph.output:
+    print(f"  {out.name}: {[d.dim_value for d in out.type.tensor_type.shape.dim]}")
 ```
 
-**Actual inputs:** `input_ids: [1, variable]`, `style: [1, 256]`, `speed: [1]`
-**Actual output:** `waveform` (not `audio`)
+**实际输入：** `input_ids: [1, variable]`、`style: [1, 256]`、`speed: [1]`
+**实际输出：** `waveform`（不是 `audio`）
 
-**Fix:**
 ```typescript
 const feeds = {
   input_ids: new ort.Tensor('int64', tokenIds, [1, tokenIds.length]),
-  style: new ort.Tensor('float32', speakerEmbedding, [1, 256]),     // NOT voice_embedding
+  style: new ort.Tensor('float32', speakerEmbedding, [1, 256]),     // 不是 voice_embedding
   speed: new ort.Tensor('float32', new Float32Array([speed]), [1]),
 };
 const results = await session.run(feeds);
-const audioData = new Float32Array(results.waveform.data);           // NOT results.audio
+const audioData = new Float32Array(results.waveform.data);           // 不是 results.audio
 ```
 
-### 4. Text pipeline: clean → chunk → phonemize → tokenize
+### 4. 文本必须经过 phonemize → tokenize 流水线
 
-Kitten TTS's ONNX model expects **phoneme token IDs**, not raw text bytes:
+Kitten TTS 的 ONNX 模型吃的是**音素 token ID**，不是原始文本字节。完整流水线：
 
 ```
-text → cleanTextForTTS() → chunkText() → phonemize("en-us") → "$phonemes$" → vocab lookup → BigInt64Array
+英文文本 → cleanTextForTTS() → chunkText() → phonemize("en-us") → "$phonemes$" → vocab 查表 → BigInt64Array
 ```
 
-**Dependencies required:**
+依赖：
 ```bash
 npm install phonemizer
 ```
 
-**Fix (in worker):**
+Worker 中的实现：
 ```typescript
 async function tokenize(text: string): Promise<BigInt64Array> {
   const { phonemize } = await import('phonemizer');
@@ -119,32 +134,29 @@ async function tokenize(text: string): Promise<BigInt64Array> {
 }
 ```
 
-### 5. Tokenizer file not in model repo
+### 5. tokenizer.json 不在模型仓库中
 
-`tokenizer.json` is not included in the HuggingFace repo. It must be obtained from the `kitten-tts-web-demo` reference implementation (`public/tts-model/tokenizer.json`).
+`KittenML/kitten-tts-nano-0.1` 不包含 `tokenizer.json`。参考实现 `kitten-tts-web-demo` 的 `public/tts-model/` 中有此文件，直接复制过来。
 
-**Fix:** Copy from working demo: `cp kitten-tts-web-demo/public/tts-model/tokenizer.json scene-engine/public/tts-model/`
+### 6. ONNX Runtime Web 的 WASM 文件
 
-### 6. ONNX Runtime Web WASM files
+`onnxruntime-web` 需要三个 WASM 运行时文件部署在可访问的路径：
 
-ONNX Runtime Web needs its WASM binaries (`ort-wasm-simd-threaded.jsep.wasm`, `.mjs`, `ort.bundle.min.mjs`) served from a known path.
+- `ort-wasm-simd-threaded.jsep.wasm`
+- `ort-wasm-simd-threaded.jsep.mjs`
+- `ort.bundle.min.mjs`
 
-**Fix:**
-```bash
-cp -r kitten-tts-web-demo/public/onnx-runtime scene-engine/public/
-```
+从参考实现复制到 `public/onnx-runtime/`，并在 Worker 中配置路径：
 
-And in the worker:
 ```typescript
 ort = await import('onnxruntime-web');
 ort.env.wasm.wasmPaths = '/onnx-runtime/';
 ```
 
-### 7. Vite config for ONNX Runtime compatibility
+### 7. Vite 配置适配 ONNX Runtime
 
-The demo's `vite.config.js` strips `?import` from ONNX Runtime's internal module requests and sets `worker: { format: 'es' }`, `assetsInclude: ['**/*.wasm']`, and `build: { target: 'esnext' }`.
+ONNX Runtime Web 内部动态加载模块时会在 URL 后追加 `?import`，Vite 默认会拦截这个请求。参考 `kitten-tts-web-demo` 的 vite.config.js，需要：
 
-**Fix:**
 ```typescript
 // vite.config.ts
 export default defineConfig({
@@ -163,32 +175,32 @@ export default defineConfig({
 });
 ```
 
-## Why This Works
+## 原理
 
-Kitten TTS's ONNX model is a **phoneme-level text-to-speech** model, not a raw-bytes-to-audio model. The full pipeline is:
+Kitten TTS 的 ONNX 模型是一个**音素级文本转语音**模型。完整链路：
 
 ```
-English text → clean (remove emoji, normalize punctuation)
-  → chunk (split into sentences)
-  → phonemize (convert to IPA phonemes via phonemizer)
-  → tokenize (map phoneme chars to vocab IDs)
-  → ONNX inference (phoneme tokens + style embedding + speed → waveform samples)
-  → post-process (NaN removal, peak normalization, speed adjustment)
-  → WAV playback
+英文文本 → 清理（去 emoji、规范化标点）
+  → 分句（按句子拆分）
+  → 音素化（phonemizer 转 IPA 音素）
+  → Tokenize（音素字符 → vocab ID）
+  → ONNX 推理（音素 token + style embedding + speed → 波形采样）
+  → 后处理（NaN 清除、峰值归一化、语速调整）
+  → WAV 播放
 ```
 
-Each of the 7 pitfalls broke a different link in this chain. The fixes restore the complete pipeline.
+7 个坑分别打断了这条链路的不同环节。
 
-## Prevention
+## 预防
 
-- **Verify ONNX model signatures** before coding tensor shapes and names. Use `python -c "import onnx; ..."` to inspect inputs/outputs.
-- **Always inspect JSON structure** before assuming array shape — HuggingFace embeddings often use `[[data]]` nesting.
-- **Copy the full file set** from working reference implementations: `tokenizer.json`, WASM runtimes, and model files. Don't assume the model repo contains everything.
-- **Don't gate fallback paths behind primary-path success** — the `isReady` check made `SpeechSynthesis` unreachable. Either default to fallback, or use separate readiness flags.
+- **先检查 ONNX 模型签名再写代码。** 用 `python -c "import onnx; ..."` 查看输入/输出张量名和形状，不要凭猜测。
+- **检查 JSON 数据结构再假设数组形状。** HuggingFace 的 embedding 常用 `[[data]]` 嵌套格式。
+- **从可运行的参考实现完整复制文件。** 模型仓库不一定包含 `tokenizer.json`、WASM 运行时等外围文件。优先以 demo 的文件清单为准。
+- **不要把 fallback 路径关在 primary 成功的门后面。** `isReady` 检查使得 `SpeechSynthesis` 兜底永远不可达。要么默认走 fallback，要么用独立 readiness flag。
 
-## Related
+## 相关
 
-- Kitten TTS Web Demo: https://github.com/clowerweb/kitten-tts-web-demo
-- HuggingFace model: https://huggingface.co/KittenML/kitten-tts-nano-0.1
-- ONNX Runtime Web: https://www.npmjs.com/package/onnxruntime-web
-- Phonemizer: https://www.npmjs.com/package/phonemizer
+- Kitten TTS Web Demo：https://github.com/clowerweb/kitten-tts-web-demo
+- HuggingFace 模型：https://huggingface.co/KittenML/kitten-tts-nano-0.1
+- ONNX Runtime Web：https://www.npmjs.com/package/onnxruntime-web
+- Phonemizer：https://www.npmjs.com/package/phonemizer
