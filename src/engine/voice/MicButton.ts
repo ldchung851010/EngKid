@@ -32,6 +32,14 @@ export class MicButton {
     this.button.addEventListener('pointerdown', () => this.onPress());
     this.button.addEventListener('pointerup', () => this.onRelease());
     this.button.addEventListener('pointerleave', () => this.onRelease());
+
+    // Keyboard: hold Q = push-to-talk
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyQ' && !e.repeat) this.onPress();
+    });
+    document.addEventListener('keyup', (e) => {
+      if (e.code === 'KeyQ') this.onRelease();
+    });
   }
 
   /** Show the mic button */
