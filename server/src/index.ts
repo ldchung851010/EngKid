@@ -8,7 +8,7 @@ import { ttsRoutes } from './routes/tts.js';
 
 const TTS_PORT = parseInt(process.env.TTS_PORT || '8081');
 const TTS_MODEL_PATH = process.env.TTS_MODEL_PATH ||
-  `${process.env.HOME}/.config/hi-kid/models/kitten/kitten-tts-micro`;
+  new URL('../model', import.meta.url).pathname;
 
 const app = Fastify({ logger: true });
 
