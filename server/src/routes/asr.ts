@@ -14,7 +14,8 @@ export async function asrRoutes(app: FastifyInstance) {
 
     const buffer = await data.toBuffer();
     const formData = new FormData();
-    formData.append('file', new Blob([buffer], { type: 'audio/wav' }), 'recording.wav');
+    const blob = new Blob([new Uint8Array(buffer)], { type: 'audio/wav' });
+    formData.append('file', blob, 'recording.wav');
     formData.append('model', 'glm-asr-2512');
 
     const response = await fetch(
