@@ -275,11 +275,6 @@ async function handleChildSpeech(transcript: string): Promise<void> {
     return;
   }
 
-  // Look up the task matching this intent
-  const task = restaurantConfig.tasks.find((t) => t.targetIntent === node.candidateIntents.find((c) => c.intentId === result.intentId)?.intentId);
-  if (task) {
-    actor.send({ type: 'TASK_TRIGGERED', taskId: task.id });
-  }
   setNPCStatus(npcId, 'thinking');
 
   const ctx = actor.getSnapshot().context;
@@ -292,6 +287,12 @@ async function handleChildSpeech(transcript: string): Promise<void> {
   if (!isCurrentDialogue(npcId, nodeId, revision)) return;
 
   console.log(`[Dialogue] ← intent: ${result.intentId} (confidence=${result.confidence})`);
+
+  // Look up the task matching this intent and trigger it
+  const task = restaurantConfig.tasks.find((t) => t.targetIntent === result.intentId);
+  if (task) {
+    actor.send({ type: 'TASK_TRIGGERED', taskId: task.id });
+  }
 
   if (result.intentId !== 'none') {
     // Matched! Advance dialogue
