@@ -29,10 +29,10 @@ async function loadPortal(): Promise<void> {
   const loading = document.getElementById('portal-loading')!;
   const grid = document.getElementById('cards-grid')!;
   const scoreCount = document.getElementById('star-count')!;
-  const owl = document.getElementById('owl')!;
-  const bubble = document.getElementById('owl-bubble')!;
+  const kitten = document.getElementById('kitten')!;
+  const bubble = document.getElementById('kitten-bubble')!;
 
-  owl.classList.add('owl-blink');
+  kitten.classList.add('kitten-idle');
 
   try {
     const [scenesRes, progressRes] = await Promise.all([
@@ -90,9 +90,9 @@ async function loadPortal(): Promise<void> {
     const completedCount = scenes.filter((s) => s.completed).length;
     if (completedCount === scenes.length && scenes.length > 0) {
       showBubble(bubble, 'Amazing! You completed everything! 🌟');
-      owl.className = 'owl-idle owl-blink';
+      kitten.className = 'kitten-idle';
     } else if (completedCount > 0) {
-      showBubble(bubble, `You finished ${completedCount} scene(s)! Keep going! 🦉`);
+      showBubble(bubble, `You finished ${completedCount} scene(s)! Keep going! 🐱`);
     } else {
       showBubble(bubble, 'Pick a scene to start learning! 📚');
     }
