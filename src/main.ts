@@ -308,7 +308,40 @@ async function loadScene(): Promise<void> {
   console.log('🍽️ Restaurant scene loaded!');
 }
 
-loadScene();
+// ── Startup: Load TTS → Then Scene ───────────────────────────
+const overlay = document.getElementById('loading-overlay')!;
+const spinner = document.getElementById('loading-spinner')!;
+const statusEl = document.getElementById('loading-status')!;
+const errorEl = document.getElementById('loading-error')!;
+
+tts.onStatusChange((s) => {
+  statusEl.textContent = s.progress;
+  if (s.state === 'error') {
+    spinner.style.display = 'none';
+    errorEl.style.display = 'block';
+    errorEl.innerHTML = `
+      <strong>TTS model failed to load</strong><br><br>
+      ${s.error}<br><br>
+      Download from HuggingFace:<br>
+      <code>KittenML/kitten-tts-nano-0.1</code><br><br>
+      Place these files in <code>public/tts-model/</code>:<br>
+      &bull; <code>model_quantized.onnx</code><br>
+      &bull; <code>voices.json</code><br>
+    `;
+  }
+  if (s.state === 'ready') {
+    overlay.style.display = 'none';
+  }
+});
+
+(async () => {
+  try {
+    await tts.init();
+    await loadScene();
+  } catch (err) {
+    console.error('Startup failed:', err);
+  }
+})();
 
 // ── Render Loop ────────────────────────────────────────────────
 const clock = new THREE.Clock();
