@@ -8,6 +8,23 @@ interface SceneInfo {
   score: number;
 }
 
+const sceneEmoji: Record<string, string> = {
+  restaurant: '🍽️',
+  school: '🏫',
+  park: '🌳',
+  hospital: '🏥',
+  shop: '🛒',
+  airport: '✈️',
+  zoo: '🦁',
+  home: '🏠',
+  beach: '🏖️',
+  farm: '🚜',
+};
+
+function getSceneEmoji(scene: SceneInfo): string {
+  return sceneEmoji[scene.id] || '🎯';
+}
+
 async function loadPortal(): Promise<void> {
   const loading = document.getElementById('portal-loading')!;
   const grid = document.getElementById('cards-grid')!;
@@ -38,14 +55,24 @@ async function loadPortal(): Promise<void> {
       const card = document.createElement('div');
       card.className = `card${!scene.unlocked ? ' locked' : ''}${scene.completed ? ' completed' : ''}`;
 
+      const emoji = getSceneEmoji(scene);
+      const playBtn = scene.completed
+        ? '<span class="card-badge-done">✓ Done!</span>'
+        : scene.unlocked
+          ? '<span class="card-play-btn">▶ Play</span>'
+          : '';
+
       card.innerHTML = `
-        <div class="card-cefr">${scene.cefrLevel}</div>
-        ${!scene.unlocked ? '<div class="card-lock">🔒</div>' : ''}
-        <div class="card-name">${scene.name}</div>
-        <div class="card-desc">${scene.description}</div>
-        <div class="card-footer">
-          <span class="card-score">⭐ ${scene.score}</span>
-          <span class="card-badge">${scene.completed ? '✓ Done!' : scene.unlocked ? '▶ Play' : ''}</span>
+        <div class="card-header">${emoji}</div>
+        <div class="card-body">
+          <div class="card-cefr">${scene.cefrLevel}</div>
+          ${!scene.unlocked ? '<div class="card-lock">🔒</div>' : ''}
+          <div class="card-name">${scene.name}</div>
+          <div class="card-desc">${scene.description}</div>
+          <div class="card-footer">
+            <span class="card-score">${scene.score}</span>
+            ${playBtn}
+          </div>
         </div>
       `;
 
@@ -65,12 +92,12 @@ async function loadPortal(): Promise<void> {
       showBubble(bubble, 'Amazing! You completed everything! 🌟');
       owl.className = 'owl-idle owl-blink';
     } else if (completedCount > 0) {
-      showBubble(bubble, `You finished ${completedCount} scene(s)! Keep going!`);
+      showBubble(bubble, `You finished ${completedCount} scene(s)! Keep going! 🦉`);
     } else {
-      showBubble(bubble, 'Pick a scene to start learning!');
+      showBubble(bubble, 'Pick a scene to start learning! 📚');
     }
 
-    setTimeout(() => bubble.classList.add('hidden'), 5000);
+    setTimeout(() => bubble.classList.add('hidden'), 6000);
   } catch (err) {
     console.error('Portal load failed:', err);
     loading.innerHTML = '<p>Failed to load scenes. Make sure the server is running.</p>';
@@ -82,32 +109,77 @@ function showBubble(bubble: HTMLElement, text: string): void {
   bubble.classList.remove('hidden');
 }
 
-// Simple tree: stacked blocks, one per 50 points
+// Cartoon tree: organic rounded crown with fruits
 function updateTree(totalScore: number): void {
   const svg = document.getElementById('tree-svg')!;
   const layers = Math.min(10, Math.floor(totalScore / 50));
-  let html = '';
-  const colors = ['#a5d6a7', '#66bb6a', '#43a047', '#2e7d32', '#1b5e20',
-                  '#ffd54f', '#ffb300', '#ff8f00', '#ff6f00', '#e65100'];
 
-  for (let i = 0; i < 10; i++) {
-    const y = 240 - (i + 1) * 22;
-    const w = 40 + i * 6;
-    const x = 60 - w / 2;
+  const crownColors = [
+    '#a8e6a3', '#8cd982', '#6bcb77', '#50c878',
+    '#3cb371', '#2e8b57', '#228b22', '#1e7e1e',
+    '#ffd93d', '#ff6b6b',
+  ];
+
+  let html = '';
+
+  // Background hill
+  html += `<ellipse cx="70" cy="265" rx="55" ry="12" fill="#90c695" opacity="0.4"/>`;
+
+  // Trunk
+  html += `<rect x="60" y="220" width="20" height="45" rx="4" fill="#8B6914"/>`;
+  html += `<rect x="62" y="225" width="16" height="35" rx="2" fill="#A67C00" opacity="0.5"/>`;
+
+  // Crown circles — stacked organic blobs
+  const blobs = [
+    { cx: 70, cy: 205, r: 22 },
+    { cx: 52, cy: 195, r: 18 },
+    { cx: 88, cy: 195, r: 18 },
+    { cx: 42, cy: 180, r: 16 },
+    { cx: 70, cy: 175, r: 20 },
+    { cx: 98, cy: 180, r: 16 },
+    { cx: 55, cy: 160, r: 15 },
+    { cx: 85, cy: 160, r: 15 },
+    { cx: 70, cy: 148, r: 14 },
+    { cx: 70, cy: 135, r: 12 },
+  ];
+
+  for (let i = 0; i < blobs.length; i++) {
+    const b = blobs[i];
     const visible = i < layers;
-    html += `<rect x="${x}" y="${y}" width="${w}" height="20" rx="3"
-      fill="${colors[i]}" opacity="${visible ? 1 : 0.15}"
-      style="transition: opacity 0.5s ${i * 0.1}s ease-out;"
+    html += `<circle cx="${b.cx}" cy="${b.cy}" r="${b.r}"
+      fill="${crownColors[i]}"
+      opacity="${visible ? 0.95 : 0.12}"
+      style="transition: opacity 0.5s ${i * 0.08}s ease-out;"
     />`;
   }
 
-  // Trunk
-  html += `<rect x="54" y="242" width="12" height="30" rx="2" fill="#795548" />`;
+  // Fruits on grown parts
+  const fruits = [
+    { cx: 50, cy: 192 },
+    { cx: 90, cy: 192 },
+    { cx: 40, cy: 178 },
+    { cx: 70, cy: 172 },
+    { cx: 100, cy: 178 },
+    { cx: 55, cy: 157 },
+    { cx: 85, cy: 157 },
+    { cx: 70, cy: 145 },
+    { cx: 62, cy: 132 },
+    { cx: 78, cy: 132 },
+  ];
+
+  for (let i = 0; i < fruits.length; i++) {
+    const f = fruits[i];
+    const visible = i < Math.max(0, layers - 2);
+    html += `<circle cx="${f.cx}" cy="${f.cy}" r="4"
+      fill="#ff6b6b"
+      opacity="${visible ? 0.9 : 0}"
+      style="transition: opacity 0.5s ${0.3 + i * 0.08}s ease-out;"
+    />`;
+  }
 
   // Star on top if full
   if (layers >= 10) {
-    const topY = 240 - 10 * 22 - 10;
-    html += `<text x="60" y="${topY}" text-anchor="middle" font-size="20">🌟</text>`;
+    html += `<text x="70" y="118" text-anchor="middle" font-size="22">🌟</text>`;
   }
 
   svg.innerHTML = html;

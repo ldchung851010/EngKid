@@ -4,31 +4,59 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Scene Engine — Learn English!</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/portal/portal.css" />
 </head>
 <body>
   <div id="portal">
-    <!-- Owl mascot -->
-    <div id="owl-container">
-      <div id="owl" class="owl-idle">
-        <div class="owl-body"></div>
-        <div class="owl-eye-left"></div>
-        <div class="owl-eye-right"></div>
-        <div class="owl-beak"></div>
-        <div class="owl-wing-left"></div>
-        <div class="owl-wing-right"></div>
-      </div>
-      <div id="owl-bubble" class="hidden">Welcome back!</div>
-    </div>
+    <!-- Floating clouds -->
+    <div class="cloud cloud-1">☁️</div>
+    <div class="cloud cloud-2">☁️</div>
+    <div class="cloud cloud-3">☁️</div>
 
-    <!-- Top bar: tree + score --->
-    <div id="top-bar">
-      <div id="score-tree">
-        <svg viewBox="0 0 120 280" id="tree-svg"></svg>
+    <!-- Hero section with owl mascot -->
+    <div id="hero-section">
+      <div id="owl-container">
+        <div id="owl" class="owl-idle">
+          <!-- Ears -->
+          <div class="owl-ear-left"></div>
+          <div class="owl-ear-right"></div>
+          <!-- Body -->
+          <div class="owl-body">
+            <div class="owl-belly"></div>
+          </div>
+          <!-- Eyes -->
+          <div class="owl-eye-left"><div class="owl-pupil"></div><div class="owl-shine"></div></div>
+          <div class="owl-eye-right"><div class="owl-pupil"></div><div class="owl-shine"></div></div>
+          <!-- Beak -->
+          <div class="owl-beak"></div>
+          <!-- Wings -->
+          <div class="owl-wing-left"></div>
+          <div class="owl-wing-right"></div>
+          <!-- Feet -->
+          <div class="owl-foot-left"></div>
+          <div class="owl-foot-right"></div>
+        </div>
+        <div id="owl-bubble" class="hidden">Welcome back!</div>
       </div>
-      <div id="score-display">
-        <span id="star-count">0</span>
-        <span id="star-label">stars</span>
+
+      <div id="hero-center">
+        <h1 class="app-title">Learn English!</h1>
+        <p class="app-subtitle">Explore fun scenes and practice speaking</p>
+      </div>
+
+      <!-- Top bar: tree + score -->
+      <div id="top-bar">
+        <div id="score-tree">
+          <svg viewBox="0 0 140 280" id="tree-svg"></svg>
+        </div>
+        <div id="score-display">
+          <div class="star-icon">⭐</div>
+          <span id="star-count">0</span>
+          <span id="star-label">stars</span>
+        </div>
       </div>
     </div>
 
