@@ -18,6 +18,7 @@ export class CameraController {
   // Config
   private moveSpeed = 3;
   private lookSensitivity = 0.002;
+  private canOccupy: ((position: THREE.Vector3) => boolean) | null = null;
 
   // Bound handlers (for cleanup)
   private onKeyDown: (e: KeyboardEvent) => void;
@@ -78,9 +79,31 @@ export class CameraController {
     const forward = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(0, this.euler.y, 0));
     const right = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(0, this.euler.y, 0));
 
-    this.camera.position.add(
-      forward.multiplyScalar(this.velocity.z).add(right.multiplyScalar(this.velocity.x))
-    );
+    const movement = forward.multiplyScalar(this.velocity.z).add(right.multiplyScalar(this.velocity.x));
+    this.moveWithCollision(movement);
+  }
+
+  setCollisionTester(canOccupy: ((position: THREE.Vector3) => boolean) | null): void {
+    this.canOccupy = canOccupy;
+  }
+
+  private moveWithCollision(movement: THREE.Vector3): void {
+    if (!this.canOccupy) {
+      this.camera.position.add(movement);
+      return;
+    }
+
+    const nextX = this.camera.position.clone();
+    nextX.x += movement.x;
+    if (this.canOccupy(nextX)) {
+      this.camera.position.x = nextX.x;
+    }
+
+    const nextZ = this.camera.position.clone();
+    nextZ.z += movement.z;
+    if (this.canOccupy(nextZ)) {
+      this.camera.position.z = nextZ.z;
+    }
   }
 
   private handleMouseMove(e: MouseEvent): void {

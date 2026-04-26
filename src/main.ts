@@ -7,6 +7,7 @@ import { createTextSprite, disposeObject3D } from './engine/renderer/ScenePrimit
 import { SceneLoader } from './engine/runtime/SceneLoader.js';
 import { sessionMachine } from './engine/runtime/SessionMachine.js';
 import type { SessionContext } from './engine/runtime/SessionMachine.js';
+import { CollisionWorld } from './engine/runtime/CollisionWorld.js';
 import { ScoreTracker } from './engine/scoring/ScoreTracker.js';
 import { IntentRouter } from './engine/voice/IntentRouter.js';
 import { SpeechPipeline } from './engine/voice/SpeechPipeline.js';
@@ -49,7 +50,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
 scene.fog = new THREE.Fog(0x87ceeb, 20, 60);
 
-const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.5, 100);
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
 
 // ── Lighting ───────────────────────────────────────────────────
 scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -62,6 +63,8 @@ scene.add(sun);
 // ── Engine Components ──────────────────────────────────────────
 const world = new VoxelWorld(scene);
 const controller = new CameraController(camera, renderer.domElement);
+const collisionWorld = new CollisionWorld();
+const PLAYER_COLLISION_RADIUS = 0.62;
 const tts = new TTSEngine();
 const intentRouter = new IntentRouter('/api');
 const scoreTracker = new ScoreTracker();
@@ -461,6 +464,8 @@ async function loadScene(): Promise<void> {
   // Build voxel world
   const chunkData = SceneLoader.buildChunkData(activeSceneConfig);
   world.loadMap(chunkData);
+  collisionWorld.clear();
+  collisionWorld.loadChunk(chunkData);
   if (sceneVisualGroup) {
     scene.remove(sceneVisualGroup);
     disposeObject3D(sceneVisualGroup);
@@ -468,7 +473,9 @@ async function loadScene(): Promise<void> {
   sceneVisualGroup = activeSceneModule?.createVisuals?.() ?? null;
   if (sceneVisualGroup) {
     scene.add(sceneVisualGroup);
+    collisionWorld.addObjectColliders(sceneVisualGroup);
   }
+  controller.setCollisionTester((position) => collisionWorld.canOccupy(position, { radius: PLAYER_COLLISION_RADIUS }));
 
   // Spawn NPCs
   currentNPCs = activeSceneConfig.npcs;
