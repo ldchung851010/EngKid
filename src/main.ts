@@ -1,10 +1,20 @@
 import * as THREE from 'three';
+import { createActor } from 'xstate';
 import { VoxelWorld } from './engine/renderer/VoxelWorld.js';
 import { CameraController } from './engine/renderer/CameraController.js';
-import { BlockType } from './engine/renderer/BlockTypes.js';
-import type { ChunkData } from './engine/renderer/ChunkBuilder.js';
+import { SceneLoader } from './engine/runtime/SceneLoader.js';
+import { sessionMachine } from './engine/runtime/SessionMachine.js';
+import type { SessionContext } from './engine/runtime/SessionMachine.js';
+import { ScoreTracker } from './engine/scoring/ScoreTracker.js';
+import { IntentRouter } from './engine/voice/IntentRouter.js';
+import { SpeechPipeline } from './engine/voice/SpeechPipeline.js';
+import { TTSEngine } from './engine/voice/TTSEngine.js';
+import { MicButton } from './engine/voice/MicButton.js';
+import { restaurantConfig } from './scenes/restaurant/config.js';
+import { restaurantHooks } from './scenes/restaurant/hooks.js';
+import type { NPCConfig, DialogueNode } from './engine/schema/SceneConfig.js';
 
-// ── Basic Scene Setup ──────────────────────────────────────────
+// ── Scene Setup ────────────────────────────────────────────────
 const app = document.getElementById('app')!;
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -17,8 +27,6 @@ scene.background = new THREE.Color(0x87ceeb);
 scene.fog = new THREE.Fog(0x87ceeb, 20, 60);
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.5, 100);
-camera.position.set(8, 8, 12);
-camera.lookAt(4, 2, 4);
 
 // ── Lighting ───────────────────────────────────────────────────
 scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -28,86 +36,294 @@ sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
 scene.add(sun);
 
-// ── Voxel World ────────────────────────────────────────────────
+// ── Engine Components ──────────────────────────────────────────
 const world = new VoxelWorld(scene);
-
-// Build a test restaurant: 12×4×12, walls, floor, tables
-const W = 12, H = 4, D = 12;
-const size = W * H * D;
-const blocks = new Uint8Array(size);
-const idx = (x: number, y: number, z: number) => x + z * W + y * W * D;
-
-// Floor (y=0)
-for (let z = 0; z < D; z++) {
-  for (let x = 0; x < W; x++) {
-    blocks[idx(x, 0, z)] = BlockType.FLOOR;
-  }
-}
-
-// Walls (y=1..3, perimeter)
-for (let y = 1; y < H; y++) {
-  for (let x = 0; x < W; x++) {
-    blocks[idx(x, y, 0)] = BlockType.WALL;
-    blocks[idx(x, y, D - 1)] = BlockType.WALL;
-  }
-  for (let z = 1; z < D - 1; z++) {
-    blocks[idx(0, y, z)] = BlockType.WALL;
-    blocks[idx(W - 1, y, z)] = BlockType.WALL;
-  }
-}
-
-// Doorway (open gap in front wall)
-blocks[idx(6, 1, D - 1)] = BlockType.AIR;
-blocks[idx(6, 2, D - 1)] = BlockType.AIR;
-
-// Tables and chairs
-const placeBlock = (x: number, z: number, type: BlockType) => {
-  blocks[idx(x, 1, z)] = type;
-};
-
-// Table 1
-placeBlock(3, 3, BlockType.TABLE);
-placeBlock(2, 2, BlockType.CHAIR);
-placeBlock(4, 2, BlockType.CHAIR);
-placeBlock(2, 4, BlockType.CHAIR);
-placeBlock(4, 4, BlockType.CHAIR);
-
-// Table 2
-placeBlock(8, 3, BlockType.TABLE);
-placeBlock(7, 2, BlockType.CHAIR);
-placeBlock(9, 2, BlockType.CHAIR);
-placeBlock(7, 4, BlockType.CHAIR);
-placeBlock(9, 4, BlockType.CHAIR);
-
-// Counter
-for (let x = 4; x <= 7; x++) {
-  blocks[idx(x, 1, D - 3)] = BlockType.COUNTER;
-}
-
-const chunk: ChunkData = {
-  originX: 0,
-  originY: 0,
-  originZ: 0,
-  width: W,
-  height: H,
-  depth: D,
-  data: blocks,
-};
-
-world.loadMap(chunk);
-
-// ── Camera Controller ──────────────────────────────────────────
 const controller = new CameraController(camera, renderer.domElement);
+const tts = new TTSEngine();
+const intentRouter = new IntentRouter('/api');
+const scoreTracker = new ScoreTracker();
 
-// ── Clock ──────────────────────────────────────────────────────
-const clock = new THREE.Clock();
+let currentNPCs: NPCConfig[] = [];
+let npcMeshes: THREE.Mesh[] = [];
+
+// ── Session State Machine ──────────────────────────────────────
+const actor = createActor(sessionMachine);
+
+actor.subscribe((snapshot) => {
+  console.log(`[session] → ${snapshot.value}`);
+  updateScoreHUD();
+});
+
+function updateScoreHUD(): void {
+  const hud = document.getElementById('score-hud')!;
+  const score = scoreTracker.getSessionScore(restaurantConfig.tasks.length);
+  hud.textContent = `⭐ ${score.total} | ${score.completedCount}/${score.totalTasks}`;
+}
+
+// ── NPC Rendering ──────────────────────────────────────────────
+function spawnNPCs(npcs: NPCConfig[]): void {
+  // Clear old NPCs
+  for (const mesh of npcMeshes) {
+    scene.remove(mesh);
+    mesh.geometry?.dispose();
+    (mesh.material as THREE.Material)?.dispose();
+  }
+  npcMeshes = [];
+
+  const npcGeo = new THREE.BoxGeometry(0.6, 1.8, 0.6);
+  const npcMat = new THREE.MeshStandardMaterial({ color: 0x4fc3f7 });
+  const labelCanvas = document.createElement('canvas');
+
+  for (const npc of npcs) {
+    const mesh = new THREE.Mesh(npcGeo, npcMat);
+    mesh.position.set(npc.position.x + 0.5, npc.position.y + 0.9, npc.position.z + 0.5);
+    mesh.castShadow = true;
+    mesh.userData = { npcId: npc.id };
+    scene.add(mesh);
+    npcMeshes.push(mesh);
+
+    // Simple name label via sprite
+    labelCanvas.width = 128;
+    labelCanvas.height = 32;
+    const ctx = labelCanvas.getContext('2d')!;
+    ctx.fillStyle = '#fff';
+    ctx.font = '16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(npc.name, 64, 22);
+
+    const labelTex = new THREE.CanvasTexture(labelCanvas);
+    const labelSpriteMat = new THREE.SpriteMaterial({ map: labelTex, transparent: true });
+    const labelSprite = new THREE.Sprite(labelSpriteMat);
+    labelSprite.position.set(0, 1.3, 0);
+    labelSprite.scale.set(2, 0.5, 1);
+    mesh.add(labelSprite);
+  }
+}
+
+// ── Dialogue Flow ──────────────────────────────────────────────
+let activeNodeId: string | null = null;
+let activeNPC: NPCConfig | null = null;
+let dialogueRetries = 0;
+const MAX_RETRIES = 3;
+
+async function startDialogue(npcId: string, nodeId: string): Promise<void> {
+  const npc = currentNPCs.find((n) => n.id === npcId);
+  if (!npc) return;
+
+  const node = findNode(npc, nodeId);
+  if (!node) return;
+
+  // Hook gate check
+  const ctx = actor.getSnapshot().context;
+  if (!restaurantHooks.onBeforeDialogue(npcId, nodeId, ctx)) return;
+
+  activeNPC = npc;
+  activeNodeId = nodeId;
+  dialogueRetries = 0;
+
+  await speakNPC(node);
+  showMicWithHints(node);
+}
+
+function findNode(npc: NPCConfig, nodeId: string): DialogueNode | undefined {
+  return npc.dialogueTree.find((n) => n.id === nodeId);
+}
+
+async function speakNPC(node: DialogueNode): Promise<void> {
+  if (!activeNPC) return;
+
+  const text = node.npcText.replace('{score}', String(scoreTracker.getSessionScore(restaurantConfig.tasks.length).total));
+  try {
+    await tts.speak(text, activeNPC.voice, activeNPC.speechSpeed);
+  } catch {
+    // TTS unavailable — NPC text still visible in console
+    console.log(`[${activeNPC.name}]: ${text}`);
+  }
+}
+
+// ── Mic & Speech Pipeline ──────────────────────────────────────
+const micContainer = document.getElementById('mic-container')!;
+const pipeline = new SpeechPipeline({
+  onStateChange: (state) => console.log(`[pipeline] ${state}`),
+  onTranscript: (text) => console.log(`[ASR] "${text}"`),
+});
+
+const micButton = new MicButton(micContainer, pipeline, async (transcript) => {
+  await handleChildSpeech(transcript);
+});
+
+function showMicWithHints(node: DialogueNode): void {
+  micButton.setHints(node.hintExamples);
+  micButton.show();
+}
+
+// ── Intent Routing & Dialogue Progression ──────────────────────
+async function handleChildSpeech(transcript: string): Promise<void> {
+  if (!activeNPC || !activeNodeId) return;
+
+  const node = findNode(activeNPC, activeNodeId);
+  if (!node) return;
+
+  // If terminal or no candidates, end dialogue
+  if (node.isTerminal || node.candidateIntents.length === 0) {
+    micButton.hide();
+    activeNodeId = null;
+    activeNPC = null;
+
+    // Check if a task was completed
+    const task = restaurantConfig.tasks.find(
+      (t) => t.trigger.type === 'dialogue_node' && t.trigger.npcId === activeNPC?.id
+    );
+    if (task) {
+      actor.send({ type: 'TASK_COMPLETE' });
+    }
+    return;
+  }
+
+  actor.send({ type: 'TASK_TRIGGERED', taskId: 'order_food' });
+
+  const ctx = actor.getSnapshot().context;
+  const result = await intentRouter.route(transcript, {
+    name: activeNPC.name,
+    role: activeNPC.role,
+  }, node.candidateIntents, ctx.conversationHistory);
+
+  if (result.intentId !== 'none') {
+    // Matched! Advance dialogue
+    const nextCandidate = node.candidateIntents.find((c) => c.intentId === result.intentId);
+    const nextNodeId = nextCandidate?.nextNodeId ?? node.fallbackNodeId;
+    actor.send({ type: 'INTENT_MATCHED', intentId: result.intentId, confidence: result.confidence });
+
+    // Score
+    const task = restaurantConfig.tasks.find((t) => t.targetIntent === result.intentId);
+    if (task) {
+      scoreTracker.recordAttempt(task.id);
+      scoreTracker.completeTask(
+        task.id,
+        task.scoreReward,
+        result.confidence,
+        false,
+        transcript,
+        restaurantConfig.targetVocabulary
+      );
+      actor.send({ type: 'TASK_COMPLETE' });
+    }
+
+    if (nextNodeId) {
+      await startDialogue(activeNPC.id, nextNodeId);
+    } else {
+      micButton.hide();
+    }
+  } else {
+    // No match — retry or nudge
+    dialogueRetries++;
+    actor.send({ type: 'INTENT_NONE' });
+
+    if (dialogueRetries >= MAX_RETRIES) {
+      actor.send({ type: 'INTENT_RETRY_EXHAUSTED' });
+      // Fallback: advance to fallback node or demonstrate
+      const fallbackId = node.fallbackNodeId;
+      if (fallbackId) {
+        scoreTracker.recordAttempt('order_food');
+        const task = restaurantConfig.tasks.find((t) => t.id === 'order_food');
+        if (task) {
+          scoreTracker.completeTask(task.id, task.scoreReward, 0, true, transcript, restaurantConfig.targetVocabulary);
+        }
+        await startDialogue(activeNPC.id, fallbackId);
+      }
+    } else {
+      // Generate nudge
+      const nudgeText = await intentRouter.generateNudge(
+        transcript,
+        { name: activeNPC.name, role: activeNPC.role },
+        node.candidateIntents,
+        ctx.conversationHistory
+      );
+      try {
+        await tts.speak(nudgeText, activeNPC.voice, activeNPC.speechSpeed);
+      } catch { /* fallback if TTS fails */ }
+      showMicWithHints(node);
+    }
+  }
+}
+
+// ── Proximity Detection ────────────────────────────────────────
+function checkNPCProximity(): void {
+  const camPos = camera.position;
+  for (const npc of currentNPCs) {
+    if (npc.interaction.type !== 'proximity') continue;
+    const radius = npc.interaction.radius ?? 3;
+    const npcPos = new THREE.Vector3(npc.position.x + 0.5, npc.position.y, npc.position.z + 0.5);
+    const dist = camPos.distanceTo(npcPos);
+
+    if (dist <= radius && !activeNPC) {
+      // First time in range — start dialogue
+      const rootNode = npc.dialogueTree[0];
+      if (rootNode) {
+        startDialogue(npc.id, rootNode.id);
+      }
+    } else if (dist > radius && activeNPC?.id === npc.id) {
+      // Walked away
+      micButton.hide();
+      activeNPC = null;
+      activeNodeId = null;
+    }
+  }
+}
+
+// ── Scene Loading ──────────────────────────────────────────────
+async function loadScene(): Promise<void> {
+  // Validate config
+  const errors = SceneLoader.validate(restaurantConfig);
+  if (errors.length > 0) {
+    console.error('Scene config validation failed:', errors);
+    return;
+  }
+
+  // Build voxel world
+  const chunkData = SceneLoader.buildChunkData(restaurantConfig);
+  world.loadMap(chunkData);
+
+  // Spawn NPCs
+  currentNPCs = restaurantConfig.npcs;
+  spawnNPCs(currentNPCs);
+
+  // Position camera near doorway
+  camera.position.set(6, 2, 10);
+  camera.lookAt(6, 1, 5);
+
+  // Start session
+  actor.send({ type: 'LOAD_SCENE', sceneId: 'restaurant' });
+  actor.send({ type: 'ACTIVATE' });
+
+  // Init TTS (try browser fallback)
+  try {
+    await tts.init();
+  } catch {
+    console.log('TTS model not loaded — using browser SpeechSynthesis fallback');
+  }
+
+  console.log('🍽️ Restaurant scene loaded!');
+}
+
+loadScene();
 
 // ── Render Loop ────────────────────────────────────────────────
-function animate() {
+const clock = new THREE.Clock();
+let proximityTimer = 0;
+
+function animate(): void {
   requestAnimationFrame(animate);
 
-  const delta = clock.getDelta();
+  const delta = Math.min(clock.getDelta(), 0.1); // Cap delta
   controller.update(delta);
+
+  // Check NPC proximity every 500ms
+  proximityTimer += delta;
+  if (proximityTimer > 0.5) {
+    proximityTimer = 0;
+    checkNPCProximity();
+  }
 
   renderer.render(scene, camera);
 }
@@ -120,4 +336,5 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-console.log('🍽️ Scene Engine — restaurant loaded');
+// ── Export SceneEngine API ─────────────────────────────────────
+export { world, tts, intentRouter, scoreTracker, actor as sessionActor };
