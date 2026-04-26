@@ -8,7 +8,6 @@ let ort: any = null;
 let ttsSession: any = null;
 let voicesData: Record<string, number[][]> = {};
 let vocab: Record<string, number> = {};
-const assetFetchOptions: RequestInit = { cache: 'no-cache' };
 
 function postMsg(msg: Record<string, unknown>): void {
   (self as unknown as Worker).postMessage(msg);
@@ -63,18 +62,18 @@ async function loadModel(modelPath: string): Promise<void> {
 
   // Load tokenizer
   postMsg({ type: 'progress', status: 'Loading tokenizer...' });
-  const tokResp = await fetch(`${modelPath}tokenizer.json`, assetFetchOptions);
+  const tokResp = await fetch(`${modelPath}tokenizer.json`);
   const tokData = await tokResp.json();
   vocab = tokData.model.vocab;
 
   // Load voices
   postMsg({ type: 'progress', status: 'Loading voice embeddings...' });
-  const voicesResp = await fetch(`${modelPath}voices.json`, assetFetchOptions);
+  const voicesResp = await fetch(`${modelPath}voices.json`);
   voicesData = await voicesResp.json();
 
   // Load model
   postMsg({ type: 'progress', status: 'Loading TTS model (~23MB)...' });
-  const modelResp = await fetch(`${modelPath}model_quantized.onnx`, assetFetchOptions);
+  const modelResp = await fetch(`${modelPath}model_quantized.onnx`);
   if (!modelResp.ok) {
     throw new Error(`Failed to load TTS model: ${modelResp.status} ${modelResp.statusText}`);
   }
