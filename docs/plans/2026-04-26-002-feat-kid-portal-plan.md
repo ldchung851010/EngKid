@@ -99,8 +99,7 @@ scene-engine/
 │       ├── portal.ts           # 入口网站主逻辑
 │       ├── owl.css             # 吉祥物猫头鹰 CSS
 │       ├── cards.css           # 卡片布局样式
-│       ├── tree.css            # 积分树样式
-│       └── portal.html         # 入口网站 HTML 片段（被 index.html include）
+│       └── tree.css            # 积分树样式
 ├── server/
 │   ├── src/
 │   │   ├── index.ts            # 增加 /api/scenes, /api/progress 路由
@@ -119,7 +118,7 @@ scene-engine/
 - **入口/引擎分离为两个 HTML 页面**：`index.html` 是入口网站，`play.html` 是 3D 场景。Vite 支持多页面构建（`build.rollupOptions.input`）。`play.html` 通过 URL 参数 `?scene=restaurant` 选择场景。
 - **场景列表 API 运行时加载 TypeScript**：服务端用 `tsx` 运行，直接用 `import()` 加载 `src/scenes/<id>/config.ts`。每个 config 导出 `SceneConfig` 对象，服务端提取 `name`、`description`、`cefrLevel` 返回给入口页。不需要额外的场景注册表。
 - **单条目进度表**：`progress` 表用 `scene_id` 作主键，单用户 V1 只插不删。`upsert` 语义：`INSERT OR REPLACE`。
-- **3D 引擎通过 `window.opener.postMessage` 通知入口页**：场景结束时 `play.html` 发送积分数据 → 入口页接收 → 调 `/api/progress` → 刷新 UI。不依赖 localStorage 轮询。
+- **3D 引擎直接 POST 积分到服务端，返回入口页刷新**：场景结束时 `main.ts` 调 `POST /api/progress` → 显示「返回」按钮 → `location.href = '/'` → 入口页 `DOMContentLoaded` 时重新 fetch 最新数据。比 postMessage 简单可靠，不需要 `window.open`/`window.opener` 关系。
 - **吉祥物用 CSS 而非图片/精灵**：一个 `div` 加 `::before`/`::after` 伪元素画出猫头鹰（圆形身体、三角形耳朵、大眼、小嘴）。CSS `@keyframes` 做眨眼、跳跃、挥手。零 HTTP 请求。
 
 ---
@@ -153,7 +152,7 @@ scene-engine/
   );
   ```
 - `GET /api/progress`：`SELECT * FROM progress` → 返回 `{ scenes: [...], totalScore: sum(score) }`
-- `POST /api/progress`：`INSERT OR REPLACE INTO progress (scene_id, completed, score, last_played_at) VALUES (...)` → 返回最新进度汇总
+- `POST /api/progress`：验证 `sceneId` 非空字符串、`score` ≥ 0、`completed` 布尔值，非法输入返回 400。合法输入 → `INSERT OR REPLACE INTO progress` → 返回最新进度汇总
 - 数据库文件存 `server/data/progress.db`，`.gitignore` 忽略
 
 **Test scenarios:**
@@ -179,7 +178,7 @@ scene-engine/
 - Create: `server/src/routes/scenes.ts`
 
 **Approach:**
-- 启动时用 `fs.readdirSync` 扫描 `src/scenes/`，对每个子目录用 `import()` 加载 `config.ts`
+- 启动时用 `fs.readdirSync` 扫描 `src/scenes/`，对每个子目录用 `import()` 加载 `config.ts`。failed imports 用 try/catch 包裹，console.warn 跳过并继续
 - 提取 `{ id: 目录名, name, description, cefrLevel }`
 - 从 `progress` 表读取完成状态，计算解锁：CEFR 排序，第一个总是解锁，后续需要前一个 `completed=true`
 - `GET /api/scenes` 返回：
@@ -237,7 +236,7 @@ scene-engine/
   build: {
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'index.html'),
+        index: resolve(__dirname, 'index.html'),
         play: resolve(__dirname, 'play.html'),
       }
     }
@@ -338,14 +337,14 @@ scene-engine/
 - **`play.html`**：`<script type="module" src="/src/main.ts">`，同原 `index.html` 结构
 - **`main.ts` 修改**：
   - 从 `new URLSearchParams(location.search).get('scene')` 读场景 ID，默认 `restaurant`
-  - 动态 import 对应场景 config：`import(\`../scenes/${sceneId}/config.ts\`)`
+  - 动态 import 对应场景 config：`import(\`../scenes/${sceneId}/config.ts\`)`。import 失败时显示错误遮罩 + 「Back to scenes」按钮
   - 会话结束时（TTS 播放完 goodbye、触发 sessionEnd）：`fetch('/api/progress', { method: 'POST', body: JSON.stringify({sceneId, score, completed: true}) })`
-  - 完成后显示一个「Back to scenes」按钮（CSS 浮层），点击 → `location.href = '/'`
-- **会话结束检测**：在 `sessionEnd` 状态订阅中触发 POST。或更简单——在 `endDialogue` 检测 `isTerminal` 时调 POST，并显示返回按钮。
-- **`index.html` 修改**：`portal.ts` 在 `DOMContentLoaded` 时强制重新 fetch `/api/scenes` 和 `/api/progress`（不依赖缓存），确保返回后显示最新数据
+  - 显示一个「Back to scenes」按钮（CSS 浮层），点击 → `location.href = '/'`
+- **会话结束检测**：在 `startDialogue` 调用 `speakNPC(node)` 完成后，若 `node.isTerminal === true`，POST `/api/progress` → 显示返回按钮。
+- **`index.html` 修改**：`portal.ts` 在 `DOMContentLoaded` 时重新 fetch `/api/scenes` 和 `/api/progress`（不依赖缓存），确保返回后显示最新数据
 
 **Test scenarios:**
-- Happy path (Covers AE2): 入口 → 点餐厅 → 3D 中完成点餐 → 返回按钮 → 点击返回 → 入口显示 restaurant ✓ + 积分增加
+- Happy path: 入口 → 点餐厅 → 3D 中完成点餐 → 返回按钮 → 点击返回 → 入口显示 restaurant ✓ + 积分增加
 - Edge case: `/api/progress` POST 失败 → 3D 场景内显示「积分未保存」提示，但不阻塞返回
 
 **Verification:**
