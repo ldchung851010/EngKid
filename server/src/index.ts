@@ -7,7 +7,8 @@ import { intentRoutes } from './routes/intent.js';
 import { ttsRoutes } from './routes/tts.js';
 
 const TTS_PORT = parseInt(process.env.TTS_PORT || '8081');
-const TTS_MODEL_PATH = process.env.TTS_MODEL_PATH || '';
+const TTS_MODEL_PATH = process.env.TTS_MODEL_PATH ||
+  `${process.env.HOME}/.config/hi-kid/models/kitten/kitten-tts-micro`;
 
 const app = Fastify({ logger: true });
 
@@ -17,7 +18,7 @@ await app.register(multipart);
 // Start kitten-tts-server
 function startTTSServer(): ChildProcess {
   const binPath = new URL('../bin/kitten-tts-server', import.meta.url).pathname;
-  const args = TTS_MODEL_PATH ? [TTS_MODEL_PATH, '--port', String(TTS_PORT)] : ['--port', String(TTS_PORT)];
+  const args = [TTS_MODEL_PATH, '--port', String(TTS_PORT)];
   console.log(`[TTS] starting: ${binPath} ${args.join(' ')}`);
 
   const proc = spawn(binPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
