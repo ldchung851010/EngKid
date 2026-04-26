@@ -31,19 +31,7 @@ export class CameraController {
 
     this.euler.setFromQuaternion(camera.quaternion);
 
-    this.onKeyDown = (e) => {
-      // Q toggles pointer lock (free mouse for UI)
-      if (e.code === 'KeyQ') {
-        if (this.isPointerLocked) {
-          document.exitPointerLock();
-          return;
-        } else {
-          this.domElement.requestPointerLock();
-          return;
-        }
-      }
-      this.keys.add(e.code);
-    };
+    this.onKeyDown = (e) => this.keys.add(e.code);
     this.onKeyUp = (e) => this.keys.delete(e.code);
     this.onMouseMove = (e) => this.handleMouseMove(e);
     this.onClick = () => this.domElement.requestPointerLock();
