@@ -1,10 +1,16 @@
 import { defineConfig } from 'vite';
+import path from 'path';
 
 export default defineConfig({
-  assetsInclude: ['**/*.wasm'],
-  worker: {
-    format: 'es',
+  base: '/',
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
   },
+  worker: { format: 'es' },
+  build: { target: 'esnext' },
+  assetsInclude: ['**/*.wasm'],
   server: {
     port: 5173,
     proxy: {
@@ -14,4 +20,17 @@ export default defineConfig({
       },
     },
   },
+  plugins: [
+    {
+      name: 'onnx-wasm-plugin',
+      configureServer(server) {
+        server.middlewares.use('/onnx-runtime', (req, _res, next) => {
+          if (req.url?.includes('?import')) {
+            req.url = req.url.replace('?import', '');
+          }
+          next();
+        });
+      },
+    },
+  ],
 });
