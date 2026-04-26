@@ -1,7 +1,7 @@
 import type { SceneConfig } from '../../engine/schema/SceneConfig.js';
 
 const RESTAURANT_WIDTH = 18;
-const RESTAURANT_HEIGHT = 4;
+const RESTAURANT_HEIGHT = 6;
 const RESTAURANT_DEPTH = 16;
 
 function createLayer(fill: string): string[][] {
@@ -44,6 +44,8 @@ export const restaurantConfig: SceneConfig = {
       { y: 0, grid: createLayer('FLOOR') },
       { y: 1, grid: createWallLayer() },
       { y: 2, grid: createWallLayer() },
+      { y: 3, grid: createWallLayer() },
+      { y: 4, grid: createWallLayer() },
     ],
   },
 

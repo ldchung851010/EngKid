@@ -28,7 +28,7 @@ export function createRestaurantDecor(): THREE.Group {
   addWallStripe(group, 9, 1.02);
   addPendantLight(group, 4, 7.2);
   addPendantLight(group, 14, 7.2);
-  addPendantLight(group, 9, 5.2);
+  addPendantLight(group, 12, 5.6);
 
   return group;
 }
@@ -51,14 +51,14 @@ function addCounter(group: THREE.Group): void {
 function addCeiling(group: THREE.Group): void {
   const ceiling = new THREE.MeshBasicMaterial({ color: 0xfff1c4 });
   const beam = new THREE.MeshBasicMaterial({ color: 0xffc66d });
-  addBox(group, [9, 3.16, 7.7], [16, 0.12, 13.2], ceiling);
-  addBox(group, [9, 2.96, 4.2], [16, 0.12, 0.18], beam);
-  addBox(group, [9, 2.96, 11.2], [16, 0.12, 0.18], beam);
-  addBox(group, [3.2, 2.96, 7.7], [0.18, 0.12, 13.2], beam);
-  addBox(group, [14.8, 2.96, 7.7], [0.18, 0.12, 13.2], beam);
-  addBox(group, [9, 2.85, 14.9], [6.4, 0.42, 0.16], new THREE.MeshStandardMaterial({ color: 0xef5350, roughness: 0.62 }));
+  addBox(group, [9, 5.15, 7.7], [16, 0.12, 13.2], ceiling);
+  addBox(group, [9, 4.9, 4.2], [16, 0.12, 0.18], beam);
+  addBox(group, [9, 4.9, 11.2], [16, 0.12, 0.18], beam);
+  addBox(group, [3.2, 4.9, 7.7], [0.18, 0.12, 13.2], beam);
+  addBox(group, [14.8, 4.9, 7.7], [0.18, 0.12, 13.2], beam);
+  addBox(group, [9, 4.18, 14.9], [6.4, 0.42, 0.16], new THREE.MeshStandardMaterial({ color: 0xef5350, roughness: 0.62 }));
   const entrance = createTextSprite('WELCOME', 256, 64, '#ffffff', 'bold 34px sans-serif');
-  entrance.position.set(9, 2.84, 14.78);
+  entrance.position.set(9, 4.18, 14.78);
   entrance.scale.set(2.4, 0.6, 1);
   group.add(entrance);
 }
@@ -163,15 +163,15 @@ function addPlant(group: THREE.Group, x: number, z: number): void {
 }
 
 function addPendantLight(group: THREE.Group, x: number, z: number): void {
-  addBox(group, [x, 2.96, z], [0.08, 0.5, 0.08], new THREE.MeshStandardMaterial({ color: 0x455a64, roughness: 0.45 }));
+  addBox(group, [x, 4.65, z], [0.08, 0.72, 0.08], new THREE.MeshStandardMaterial({ color: 0x455a64, roughness: 0.45 }));
   const shade = new THREE.Mesh(
     new THREE.CylinderGeometry(0.42, 0.28, 0.28, 24),
     new THREE.MeshStandardMaterial({ color: 0xfff176, roughness: 0.35 })
   );
-  shade.position.set(x, 2.62, z);
+  shade.position.set(x, 4.2, z);
   shade.castShadow = true;
   group.add(shade);
   const light = new THREE.PointLight(0xfff3c4, 0.55, 6);
-  light.position.set(x, 2.35, z);
+  light.position.set(x, 3.88, z);
   group.add(light);
 }

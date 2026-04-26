@@ -90,8 +90,11 @@ function spawnNPCs(npcs: NPCConfig[]): void {
 
     // Simple name label via sprite
     const labelSprite = createTextSprite(npc.name, 128, 40, '#ffffff', 'bold 18px sans-serif');
-    labelSprite.position.set(0, 2.1, 0);
+    labelSprite.position.set(0, 2.28, 0);
     labelSprite.scale.set(1.4, 0.42, 1);
+    labelSprite.renderOrder = 900;
+    labelSprite.material.depthTest = false;
+    labelSprite.material.depthWrite = false;
     group.add(labelSprite);
 
     createNPCStatusIndicator(npc.id, group);
@@ -104,9 +107,12 @@ function createNPCStatusIndicator(npcId: string, parent: THREE.Object3D): void {
   canvas.height = 96;
   const texture = new THREE.CanvasTexture(canvas);
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+  material.depthTest = false;
+  material.depthWrite = false;
   const sprite = new THREE.Sprite(material);
-  sprite.position.set(0, 2.05, 0);
+  sprite.position.set(0, 2.78, 0);
   sprite.scale.set(0.75, 0.75, 1);
+  sprite.renderOrder = 1000;
   sprite.visible = false;
   parent.add(sprite);
   npcStatusIndicators.set(npcId, { sprite, texture, material, canvas });
@@ -429,8 +435,8 @@ async function loadScene(): Promise<void> {
   preloadDialogueAudio();
 
   // Position camera near doorway
-  camera.position.set(9, 1.85, 14);
-  camera.lookAt(9, 1.2, 5);
+  camera.position.set(9, 1.75, 14);
+  camera.lookAt(9, 1.45, 5);
 
   // Start session
   actor.send({ type: 'LOAD_SCENE', sceneId: 'restaurant' });
