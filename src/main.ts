@@ -15,6 +15,7 @@ import { TTSEngine } from './engine/voice/TTSEngine.js';
 import { MicButton } from './engine/voice/MicButton.js';
 import type { NPCConfig, DialogueNode, SceneConfig } from './engine/schema/SceneConfig.js';
 import { emptySceneHooks, type SceneHooks, type SceneModule } from './engine/runtime/SceneModule.js';
+import { CollectibleManager } from './engine/collectibles/index.js';
 
 // ── Dynamic Scene ─────────────────────────────────────────────
 const params = new URLSearchParams(location.search);
@@ -80,6 +81,7 @@ interface NPCStatusIndicator {
   canvas: HTMLCanvasElement;
 }
 const npcStatusIndicators = new Map<string, NPCStatusIndicator>();
+let collectibleManager: CollectibleManager | null = null;
 
 // ── Session State Machine ──────────────────────────────────────
 const actor = createActor(sessionMachine);
@@ -452,6 +454,10 @@ function checkNPCProximity(): void {
   }
 }
 
+function checkCollectibleProximity(): void {
+  collectibleManager?.checkProximity(camera.position);
+}
+
 // ── Scene Loading ──────────────────────────────────────────────
 async function loadScene(): Promise<void> {
   // Validate config
@@ -470,6 +476,8 @@ async function loadScene(): Promise<void> {
     scene.remove(sceneVisualGroup);
     disposeObject3D(sceneVisualGroup);
   }
+  collectibleManager?.dispose();
+  collectibleManager = null;
   sceneVisualGroup = activeSceneModule?.createVisuals?.() ?? null;
   if (sceneVisualGroup) {
     scene.add(sceneVisualGroup);
@@ -480,6 +488,8 @@ async function loadScene(): Promise<void> {
   // Spawn NPCs
   currentNPCs = activeSceneConfig.npcs;
   spawnNPCs(currentNPCs);
+  collectibleManager = new CollectibleManager(scene, camera, tts, activeSceneId, activeSceneConfig);
+  await collectibleManager.init();
 
   if (activeSceneConfig.environment) {
     const skyColor = activeSceneConfig.environment.skyColor ?? 0x87ceeb;
@@ -562,7 +572,10 @@ function animate(): void {
   if (proximityTimer > 0.5) {
     proximityTimer = 0;
     checkNPCProximity();
+    checkCollectibleProximity();
   }
+
+  collectibleManager?.update(delta);
 
   renderer.render(scene, camera);
 }
