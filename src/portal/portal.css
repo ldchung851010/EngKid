@@ -310,6 +310,42 @@ body {
   font-weight: 500;
 }
 
+#compendium-btn {
+  margin-top: 10px;
+  width: 100%;
+  border: 0;
+  border-radius: 16px;
+  padding: 8px 10px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  background: #fff7cc;
+  color: #6b4f00;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+}
+#compendium-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.compendium-icon {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+#compendium-count {
+  min-width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #ff8c42;
+  color: #fff;
+}
+
 /* ── Cards ────────────────────────────────────────────────── */
 #cards-container {
   animation: fade-up 0.6s 0.3s ease both;
@@ -526,6 +562,162 @@ body {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ── Compendium ───────────────────────────────────────────── */
+#compendium-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgba(45,52,54,0.76);
+  backdrop-filter: blur(8px);
+}
+#compendium-overlay.hidden { display: none; }
+
+.compendium-panel {
+  width: min(980px, 100%);
+  max-height: min(760px, calc(100vh - 56px));
+  display: flex;
+  flex-direction: column;
+  background: #fffaf0;
+  border: 3px solid rgba(255,255,255,0.85);
+  border-radius: 24px;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.28);
+  overflow: hidden;
+  animation: compendium-enter 0.22s ease-out;
+}
+@keyframes compendium-enter {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.compendium-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 22px;
+  background: #ffe7b8;
+  border-bottom: 2px solid rgba(107,79,0,0.12);
+}
+.compendium-header h2 {
+  font-size: 24px;
+  color: #573b00;
+}
+.compendium-close {
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  color: #573b00;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.compendium-body {
+  overflow: auto;
+  padding: 22px;
+  display: grid;
+  gap: 22px;
+}
+.compendium-empty {
+  padding: 18px;
+  border-radius: 16px;
+  background: #e9f8df;
+  color: #2e6b38;
+  font-weight: 700;
+}
+.compendium-scene {
+  display: grid;
+  gap: 12px;
+}
+.compendium-scene-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  color: #2d3436;
+}
+.compendium-scene-icon { font-size: 24px; }
+.compendium-scene-name { font-size: 20px; }
+.compendium-scene-progress {
+  margin-left: auto;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #dff6ff;
+  color: #17637a;
+}
+.compendium-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+  gap: 12px;
+}
+.compendium-item {
+  position: relative;
+  min-height: 132px;
+  border: 2px solid rgba(0,0,0,0.06);
+  border-radius: 18px;
+  background: #fff;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 12px 8px;
+  font-family: inherit;
+  font-weight: 700;
+  color: #2d3436;
+}
+.compendium-item.collected {
+  cursor: pointer;
+  transition: transform 0.18s, box-shadow 0.18s;
+}
+.compendium-item.collected:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 22px rgba(0,0,0,0.12);
+}
+.compendium-item.missing {
+  color: #7d8790;
+  background: #f1f5f9;
+}
+.compendium-item.missing .compendium-svg {
+  filter: grayscale(1);
+  opacity: 0.36;
+}
+.compendium-svg svg {
+  width: 68px;
+  height: 68px;
+  display: block;
+}
+.compendium-word {
+  max-width: 100%;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.compendium-example {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  width: min(240px, 72vw);
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #263238;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.35;
+  z-index: 2;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.22);
+}
+.compendium-example strong,
+.compendium-example span {
+  display: block;
+}
+.compendium-example span {
+  margin-top: 4px;
+  color: #dbeafe;
+}
+
 /* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 768px) {
   #hero-section {
@@ -547,4 +739,15 @@ body {
   .card-header { height: 80px; font-size: 44px; }
   .card-body { padding: 14px 18px 18px; }
   .card-name { font-size: 20px; }
+  #compendium-overlay { padding: 12px; }
+  .compendium-body { padding: 16px; }
+  .compendium-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .compendium-panel,
+  .compendium-item.collected {
+    animation: none;
+    transition: none;
+  }
 }

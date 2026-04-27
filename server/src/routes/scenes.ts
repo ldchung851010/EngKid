@@ -8,6 +8,7 @@ interface SceneMeta {
   name: string;
   description: string;
   cefrLevel: string;
+  targetVocabulary: string[];
   unlocked: boolean;
   completed: boolean;
   score: number;
@@ -38,6 +39,7 @@ export async function scenesRoutes(app: FastifyInstance) {
           name: config.name,
           description: config.description ?? '',
           cefrLevel: config.cefrLevel ?? 'A1',
+          targetVocabulary: Array.isArray(config.targetVocabulary) ? config.targetVocabulary : [],
           completed: progress?.completed === 1,
           score: progress?.score ?? 0,
         });

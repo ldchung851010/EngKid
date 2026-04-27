@@ -1,8 +1,11 @@
+import { getSvgForWord } from '../engine/collectibles/vocab-svg-map.js';
+
 interface SceneInfo {
   id: string;
   name: string;
   description: string;
   cefrLevel: string;
+  targetVocabulary: string[];
   unlocked: boolean;
   completed: boolean;
   score: number;
@@ -31,10 +34,22 @@ interface QuoteItem {
   audioFile: string;
 }
 
+interface CollectibleItem {
+  word: string;
+  sceneId: string;
+  collectedAt: string;
+}
+
+interface ExampleItem {
+  sentence: string;
+  explanation: string;
+}
+
 let quoteList: QuoteItem[] = [];
 let currentAudio: HTMLAudioElement | null = null;
 let defaultBubbleText = '';
 let bubbleHideTimer: ReturnType<typeof setTimeout> | null = null;
+const exampleCache = new Map<string, ExampleItem>();
 
 async function loadQuotes(): Promise<void> {
   try {
@@ -123,18 +138,21 @@ async function loadPortal(): Promise<void> {
   loadQuotes();
 
   try {
-    const [scenesRes, progressRes] = await Promise.all([
+    const [scenesRes, progressRes, collectiblesResult] = await Promise.all([
       fetch('/api/scenes'),
       fetch('/api/progress'),
+      fetch('/api/collectibles').catch((error) => error as Error),
     ]);
 
     if (!scenesRes.ok || !progressRes.ok) throw new Error('API error');
 
     const { scenes } = await scenesRes.json() as { scenes: SceneInfo[] };
     const { totalScore } = await progressRes.json() as { totalScore: number };
+    const collectibles = await parseCollectibles(collectiblesResult);
 
     scoreCount.textContent = String(totalScore);
     updateTree(totalScore);
+    renderCompendiumButton(scenes, collectibles);
     loading.classList.add('hidden');
 
     // Render cards
@@ -190,6 +208,196 @@ async function loadPortal(): Promise<void> {
     console.error('Portal load failed:', err);
     loading.innerHTML = '<p>Failed to load scenes. Make sure the server is running.</p>';
   }
+}
+
+async function parseCollectibles(result: Response | Error): Promise<CollectibleItem[] | null> {
+  if (result instanceof Error || !result.ok) {
+    console.warn('[compendium] failed to load collectibles', result);
+    return null;
+  }
+
+  const payload = await result.json() as { items?: CollectibleItem[] };
+  return payload.items ?? [];
+}
+
+function renderCompendiumButton(scenes: SceneInfo[], collectibles: CollectibleItem[] | null): void {
+  const scoreDisplay = document.getElementById('score-display')!;
+  document.getElementById('compendium-btn')?.remove();
+
+  const button = document.createElement('button');
+  button.id = 'compendium-btn';
+  button.type = 'button';
+  button.disabled = collectibles === null;
+  button.innerHTML = `<span class="compendium-icon">Book</span><span id="compendium-count">${collectibles?.length ?? '?'}</span>`;
+  scoreDisplay.appendChild(button);
+
+  if (collectibles !== null) {
+    button.addEventListener('click', () => openCompendium(scenes, collectibles));
+  }
+}
+
+function openCompendium(scenes: SceneInfo[], collectibles: CollectibleItem[]): void {
+  const overlay = getCompendiumOverlay();
+  const body = overlay.querySelector<HTMLDivElement>('.compendium-body')!;
+  const collectedSet = new Set(collectibles.map((item) => `${item.sceneId}:${item.word.toLowerCase()}`));
+
+  body.innerHTML = '';
+  if (collectibles.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'compendium-empty';
+    empty.textContent = 'No words collected yet. Explore a scene to find some.';
+    body.appendChild(empty);
+  }
+
+  for (const scene of scenes) {
+    const words = scene.targetVocabulary ?? [];
+    const collectedCount = words.filter((word) => collectedSet.has(`${scene.id}:${word.toLowerCase()}`)).length;
+    const section = document.createElement('section');
+    section.className = 'compendium-scene';
+    section.innerHTML = `
+      <div class="compendium-scene-header">
+        <span class="compendium-scene-icon">${getSceneEmoji(scene)}</span>
+        <span class="compendium-scene-name">${scene.name}</span>
+        <span class="compendium-scene-progress">${collectedCount}/${words.length}</span>
+      </div>
+      <div class="compendium-grid"></div>
+    `;
+
+    const grid = section.querySelector<HTMLDivElement>('.compendium-grid')!;
+    for (const word of words) {
+      const collected = collectedSet.has(`${scene.id}:${word.toLowerCase()}`);
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = `compendium-item${collected ? ' collected' : ' missing'}`;
+      card.disabled = !collected;
+      card.innerHTML = `
+        <span class="compendium-svg">${getSvgForWord(word)}</span>
+        <span class="compendium-word">${collected ? word : '???'}</span>
+      `;
+      if (collected) {
+        card.addEventListener('click', (event) => {
+          event.stopPropagation();
+          void handleCompendiumWordClick(card, word, scene.cefrLevel);
+        });
+      }
+      grid.appendChild(card);
+    }
+
+    body.appendChild(section);
+  }
+
+  overlay.classList.remove('hidden');
+  overlay.querySelector<HTMLButtonElement>('.compendium-close')!.focus();
+}
+
+function getCompendiumOverlay(): HTMLDivElement {
+  const existing = document.getElementById('compendium-overlay') as HTMLDivElement | null;
+  if (existing) return existing;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'compendium-overlay';
+  overlay.className = 'hidden';
+  overlay.innerHTML = `
+    <div class="compendium-panel" role="dialog" aria-modal="true" aria-label="Word collection">
+      <div class="compendium-header">
+        <h2>Word Collection</h2>
+        <button type="button" class="compendium-close" aria-label="Close">x</button>
+      </div>
+      <div class="compendium-body"></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) closeCompendium();
+  });
+  overlay.querySelector<HTMLButtonElement>('.compendium-close')!.addEventListener('click', closeCompendium);
+  document.addEventListener('keydown', (event) => {
+    if (overlay.classList.contains('hidden')) return;
+    if (event.code === 'Escape') closeCompendium();
+    if (event.code === 'Tab') trapCompendiumFocus(event, overlay);
+  });
+
+  return overlay;
+}
+
+function closeCompendium(): void {
+  document.getElementById('compendium-overlay')?.classList.add('hidden');
+}
+
+function trapCompendiumFocus(event: KeyboardEvent, overlay: HTMLElement): void {
+  const focusable = [...overlay.querySelectorAll<HTMLElement>('button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])')];
+  if (focusable.length === 0) return;
+
+  const first = focusable[0]!;
+  const last = focusable[focusable.length - 1]!;
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+async function handleCompendiumWordClick(card: HTMLElement, word: string, cefrLevel: string): Promise<void> {
+  hideExampleBubbles();
+  await speakPortalText(word, 0.75);
+
+  const bubble = document.createElement('div');
+  bubble.className = 'compendium-example';
+  bubble.textContent = 'Loading example...';
+  card.appendChild(bubble);
+
+  try {
+    const example = await getExample(word, cefrLevel);
+    bubble.innerHTML = `<strong>${example.sentence}</strong><span>${example.explanation}</span>`;
+    await speakPortalText(example.sentence, 0.85);
+  } catch (error) {
+    console.warn('[compendium] example failed', error);
+    bubble.textContent = 'Example is unavailable right now.';
+  }
+
+  setTimeout(() => bubble.remove(), 8000);
+}
+
+function hideExampleBubbles(): void {
+  document.querySelectorAll('.compendium-example').forEach((node) => node.remove());
+}
+
+async function getExample(word: string, cefrLevel: string): Promise<ExampleItem> {
+  const key = word.toLowerCase();
+  const cached = exampleCache.get(key);
+  if (cached) return cached;
+
+  const response = await fetch('/api/example', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ word, cefrLevel }),
+  });
+  if (!response.ok) throw new Error(`Example failed: ${response.status}`);
+
+  const example = await response.json() as ExampleItem;
+  exampleCache.set(key, example);
+  return example;
+}
+
+async function speakPortalText(text: string, speed: number): Promise<void> {
+  currentAudio?.pause();
+  const response = await fetch('/api/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ input: text, voice: 'Kiki', speed }),
+  });
+  if (!response.ok) throw new Error(`TTS failed: ${response.status}`);
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const audio = new Audio(url);
+  currentAudio = audio;
+  audio.addEventListener('ended', () => URL.revokeObjectURL(url), { once: true });
+  audio.addEventListener('error', () => URL.revokeObjectURL(url), { once: true });
+  await audio.play();
 }
 
 function showBubble(bubble: HTMLElement, text: string): void {

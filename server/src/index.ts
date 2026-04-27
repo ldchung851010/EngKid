@@ -7,6 +7,7 @@ import { intentRoutes } from './routes/intent.js';
 import { ttsRoutes } from './routes/tts.js';
 import { progressRoutes } from './routes/progress.js';
 import { collectiblesRoutes } from './routes/collectibles.js';
+import { exampleRoutes } from './routes/example.js';
 import { scenesRoutes } from './routes/scenes.js';
 import { quotesRoutes } from './routes/quotes.js';
 import { ensureQuotesGenerated } from './utils/quoteGenerator.js';
@@ -66,6 +67,7 @@ await app.register(intentRoutes, { prefix: '/api' });
 await app.register(ttsRoutes(TTS_PORT), { prefix: '/api' });
 await app.register(progressRoutes, { prefix: '/api' });
 await app.register(collectiblesRoutes, { prefix: '/api' });
+await app.register(exampleRoutes, { prefix: '/api' });
 await app.register(scenesRoutes, { prefix: '/api' });
 await app.register(quotesRoutes(), { prefix: '/api' });
 
