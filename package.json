@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Three.js voxel scene engine for children's English speaking & listening learning",
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

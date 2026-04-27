@@ -3,8 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
+    "predev": "node scripts/check-node-version.cjs",
     "dev": "tsx watch src/index.ts",
+    "prebuild": "node scripts/check-node-version.cjs",
     "build": "tsc",
     "start": "node dist/index.js"
   },
