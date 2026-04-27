@@ -14,6 +14,7 @@ export enum BlockType {
   SIGN = 11,
   ROAD = 12,
   CARPET = 13,
+  PORTAL = 14,
 }
 
 /** Visual properties for each block type */
@@ -39,6 +40,7 @@ export const BLOCK_VISUALS: Record<BlockType, BlockVisual> = {
   [BlockType.SIGN]: { color: 0xfff176, roughness: 0.55 },
   [BlockType.ROAD]: { color: 0x78909c, roughness: 0.82 },
   [BlockType.CARPET]: { color: 0xef9a9a, roughness: 0.95 },
+  [BlockType.PORTAL]: { color: 0x7c4dff, roughness: 0.1, metalness: 0.8 },
 };
 
 export const BLOCK_TYPE_BY_ID: Record<string, BlockType> = Object.freeze({
@@ -56,4 +58,5 @@ export const BLOCK_TYPE_BY_ID: Record<string, BlockType> = Object.freeze({
   SIGN: BlockType.SIGN,
   ROAD: BlockType.ROAD,
   CARPET: BlockType.CARPET,
+  PORTAL: BlockType.PORTAL,
 });

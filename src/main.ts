@@ -86,8 +86,111 @@ const npcStatusIndicators = new Map<string, NPCStatusIndicator>();
 let collectibleManager: CollectibleManager | null = null;
 type InteractionTarget =
   | { type: 'npc'; npc: NPCConfig; distance: number }
-  | { type: 'collectible'; word: string; distance: number };
+  | { type: 'collectible'; word: string; distance: number }
+  | { type: 'portal'; distance: number };
 let activeInteractionTarget: InteractionTarget | null = null;
+// ── Portal ────────────────────────────────────────────────────
+let portalGroup: THREE.Group | null = null;
+const PORTAL_INTERACTION_RADIUS = 2;
+
+function createPortal(config: SceneConfig): THREE.Group {
+  const group = new THREE.Group();
+  const start = config.start ?? { position: { x: 0, y: 2.6, z: 0 }, lookAt: { x: 0, y: 2.3, z: 0 } };
+
+  // Place portal behind spawn position (toward the back wall)
+  const portalPos = {
+    x: start.position.x,
+    y: 2.4,
+    z: start.position.z + 1.5,
+  };
+  group.position.set(portalPos.x, portalPos.y, portalPos.z);
+
+  // Outer ring (torus)
+  const ringGeo = new THREE.TorusGeometry(0.8, 0.12, 16, 32);
+  const ringMat = new THREE.MeshStandardMaterial({
+    color: 0x7c4dff,
+    roughness: 0.1,
+    metalness: 0.8,
+    emissive: 0x3d1a7a,
+    emissiveIntensity: 0.6,
+  });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.castShadow = true;
+  group.add(ring);
+
+  // Inner surface (translucent disc)
+  const innerGeo = new THREE.CircleGeometry(0.62, 32);
+  const innerMat = new THREE.MeshBasicMaterial({
+    color: 0xb39ddb,
+    transparent: true,
+    opacity: 0.55,
+    side: THREE.DoubleSide,
+  });
+  const inner = new THREE.Mesh(innerGeo, innerMat);
+  group.add(inner);
+
+  // Glow sprite behind portal
+  const glowSprite = createTextSprite('', 128, 128, '#ffffff', 'bold 24px sans-serif');
+  glowSprite.material.color.set(0xb39ddb);
+  glowSprite.material.opacity = 0.5;
+  glowSprite.material.depthTest = false;
+  glowSprite.material.depthWrite = false;
+  glowSprite.position.set(0, 0, -0.1);
+  glowSprite.scale.set(2.2, 2.8, 1);
+  group.add(glowSprite);
+
+  // Label
+  const label = createTextSprite('🚪 Home', 256, 64, '#ffffff', 'bold 28px sans-serif');
+  label.position.set(0, 1.55, 0);
+  label.scale.set(2.0, 0.5, 1);
+  label.material.depthTest = false;
+  label.material.depthWrite = false;
+  group.add(label);
+
+  // Floating particles (4 small spheres orbiting)
+  const particleGeo = new THREE.SphereGeometry(0.08, 8, 8);
+  const particleMat = new THREE.MeshStandardMaterial({
+    color: 0xb39ddb,
+    roughness: 0.2,
+    emissive: 0x7c4dff,
+    emissiveIntensity: 0.8,
+  });
+  for (let i = 0; i < 4; i++) {
+    const particle = new THREE.Mesh(particleGeo, particleMat);
+    particle.userData = { portalOrbit: { angle: (Math.PI * 2 * i) / 4, radius: 0.7, speed: 1.2 } };
+    group.add(particle);
+  }
+
+  return group;
+}
+
+function animatePortal(delta: number): void {
+  if (!portalGroup) return;
+  // Rotate the entire portal ring slowly
+  portalGroup.rotation.y += delta * 0.6;
+  // Animate orbiting particles
+  portalGroup.children.forEach((child) => {
+    const orbit = child.userData.portalOrbit;
+    if (!orbit) return;
+    orbit.angle += delta * orbit.speed;
+    child.position.x = Math.cos(orbit.angle) * orbit.radius;
+    child.position.y = Math.sin(orbit.angle * 1.3) * orbit.radius * 0.6;
+    child.position.z = Math.sin(orbit.angle) * orbit.radius;
+  });
+}
+
+function getPortalDistance(): number {
+  if (!portalGroup) return Infinity;
+  const pp = portalGroup.position;
+  const dx = camera.position.x - pp.x;
+  const dz = camera.position.z - pp.z;
+  return Math.sqrt(dx * dx + dz * dz);
+}
+
+function navigateToHome(): void {
+  location.href = '/';
+}
+
 const interactionPrompt = document.getElementById('interaction-prompt')!;
 const interactionLabel = document.getElementById('interaction-label')!;
 
@@ -253,26 +356,9 @@ async function saveProgress(): Promise<void> {
       headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ sceneId: activeSceneId, score: score.total, completed }),
     });
-    showBackButton();
   } catch {
     console.warn('Failed to save progress');
   }
-}
-
-function showBackButton(): void {
-  if (document.getElementById('back-button')) return;
-  const btn = document.createElement('div');
-  btn.id = 'back-button';
-  btn.innerHTML = '← Back to scenes';
-  Object.assign(btn.style, {
-    position: 'fixed', bottom: '24px', right: '24px',
-    background: 'rgba(255,255,255,0.9)', color: '#333',
-    padding: '12px 24px', borderRadius: '12px',
-    fontSize: '16px', fontWeight: '700', cursor: 'pointer',
-    zIndex: '100', boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-  });
-  btn.addEventListener('click', () => { location.href = '/'; });
-  document.body.appendChild(btn);
 }
 
 function isCurrentDialogue(npcId: string, nodeId: string, revision: number): boolean {
@@ -439,9 +525,13 @@ function showInteractionPrompt(target: InteractionTarget | null): void {
     return;
   }
 
-  interactionLabel.textContent = target.type === 'npc'
-    ? `Talk to ${target.npc.name}`
-    : `Collect ${target.word}`;
+  if (target.type === 'portal') {
+    interactionLabel.textContent = 'Go home 🚪';
+  } else if (target.type === 'npc') {
+    interactionLabel.textContent = `Talk to ${target.npc.name}`;
+  } else {
+    interactionLabel.textContent = `Collect ${target.word}`;
+  }
   interactionPrompt.style.display = 'flex';
 }
 
@@ -483,26 +573,21 @@ function updateInteractionTarget(): void {
     return;
   }
 
+  const portalDist = getPortalDistance();
+  const portalTarget: InteractionTarget | null =
+    portalDist <= PORTAL_INTERACTION_RADIUS ? { type: 'portal', distance: portalDist } : null;
+
   const npcTarget = getNearestNPCTarget();
   const collectibleTarget = collectibleManager?.getNearestCollectible(camera.position, COLLECTIBLE_INTERACTION_RADIUS) ?? null;
 
-  if (npcTarget && collectibleTarget && collectibleTarget.distance < npcTarget.distance) {
-    activeInteractionTarget = {
-      type: 'collectible',
-      word: collectibleTarget.word,
-      distance: collectibleTarget.distance,
-    };
-  } else if (npcTarget) {
-    activeInteractionTarget = npcTarget;
-  } else if (collectibleTarget) {
-    activeInteractionTarget = {
-      type: 'collectible',
-      word: collectibleTarget.word,
-      distance: collectibleTarget.distance,
-    };
-  } else {
-    activeInteractionTarget = null;
-  }
+  // Closest target wins (portal competes on distance)
+  const candidates: InteractionTarget[] = [];
+  if (npcTarget) candidates.push(npcTarget);
+  if (collectibleTarget) candidates.push({ type: 'collectible', word: collectibleTarget.word, distance: collectibleTarget.distance });
+  if (portalTarget) candidates.push(portalTarget);
+
+  candidates.sort((a, b) => a.distance - b.distance);
+  activeInteractionTarget = candidates[0] ?? null;
 
   for (const npc of currentNPCs) {
     setNPCStatus(npc.id, null);
@@ -517,6 +602,11 @@ function updateInteractionTarget(): void {
 async function activateInteractionTarget(): Promise<void> {
   updateInteractionTarget();
   if (!activeInteractionTarget || activeNPC) return;
+
+  if (activeInteractionTarget.type === 'portal') {
+    navigateToHome();
+    return;
+  }
 
   if (activeInteractionTarget.type === 'collectible') {
     await collectibleManager?.openActiveCollectible();
@@ -563,6 +653,14 @@ async function loadScene(): Promise<void> {
     collisionWorld.addObjectColliders(sceneVisualGroup);
   }
   controller.setCollisionTester((position) => collisionWorld.canOccupy(position, { radius: PLAYER_COLLISION_RADIUS }));
+
+  // Spawn portal at entrance
+  if (portalGroup) {
+    scene.remove(portalGroup);
+    disposeObject3D(portalGroup);
+  }
+  portalGroup = createPortal(activeSceneConfig);
+  scene.add(portalGroup);
 
   // Spawn NPCs
   currentNPCs = activeSceneConfig.npcs;
@@ -654,6 +752,7 @@ function animate(): void {
   }
 
   collectibleManager?.update(delta);
+  animatePortal(delta);
 
   renderer.render(scene, camera);
 }
