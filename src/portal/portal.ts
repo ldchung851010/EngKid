@@ -347,22 +347,55 @@ async function handleCompendiumWordClick(card: HTMLElement, word: string, cefrLe
   const bubble = document.createElement('div');
   bubble.className = 'compendium-example';
   bubble.textContent = 'Loading example...';
-  card.appendChild(bubble);
+  document.body.appendChild(bubble);
+  const positionBubble = () => positionCompendiumExample(card, bubble);
+  positionBubble();
 
   try {
     const example = await getExample(word, cefrLevel);
     bubble.innerHTML = `<strong>${example.sentence}</strong><span>${example.explanation}</span>`;
+    positionBubble();
     await speakPortalText(example.sentence, 0.85);
   } catch (error) {
     console.warn('[compendium] example failed', error);
     bubble.textContent = 'Example is unavailable right now.';
+    positionBubble();
   }
 
-  setTimeout(() => bubble.remove(), 8000);
+  const body = document.querySelector<HTMLDivElement>('.compendium-body');
+  body?.addEventListener('scroll', positionBubble, { passive: true });
+  window.addEventListener('resize', positionBubble);
+  setTimeout(() => {
+    body?.removeEventListener('scroll', positionBubble);
+    window.removeEventListener('resize', positionBubble);
+    bubble.remove();
+  }, 8000);
 }
 
 function hideExampleBubbles(): void {
   document.querySelectorAll('.compendium-example').forEach((node) => node.remove());
+}
+
+function positionCompendiumExample(anchor: HTMLElement, bubble: HTMLElement): void {
+  const anchorRect = anchor.getBoundingClientRect();
+  const bubbleRect = bubble.getBoundingClientRect();
+  const gap = 10;
+  const margin = 12;
+  const spaceAbove = anchorRect.top - margin;
+  const spaceBelow = window.innerHeight - anchorRect.bottom - margin;
+  const placeBelow = spaceAbove < bubbleRect.height + gap && spaceBelow > spaceAbove;
+
+  const rawLeft = anchorRect.left + anchorRect.width / 2 - bubbleRect.width / 2;
+  const left = Math.max(margin, Math.min(rawLeft, window.innerWidth - bubbleRect.width - margin));
+  const top = placeBelow
+    ? Math.min(anchorRect.bottom + gap, window.innerHeight - bubbleRect.height - margin)
+    : Math.max(margin, anchorRect.top - bubbleRect.height - gap);
+
+  bubble.style.left = `${left}px`;
+  bubble.style.top = `${top}px`;
+  bubble.classList.toggle('below', placeBelow);
+  bubble.classList.toggle('above', !placeBelow);
+  bubble.style.setProperty('--example-arrow-left', `${anchorRect.left + anchorRect.width / 2 - left}px`);
 }
 
 async function getExample(word: string, cefrLevel: string): Promise<ExampleItem> {
