@@ -89,7 +89,7 @@ function addStudentDesks(group: THREE.Group): void {
   const positions = [
     [4, 7], [7, 7], [10, 7], [13, 7], [16, 7],
     [4, 10], [7, 10], [10, 10], [13, 10], [16, 10],
-    [5.5, 13], [9, 13], [12.5, 13], [16, 13],
+    [5.5, 13], [12.5, 13], [16, 13],
   ];
   for (const [x, z] of positions) {
     addDeskSet(group, x, z);
