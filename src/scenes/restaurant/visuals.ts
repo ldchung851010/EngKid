@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addBox, addLocalBox, createTextSprite, type VectorTuple } from '../../engine/renderer/ScenePrimitives.js';
+import { addBox, addLocalBox, type VectorTuple } from '../../engine/renderer/ScenePrimitives.js';
 
 export function createRestaurantDecor(): THREE.Group {
   const group = new THREE.Group();
@@ -56,11 +56,6 @@ function addCeiling(group: THREE.Group): void {
   addBox(group, [9, 4.9, 11.2], [16, 0.12, 0.18], beam);
   addBox(group, [3.2, 4.9, 7.7], [0.18, 0.12, 13.2], beam);
   addBox(group, [14.8, 4.9, 7.7], [0.18, 0.12, 13.2], beam);
-  addBox(group, [9, 4.18, 14.9], [6.4, 0.42, 0.16], new THREE.MeshStandardMaterial({ color: 0xef5350, roughness: 0.62 }));
-  const entrance = createTextSprite('WELCOME', 256, 64, '#ffffff', 'bold 34px sans-serif');
-  entrance.position.set(9, 4.18, 14.78);
-  entrance.scale.set(2.4, 0.6, 1);
-  group.add(entrance);
 }
 
 function addDiningSet(group: THREE.Group, x: number, z: number): void {

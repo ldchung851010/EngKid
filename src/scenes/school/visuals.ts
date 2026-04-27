@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addBox, addLocalBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
+import { addBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
   chalkboard: new THREE.MeshStandardMaterial({ color: 0x1f6f43, roughness: 0.62 }),
@@ -158,9 +158,4 @@ function addCeilingLights(group: THREE.Group): void {
 function addDoorAndWindows(group: THREE.Group): void {
   addBox(group, [1.02, 2.1, 3.4], [0.08, 1.45, 1.8], new THREE.MeshStandardMaterial({ color: 0xb3e5fc, roughness: 0.25 }));
   addBox(group, [18.98, 2.1, 3.4], [0.08, 1.45, 1.8], new THREE.MeshStandardMaterial({ color: 0xb3e5fc, roughness: 0.25 }));
-  const door = new THREE.Group();
-  door.position.set(10, 0, 14.92);
-  addLocalBox(door, [0, 1.85, 0], [2.1, 1.7, 0.12], new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.72 }));
-  addLocalBox(door, [0.72, 1.82, -0.08], [0.12, 0.12, 0.05], mat.yellow);
-  group.add(door);
 }

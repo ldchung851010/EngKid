@@ -29,8 +29,6 @@ function fences(): string[][] {
     grid[z][0] = 'WALL';
     grid[z][WIDTH - 1] = 'WALL';
   }
-  grid[15][10] = 'SIGN';
-  grid[15][11] = 'SIGN';
   return grid;
 }
 

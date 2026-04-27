@@ -20,40 +20,27 @@ export function createZooDecor(): THREE.Group {
   const group = new THREE.Group();
 
   addPathEdges(group);
-  addEntrance(group);
   addHabitatFence(group, 3.6, 8.7, 5.4, 8.2, 'LIONS');
   addHabitatFence(group, 17.6, 8.7, 5.2, 8.2, 'MONKEYS');
   addPond(group);
   addTrees(group);
   addAnimalModels(group);
   addBenches(group);
-  addInfoKiosks(group);
 
   return group;
 }
 
 function addPathEdges(group: THREE.Group): void {
   const flowerColors = [0xef5350, 0xffca28, 0xab47bc, 0x42a5f5];
-  for (let z = 1.5; z < 16; z += 1.2) {
+  for (let z = 1.5; z < 13; z += 1.2) {
     addBox(group, [7.55, 1.08, z], [0.26, 0.12, 0.26], mat.stone);
     addBox(group, [14.45, 1.08, z], [0.26, 0.12, 0.26], mat.stone);
   }
-  for (let i = 0; i < 24; i++) {
+  for (let i = 0; i < 20; i++) {
     const x = i % 2 === 0 ? 6.9 : 15.1;
     const z = 1.6 + (i % 12) * 1.15;
     addBox(group, [x, 1.14, z], [0.26, 0.18, 0.26], new THREE.MeshStandardMaterial({ color: flowerColors[i % flowerColors.length], roughness: 0.7 }));
   }
-}
-
-function addEntrance(group: THREE.Group): void {
-  addBox(group, [8.3, 2.0, 16.65], [0.35, 2.0, 0.35], mat.trunk);
-  addBox(group, [13.7, 2.0, 16.65], [0.35, 2.0, 0.35], mat.trunk);
-  addBox(group, [11, 3.1, 16.65], [5.9, 0.38, 0.35], mat.trunk);
-  addBox(group, [11, 2.38, 16.5], [4.2, 1.0, 0.18], mat.sign);
-  const sign = createTextSprite('SUNNY ZOO', 512, 128, '#2e7d32', 'bold 52px sans-serif');
-  sign.position.set(11, 2.48, 16.35);
-  sign.scale.set(3.3, 0.78, 1);
-  group.add(sign);
 }
 
 function addHabitatFence(group: THREE.Group, cx: number, cz: number, width: number, depth: number, label: string): void {
@@ -140,7 +127,7 @@ function addMonkey(group: THREE.Group, x: number, z: number): void {
 }
 
 function addBenches(group: THREE.Group): void {
-  for (const z of [5.2, 12.8]) {
+  for (const z of [5.2]) {
     const bench = new THREE.Group();
     bench.position.set(11, 0, z);
     addLocalBox(bench, [0, 1.18, 0], [2.3, 0.2, 0.55], mat.trunk);
@@ -149,9 +136,4 @@ function addBenches(group: THREE.Group): void {
     addLocalBox(bench, [0.8, 0.98, 0], [0.12, 0.36, 0.12], mat.rope);
     group.add(bench);
   }
-}
-
-function addInfoKiosks(group: THREE.Group): void {
-  addBox(group, [6.5, 2.1, 14.2], [0.16, 1.1, 1.35], mat.sign);
-  addBox(group, [15.5, 2.1, 14.2], [0.16, 1.1, 1.35], mat.sign);
 }
