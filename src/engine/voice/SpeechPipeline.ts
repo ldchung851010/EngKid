@@ -14,6 +14,11 @@ export interface PipelineCallbacks {
   onTranscript: (text: string) => void;
 }
 
+export interface TranscriptionOptions {
+  prompt?: string;
+  hotwords?: string[];
+}
+
 export class SpeechPipeline {
   private stream: MediaStream | null = null;
   private recorder: MediaRecorder | null = null;
@@ -94,7 +99,7 @@ export class SpeechPipeline {
   }
 
   /** Stop recording and process audio. Returns transcript or null if too short. */
-  async stopRecording(): Promise<string | null> {
+  async stopRecording(options: TranscriptionOptions = {}): Promise<string | null> {
     if (!this.recorder || this.state !== 'listening') {
       this.log(`⚠️ stopRecording ignored — state is ${this.state}`);
       return null;
@@ -132,6 +137,12 @@ export class SpeechPipeline {
           this.log('POST /api/asr...');
           const formData = new FormData();
           formData.append('file', wav, 'recording.wav');
+          if (options.prompt) {
+            formData.append('prompt', options.prompt);
+          }
+          for (const hotword of options.hotwords ?? []) {
+            formData.append('hotwords', hotword);
+          }
 
           const response = await fetch('/api/asr', { method: 'POST', body: formData });
 

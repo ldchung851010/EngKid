@@ -66,6 +66,8 @@ const world = new VoxelWorld(scene);
 const controller = new CameraController(camera, renderer.domElement);
 const collisionWorld = new CollisionWorld();
 const PLAYER_COLLISION_RADIUS = 0.62;
+const NPC_INTERACTION_RADIUS_PADDING = 1.25;
+const COLLECTIBLE_INTERACTION_RADIUS = 3.25;
 const tts = new TTSEngine();
 const intentRouter = new IntentRouter('/api');
 const scoreTracker = new ScoreTracker();
@@ -82,6 +84,12 @@ interface NPCStatusIndicator {
 }
 const npcStatusIndicators = new Map<string, NPCStatusIndicator>();
 let collectibleManager: CollectibleManager | null = null;
+type InteractionTarget =
+  | { type: 'npc'; npc: NPCConfig; distance: number }
+  | { type: 'collectible'; word: string; distance: number };
+let activeInteractionTarget: InteractionTarget | null = null;
+const interactionPrompt = document.getElementById('interaction-prompt')!;
+const interactionLabel = document.getElementById('interaction-label')!;
 
 // ── Session State Machine ──────────────────────────────────────
 const actor = createActor(sessionMachine);
@@ -200,6 +208,8 @@ async function startDialogue(npcId: string, nodeId: string): Promise<void> {
 
   activeNPC = npc;
   activeNodeId = nodeId;
+  activeInteractionTarget = null;
+  collectibleManager?.setActiveCollectible(null);
   dialogueRetries = 0;
   const revision = ++dialogueRevision;
 
@@ -226,6 +236,7 @@ function endDialogue(npcId: string, waitForExit: boolean): void {
   setNPCStatus(npcId, null);
   activeNodeId = null;
   activeNPC = null;
+  activeInteractionTarget = null;
 
   if (waitForExit) {
     npcsAwaitingExit.add(npcId);
@@ -269,11 +280,18 @@ function isCurrentDialogue(npcId: string, nodeId: string, revision: number): boo
 }
 
 function isNPCInRange(npc: NPCConfig): boolean {
-  const radius = npc.interaction.radius ?? 3;
+  return getNPCDistance(npc) <= getNPCInteractionRadius(npc);
+}
+
+function getNPCInteractionRadius(npc: NPCConfig): number {
+  return (npc.interaction.radius ?? 3) + NPC_INTERACTION_RADIUS_PADDING;
+}
+
+function getNPCDistance(npc: NPCConfig): number {
   const npcPos = new THREE.Vector3(npc.position.x + 0.5, 0, npc.position.z + 0.5);
   const dx = camera.position.x - npcPos.x;
   const dz = camera.position.z - npcPos.z;
-  return Math.sqrt(dx * dx + dz * dz) <= radius;
+  return Math.sqrt(dx * dx + dz * dz);
 }
 
 function findNode(npc: NPCConfig, nodeId: string): DialogueNode | undefined {
@@ -414,49 +432,108 @@ async function handleChildSpeech(transcript: string): Promise<void> {
   }
 }
 
-// ── Proximity Detection ────────────────────────────────────────
-function checkNPCProximity(): void {
-  const camPos = camera.position;
+// ── Interaction Targeting ──────────────────────────────────────
+function showInteractionPrompt(target: InteractionTarget | null): void {
+  if (!target || activeNPC) {
+    interactionPrompt.style.display = 'none';
+    return;
+  }
+
+  interactionLabel.textContent = target.type === 'npc'
+    ? `Talk to ${target.npc.name}`
+    : `Collect ${target.word}`;
+  interactionPrompt.style.display = 'flex';
+}
+
+function updateActiveDialogueRange(): void {
+  if (activeNPC && !isNPCInRange(activeNPC)) {
+    endDialogue(activeNPC.id, false);
+  }
+}
+
+function getNearestNPCTarget(): InteractionTarget | null {
+  let nearest: InteractionTarget | null = null;
+
   for (const npc of currentNPCs) {
     if (npc.interaction.type !== 'proximity') continue;
-    const radius = npc.interaction.radius ?? 3;
-    const alertRadius = radius + 1.5;
-    const npcPos = new THREE.Vector3(npc.position.x + 0.5, npc.position.y, npc.position.z + 0.5);
-    // Use 2D horizontal distance so camera height doesn't affect trigger range
-    const dx = camPos.x - npcPos.x;
-    const dz = camPos.z - npcPos.z;
-    const dist = Math.sqrt(dx * dx + dz * dz);
+    const radius = getNPCInteractionRadius(npc);
+    const dist = getNPCDistance(npc);
 
     if (dist > radius) {
       npcsAwaitingExit.delete(npc.id);
-
-      if (activeNPC?.id === npc.id) {
-        // Walked away
-        endDialogue(npc.id, false);
-      } else if (dist <= alertRadius) {
-        setNPCStatus(npc.id, 'alert');
-      } else {
-        setNPCStatus(npc.id, null);
-      }
       continue;
     }
 
     if (npcsAwaitingExit.has(npc.id)) continue;
-
-    if (!activeNPC) {
-      setNPCStatus(npc.id, 'thinking');
-      // First time in range — start dialogue
-      const rootNode = npc.dialogueTree[0];
-      if (rootNode) {
-        startDialogue(npc.id, rootNode.id);
-      }
+    if (!nearest || dist < nearest.distance) {
+      nearest = { type: 'npc', npc, distance: dist };
     }
+  }
+
+  return nearest;
+}
+
+function updateInteractionTarget(): void {
+  updateActiveDialogueRange();
+
+  if (activeNPC) {
+    activeInteractionTarget = null;
+    collectibleManager?.setActiveCollectible(null);
+    showInteractionPrompt(null);
+    return;
+  }
+
+  const npcTarget = getNearestNPCTarget();
+  const collectibleTarget = collectibleManager?.getNearestCollectible(camera.position, COLLECTIBLE_INTERACTION_RADIUS) ?? null;
+
+  if (npcTarget && collectibleTarget && collectibleTarget.distance < npcTarget.distance) {
+    activeInteractionTarget = {
+      type: 'collectible',
+      word: collectibleTarget.word,
+      distance: collectibleTarget.distance,
+    };
+  } else if (npcTarget) {
+    activeInteractionTarget = npcTarget;
+  } else if (collectibleTarget) {
+    activeInteractionTarget = {
+      type: 'collectible',
+      word: collectibleTarget.word,
+      distance: collectibleTarget.distance,
+    };
+  } else {
+    activeInteractionTarget = null;
+  }
+
+  for (const npc of currentNPCs) {
+    setNPCStatus(npc.id, null);
+  }
+
+  collectibleManager?.setActiveCollectible(
+    activeInteractionTarget?.type === 'collectible' ? activeInteractionTarget.word : null
+  );
+  showInteractionPrompt(activeInteractionTarget);
+}
+
+async function activateInteractionTarget(): Promise<void> {
+  updateInteractionTarget();
+  if (!activeInteractionTarget || activeNPC) return;
+
+  if (activeInteractionTarget.type === 'collectible') {
+    await collectibleManager?.openActiveCollectible();
+    showInteractionPrompt(null);
+    return;
+  }
+
+  const rootNode = activeInteractionTarget.npc.dialogueTree[0];
+  if (rootNode) {
+    await startDialogue(activeInteractionTarget.npc.id, rootNode.id);
   }
 }
 
-function checkCollectibleProximity(): void {
-  collectibleManager?.checkProximity(camera.position);
-}
+document.addEventListener('keydown', (event) => {
+  if (event.code !== 'KeyE' || event.repeat) return;
+  void activateInteractionTarget();
+});
 
 // ── Scene Loading ──────────────────────────────────────────────
 async function loadScene(): Promise<void> {
@@ -478,6 +555,8 @@ async function loadScene(): Promise<void> {
   }
   collectibleManager?.dispose();
   collectibleManager = null;
+  activeInteractionTarget = null;
+  showInteractionPrompt(null);
   sceneVisualGroup = activeSceneModule?.createVisuals?.() ?? null;
   if (sceneVisualGroup) {
     scene.add(sceneVisualGroup);
@@ -567,12 +646,11 @@ function animate(): void {
   const delta = Math.min(clock.getDelta(), 0.1); // Cap delta
   controller.update(delta);
 
-  // Check NPC proximity every 500ms
+  // Resolve the single nearest interactive target every 500ms.
   proximityTimer += delta;
   if (proximityTimer > 0.5) {
     proximityTimer = 0;
-    checkNPCProximity();
-    checkCollectibleProximity();
+    updateInteractionTarget();
   }
 
   collectibleManager?.update(delta);

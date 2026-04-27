@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  doesTranscriptMatchWord,
   getActiveCollectible,
   isInRange,
 } from '../../src/engine/collectibles/CollectibleManager.ts';
@@ -39,4 +40,11 @@ test('getActiveCollectible keeps first item on exact distance ties', () => {
 
 test('getActiveCollectible returns null when no item is in range', () => {
   assert.equal(getActiveCollectible(items, { x: 10, y: 0, z: 0 }, 2), null);
+});
+
+test('doesTranscriptMatchWord requires the spoken word to match', () => {
+  assert.equal(doesTranscriptMatchWord('Pizza.', 'pizza'), true);
+  assert.equal(doesTranscriptMatchWord('thank you', 'thank you'), true);
+  assert.equal(doesTranscriptMatchWord('a pizza', 'pizza'), false);
+  assert.equal(doesTranscriptMatchWord('water', 'pizza'), false);
 });

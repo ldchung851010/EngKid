@@ -9,19 +9,39 @@ export async function asrRoutes(app: FastifyInstance) {
       return reply.status(500).send({ error: 'GLM_API_KEY not configured' });
     }
 
-    const data = await request.file();
-    if (!data) {
+    let audioBuffer: Buffer | null = null;
+    let audioMimeType = 'audio/wav';
+    let prompt: string | null = null;
+    const hotwords: string[] = [];
+
+    for await (const part of request.parts()) {
+      if (part.type === 'file' && part.fieldname === 'file') {
+        audioBuffer = await part.toBuffer();
+        audioMimeType = part.mimetype || audioMimeType;
+      } else if (part.type === 'field' && part.fieldname === 'prompt' && typeof part.value === 'string') {
+        prompt = part.value;
+      } else if (part.type === 'field' && part.fieldname === 'hotwords') {
+        hotwords.push(...parseHotwords(part.value));
+      }
+    }
+
+    if (!audioBuffer) {
       console.log('[ASR] ❌ No audio file provided');
       return reply.status(400).send({ error: 'No audio file provided' });
     }
 
-    const buffer = await data.toBuffer();
-    console.log(`[ASR] ← received ${(buffer.length / 1024).toFixed(1)}KB, type=${data.mimetype}`);
+    console.log(`[ASR] ← received ${(audioBuffer.length / 1024).toFixed(1)}KB, type=${audioMimeType}, hotwords=[${hotwords.join(', ')}]`);
 
     const formData = new FormData();
-    const blob = new Blob([new Uint8Array(buffer)], { type: 'audio/wav' });
+    const blob = new Blob([new Uint8Array(audioBuffer)], { type: audioMimeType });
     formData.append('file', blob, 'recording.wav');
     formData.append('model', 'glm-asr-2512');
+    if (prompt) {
+      formData.append('prompt', prompt);
+    }
+    for (const hotword of hotwords) {
+      formData.append('hotwords', hotword);
+    }
 
     try {
       const response = await fetch(
@@ -49,4 +69,21 @@ export async function asrRoutes(app: FastifyInstance) {
       return reply.status(502).send({ error: 'ASR upstream unavailable' });
     }
   });
+}
+
+function parseHotwords(value: unknown): string[] {
+  if (typeof value !== 'string') return [];
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+    }
+  } catch {
+    // Plain form field; keep going.
+  }
+
+  return [trimmed];
 }

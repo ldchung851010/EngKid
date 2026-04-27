@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { addBox, addLocalBox, createTextSprite, disposeObject3D } from '../renderer/ScenePrimitives.js';
 import type { MapConfig, SceneConfig } from '../schema/SceneConfig.js';
 import type { TTSEngine } from '../voice/TTSEngine.js';
+import { SpeechPipeline } from '../voice/SpeechPipeline.js';
 import { playCollectSound } from './celebration-sound.js';
 import { CollectOverlay } from './collect-overlay.js';
 
@@ -29,7 +30,6 @@ interface CollectibleMarker {
   group: THREE.Group;
   materials: THREE.MeshStandardMaterial[];
   halo: THREE.Sprite;
-  prompt: THREE.Sprite;
   position: Vector3Like;
   anchored: boolean;
   collected: boolean;
@@ -40,6 +40,8 @@ interface CollectedApiItem {
   sceneId: string;
   collectedAt: string;
 }
+
+const COLLECTIBLE_NPC_CLEARANCE = 3.25;
 
 export function computeCollectiblePlacements(config: SceneConfig): CollectiblePlacement[] {
   const overrides = new Map((config.collectibles ?? []).map((item) => [normalizeWord(item.word), item]));
@@ -86,7 +88,7 @@ export function findPlacementCandidates(map: MapConfig, npcPositions: Vector3Lik
       if (row[x] !== 'FLOOR') continue;
       if (isBlockedAbove(map, x, z)) continue;
       const position = { x: x + 0.5, y: 0.75, z: z + 0.5 };
-      if (npcPositions.some((npc) => horizontalDistance(position, { x: npc.x + 0.5, y: npc.y, z: npc.z + 0.5 }) <= 2)) {
+      if (npcPositions.some((npc) => horizontalDistance(position, { x: npc.x + 0.5, y: npc.y, z: npc.z + 0.5 }) <= COLLECTIBLE_NPC_CLEARANCE)) {
         continue;
       }
       candidates.push(position);
@@ -124,17 +126,20 @@ export function getActiveCollectible<T extends ProximityCollectible>(
   return active;
 }
 
+export function doesTranscriptMatchWord(transcript: string | null | undefined, word: string): boolean {
+  return normalizeSpokenText(transcript ?? '') === normalizeSpokenText(word);
+}
+
 export class CollectibleManager {
   private markers: CollectibleMarker[] = [];
   private activeMarker: CollectibleMarker | null = null;
   private overlay = new CollectOverlay();
+  private pronunciationPipeline = new SpeechPipeline({
+    onStateChange: (state) => console.log(`[collectibles:pipeline] ${state}`),
+    onTranscript: (text) => console.log(`[collectibles:asr] "${text}"`),
+  });
   private isOverlayOpen = false;
   private cooldownUntil = 0;
-  private keyHandler = (event: KeyboardEvent) => {
-    if (event.code === 'KeyE') {
-      void this.openActiveCollectible();
-    }
-  };
 
   constructor(
     private scene: THREE.Scene,
@@ -142,9 +147,7 @@ export class CollectibleManager {
     private tts: TTSEngine,
     private sceneId: string,
     private config: SceneConfig
-  ) {
-    document.addEventListener('keydown', this.keyHandler);
-  }
+  ) {}
 
   async init(): Promise<void> {
     const collected = await this.fetchCollectedWords();
@@ -171,18 +174,40 @@ export class CollectibleManager {
     if (this.isOverlayOpen || Date.now() < this.cooldownUntil) return;
 
     this.activeMarker = getActiveCollectible(this.markers, cameraPosition, 2);
+    this.syncMarkerPrompts();
+  }
+
+  getNearestCollectible(cameraPosition: Vector3Like, radius = 2): ProximityCollectible & { distance: number } | null {
+    if (this.isOverlayOpen || Date.now() < this.cooldownUntil) return null;
+
+    const marker = getActiveCollectible(this.markers, cameraPosition, radius);
+    if (!marker) return null;
+
+    return {
+      word: marker.word,
+      position: marker.position,
+      collected: marker.collected,
+      distance: horizontalDistance(cameraPosition, marker.position),
+    };
+  }
+
+  setActiveCollectible(word: string | null): void {
+    this.activeMarker = word ? this.markers.find((marker) => marker.word === word && !marker.collected) ?? null : null;
+    this.syncMarkerPrompts();
+  }
+
+  private syncMarkerPrompts(): void {
     for (const marker of this.markers) {
       const isActive = marker === this.activeMarker;
       for (const material of marker.materials) {
         material.emissiveIntensity = isActive ? 0.28 : 0;
       }
       marker.halo.visible = isActive;
-      marker.prompt.visible = isActive;
     }
   }
 
   dispose(): void {
-    document.removeEventListener('keydown', this.keyHandler);
+    this.pronunciationPipeline.reset();
     this.overlay.destroy();
     for (const marker of this.markers) {
       this.scene.remove(marker.group);
@@ -211,29 +236,19 @@ export class CollectibleManager {
     halo.visible = false;
     group.add(halo);
 
-    const prompt = createTextSprite('E', 96, 96, '#ffffff', 'bold 54px sans-serif');
-    prompt.position.set(0, 0.92, 0);
-    prompt.scale.set(0.58, 0.58, 1);
-    prompt.visible = false;
-    prompt.renderOrder = 1000;
-    prompt.material.depthTest = false;
-    prompt.material.depthWrite = false;
-    group.add(prompt);
-
     this.scene.add(group);
     this.markers.push({
       word: placement.word,
       group,
       materials,
       halo,
-      prompt,
       position: placement.position,
       anchored: placement.anchored ?? false,
       collected: false,
     });
   }
 
-  private async openActiveCollectible(): Promise<void> {
+  async openActiveCollectible(): Promise<void> {
     if (!this.activeMarker || this.isOverlayOpen || Date.now() < this.cooldownUntil) return;
 
     const marker = this.activeMarker;
@@ -243,10 +258,28 @@ export class CollectibleManager {
       onReplay: async () => {
         await this.speakWord(marker.word);
       },
+      onPronunciationStart: async () => {
+        return this.pronunciationPipeline.startRecording();
+      },
+      onPronunciationStop: async () => {
+        const transcript = await this.pronunciationPipeline.stopRecording({
+          prompt: [
+            'A child is reading one short English vocabulary word or phrase.',
+            'Transcribe only what the child actually says in English.',
+            'Do not translate the speech into Chinese.',
+            'Do not guess or autocorrect unclear speech.',
+          ].join(' '),
+        });
+        return {
+          transcript,
+          matched: doesTranscriptMatchWord(transcript, marker.word),
+        };
+      },
       onConfirm: async () => {
         await this.confirmCollect(marker);
       },
       onClose: () => {
+        this.pronunciationPipeline.reset();
         this.isOverlayOpen = false;
       },
     });
@@ -331,6 +364,14 @@ function uniqueWords(words: string[]): string[] {
   return result;
 }
 
+function normalizeSpokenText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s']/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function getSceneAnchoredPlacements(sceneName: string): Record<string, Omit<CollectiblePlacement, 'word'>> {
   switch (normalizeWord(sceneName)) {
     case 'restaurant':
@@ -339,9 +380,9 @@ function getSceneAnchoredPlacements(sceneName: string): Record<string, Omit<Coll
         pizza: { position: { x: 14, y: 1.68, z: 8.5 }, rotationY: -0.35 },
         salad: { position: { x: 4.5, y: 1.68, z: 12 }, rotationY: 0.1 },
         pasta: { position: { x: 13.5, y: 1.68, z: 12 }, rotationY: -0.15 },
-        water: { position: { x: 7.3, y: 1.96, z: 4.86 }, rotationY: 0.05 },
-        juice: { position: { x: 9.9, y: 1.96, z: 4.86 }, rotationY: -0.1 },
-        cola: { position: { x: 11.25, y: 1.96, z: 5.16 }, rotationY: 0.2 },
+        water: { position: { x: 3.52, y: 1.68, z: 8.18 }, rotationY: 0.05 },
+        juice: { position: { x: 14.45, y: 1.68, z: 8.18 }, rotationY: -0.1 },
+        cola: { position: { x: 13.05, y: 1.68, z: 12.28 }, rotationY: 0.2 },
       };
     case 'airport':
       return {

@@ -76,7 +76,7 @@ test('excludes blocked cells and cells too close to NPC spawn', () => {
   const candidates = findPlacementCandidates(config.map, config.npcs.map((npc) => npc.position));
 
   assert.equal(candidates.some((position) => position.x === 2.5 && position.z === 2.5), false);
-  assert.equal(candidates.some((position) => Math.hypot(position.x - 0.5, position.z - 0.5) <= 2), false);
+  assert.equal(candidates.some((position) => Math.hypot(position.x - 0.5, position.z - 0.5) <= 3.25), false);
 });
 
 test('uses explicit collectible override positions first', () => {
@@ -98,8 +98,13 @@ test('places restaurant food and drinks on scene props instead of floor scatter'
 
   assert.deepEqual(byWord.get('pizza')?.position, { x: 14, y: 1.68, z: 8.5 });
   assert.deepEqual(byWord.get('hamburger')?.position, { x: 4, y: 1.68, z: 8.5 });
-  assert.equal(byWord.get('water')?.position.y, 1.96);
-  assert.equal(byWord.get('juice')?.position.y, 1.96);
+  assert.deepEqual(byWord.get('water')?.position, { x: 3.52, y: 1.68, z: 8.18 });
+  assert.deepEqual(byWord.get('juice')?.position, { x: 14.45, y: 1.68, z: 8.18 });
+  assert.deepEqual(byWord.get('cola')?.position, { x: 13.05, y: 1.68, z: 12.28 });
+  for (const placement of placements) {
+    const waiter = restaurantConfig.npcs[0].position;
+    assert.ok(Math.hypot(placement.position.x - (waiter.x + 0.5), placement.position.z - (waiter.z + 0.5)) > 3.25);
+  }
 });
 
 test('places airport documents on counters and travel objects near matching props', () => {

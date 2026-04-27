@@ -2,6 +2,8 @@ import { getSvgForWord } from './vocab-svg-map.js';
 
 interface CollectOverlayCallbacks {
   onReplay: () => Promise<void>;
+  onPronunciationStart: () => Promise<boolean>;
+  onPronunciationStop: () => Promise<{ matched: boolean; transcript: string | null }>;
   onConfirm: () => Promise<void>;
   onClose: () => void;
 }
@@ -10,9 +12,13 @@ export class CollectOverlay {
   private root: HTMLDivElement;
   private card: HTMLDivElement;
   private confirmButton: HTMLButtonElement;
+  private speakButton: HTMLButtonElement;
+  private instructionEl: HTMLDivElement;
+  private transcriptEl: HTMLDivElement;
   private errorEl: HTMLDivElement;
   private timeoutId: number | null = null;
   private callbacks: CollectOverlayCallbacks | null = null;
+  private isRecording = false;
 
   constructor() {
     this.root = document.createElement('div');
@@ -24,6 +30,9 @@ export class CollectOverlay {
         <div class="collect-svg"></div>
         <div class="collect-word"></div>
         <button class="collect-replay" type="button">Listen again</button>
+        <div class="collect-instruction">Listen, then say the word.</div>
+        <button class="collect-speak" type="button">Hold to say it</button>
+        <div class="collect-transcript" aria-live="polite"></div>
         <button class="collect-confirm" type="button" hidden>Got it!</button>
         <div class="collect-error" aria-live="polite"></div>
       </div>
@@ -33,11 +42,23 @@ export class CollectOverlay {
 
     this.card = this.root.querySelector('.collect-card')!;
     this.confirmButton = this.root.querySelector('.collect-confirm')!;
+    this.speakButton = this.root.querySelector('.collect-speak')!;
+    this.instructionEl = this.root.querySelector('.collect-instruction')!;
+    this.transcriptEl = this.root.querySelector('.collect-transcript')!;
     this.errorEl = this.root.querySelector('.collect-error')!;
 
     this.root.querySelector<HTMLButtonElement>('.collect-close')!.addEventListener('click', () => this.close());
     this.root.querySelector<HTMLButtonElement>('.collect-replay')!.addEventListener('click', () => {
       void this.callbacks?.onReplay().catch((error) => this.showError(String(error)));
+    });
+    this.speakButton.addEventListener('pointerdown', () => {
+      void this.startPronunciation();
+    });
+    this.speakButton.addEventListener('pointerup', () => {
+      void this.stopPronunciation();
+    });
+    this.speakButton.addEventListener('pointerleave', () => {
+      void this.stopPronunciation();
     });
     this.confirmButton.addEventListener('click', () => {
       this.confirmButton.disabled = true;
@@ -58,6 +79,12 @@ export class CollectOverlay {
   show(word: string, callbacks: CollectOverlayCallbacks): void {
     this.callbacks = callbacks;
     this.errorEl.textContent = '';
+    this.instructionEl.textContent = 'Listen, then say the word.';
+    this.transcriptEl.textContent = '';
+    this.speakButton.hidden = false;
+    this.speakButton.disabled = true;
+    this.speakButton.textContent = 'Listen first';
+    this.isRecording = false;
     this.confirmButton.hidden = true;
     this.confirmButton.disabled = false;
     this.root.querySelector<HTMLDivElement>('.collect-svg')!.innerHTML = getSvgForWord(word);
@@ -65,11 +92,13 @@ export class CollectOverlay {
     this.root.hidden = false;
     this.card.classList.remove('collected');
     window.clearTimeout(this.timeoutId ?? undefined);
-    this.timeoutId = window.setTimeout(() => this.close(), 30_000);
+    this.timeoutId = window.setTimeout(() => this.close(), 60_000);
   }
 
   revealConfirm(): void {
-    this.confirmButton.hidden = false;
+    this.speakButton.disabled = false;
+    this.speakButton.textContent = 'Hold to say it';
+    this.instructionEl.textContent = 'Now say the word clearly.';
   }
 
   markCollected(): void {
@@ -96,6 +125,56 @@ export class CollectOverlay {
 
   private showError(message: string): void {
     this.errorEl.textContent = message;
+  }
+
+  private async startPronunciation(): Promise<void> {
+    if (this.isRecording || !this.callbacks || this.speakButton.disabled) return;
+    this.errorEl.textContent = '';
+    this.transcriptEl.textContent = '';
+    this.speakButton.textContent = 'Listening...';
+
+    try {
+      const started = await this.callbacks.onPronunciationStart();
+      if (!started) {
+        this.speakButton.textContent = 'Hold to say it';
+        this.showError('Microphone is busy. Try again.');
+        return;
+      }
+      this.isRecording = true;
+      this.speakButton.classList.add('recording');
+      this.instructionEl.textContent = 'Release when you finish.';
+    } catch {
+      this.speakButton.textContent = 'Hold to say it';
+      this.showError('Microphone is not available.');
+    }
+  }
+
+  private async stopPronunciation(): Promise<void> {
+    if (!this.isRecording || !this.callbacks) return;
+    this.isRecording = false;
+    this.speakButton.classList.remove('recording');
+    this.speakButton.disabled = true;
+    this.speakButton.textContent = 'Checking...';
+
+    try {
+      const result = await this.callbacks.onPronunciationStop();
+      const transcript = result.transcript?.trim() ?? '';
+      this.transcriptEl.textContent = transcript ? `Heard: "${transcript}"` : '';
+      if (result.matched) {
+        this.instructionEl.textContent = 'Nice reading!';
+        this.speakButton.hidden = true;
+        this.confirmButton.hidden = false;
+      } else {
+        this.instructionEl.textContent = 'Try saying the word again.';
+        this.showError(transcript ? 'That did not match the word.' : 'I did not catch that.');
+        this.speakButton.disabled = false;
+        this.speakButton.textContent = 'Hold to try again';
+      }
+    } catch {
+      this.showError('Could not check your voice. Try again.');
+      this.speakButton.disabled = false;
+      this.speakButton.textContent = 'Hold to try again';
+    }
   }
 
   private installStyles(): void {
@@ -150,6 +229,7 @@ export class CollectOverlay {
         color: #1f2937;
       }
       .collect-replay,
+      .collect-speak,
       .collect-confirm {
         border: 0;
         min-width: 148px;
@@ -160,8 +240,26 @@ export class CollectOverlay {
         color: #111827;
       }
       .collect-replay { background: #dbeafe; }
+      .collect-speak { background: #fde68a; }
+      .collect-speak.recording {
+        background: #fecaca;
+        color: #7f1d1d;
+        transform: scale(1.04);
+      }
+      .collect-speak:disabled { opacity: 0.65; cursor: wait; }
       .collect-confirm { background: #bbf7d0; }
       .collect-confirm:disabled { opacity: 0.65; cursor: wait; }
+      .collect-instruction {
+        color: #374151;
+        font-size: 15px;
+        font-weight: 800;
+      }
+      .collect-transcript {
+        min-height: 20px;
+        color: #2563eb;
+        font-size: 14px;
+        font-weight: 800;
+      }
       .collect-error {
         min-height: 20px;
         color: #b91c1c;
