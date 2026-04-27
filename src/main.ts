@@ -15,6 +15,8 @@ import { TTSEngine } from './engine/voice/TTSEngine.js';
 import { MicButton } from './engine/voice/MicButton.js';
 import type { NPCConfig, DialogueNode, SceneConfig } from './engine/schema/SceneConfig.js';
 import { emptySceneHooks, type SceneHooks, type SceneModule } from './engine/runtime/SceneModule.js';
+import type { FaceExpression } from './engine/renderer/CharacterFactory.js';
+import { drawFaceExpression } from './engine/renderer/CharacterFactory.js';
 import { CollectibleManager } from './engine/collectibles/index.js';
 
 // ── Dynamic Scene ─────────────────────────────────────────────
@@ -83,6 +85,19 @@ interface NPCStatusIndicator {
   canvas: HTMLCanvasElement;
 }
 const npcStatusIndicators = new Map<string, NPCStatusIndicator>();
+
+// NPC animation state
+interface NPCAnimState {
+  baseY: number;
+  bobPhase: number;
+  currentExpression: FaceExpression;
+  /** 0-1 smoothed proximity factor */
+  proximity: number;
+}
+const npcAnimStates = new Map<string, NPCAnimState>();
+const NPC_AWARENESS_RADIUS = 10;
+const NPC_HAPPY_RADIUS = 3;
+const NPC_CURIOUS_RADIUS = 6;
 let collectibleManager: CollectibleManager | null = null;
 type InteractionTarget =
   | { type: 'npc'; npc: NPCConfig; distance: number }
@@ -191,6 +206,101 @@ function navigateToHome(): void {
   location.href = '/';
 }
 
+// ── NPC Liveliness ──────────────────────────────────────────
+function initNPCAnimState(npcId: string, baseY: number): void {
+  npcAnimStates.set(npcId, {
+    baseY,
+    bobPhase: Math.random() * Math.PI * 2,
+    currentExpression: 'idle',
+    proximity: 0,
+  });
+}
+
+function getNPCExpression(
+  npcId: string,
+  distance: number,
+): FaceExpression {
+  // During active dialogue, status indicator handles it; use 'talking'/'thinking'
+  if (activeNPC?.id === npcId) {
+    if (activeNodeId) return 'talking';
+    return 'curious';
+  }
+
+  if (distance < NPC_HAPPY_RADIUS) return 'happy';
+  if (distance < NPC_CURIOUS_RADIUS) return 'curious';
+  return 'idle';
+}
+
+function animateNPCs(delta: number): void {
+  const now = performance.now() * 0.001;
+
+  for (const group of npcMeshes) {
+    const npcId = group.userData.npcId as string;
+    if (!npcId) continue;
+
+    let state = npcAnimStates.get(npcId);
+    if (!state) continue;
+
+    const npcPos = group.position;
+    const dx = camera.position.x - npcPos.x;
+    const dz = camera.position.z - npcPos.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    const awarenessFactor = Math.max(0, 1 - dist / NPC_AWARENESS_RADIUS);
+
+    // Smooth proximity (for expression transitions)
+    const targetProx = Math.max(0, 1 - dist / NPC_CURIOUS_RADIUS);
+    state.proximity += (targetProx - state.proximity) * delta * 3;
+
+    // ── Auto-face player ───────────────────────────────
+    if (dist < NPC_AWARENESS_RADIUS && dist > 0.1) {
+      const targetAngle = Math.atan2(dx, dz);
+      // Normalize angle difference
+      let diff = targetAngle - group.rotation.y;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      group.rotation.y += diff * delta * 3.5;
+    }
+
+    // ── Idle bobbing ──────────────────────────────────
+    const bobIntensity = 0.03 + awarenessFactor * 0.015;
+    const bob = Math.sin(now * 1.8 + state.bobPhase) * bobIntensity;
+    group.position.y = state.baseY + bob;
+
+    // ── Look up/down toward camera ────────────────────
+    if (awarenessFactor > 0.3) {
+      const headTarget = group.children.find(
+        (c) => c instanceof THREE.Sprite && c.userData.isFace,
+      );
+      if (headTarget) {
+        const dy = camera.position.y - (npcPos.y + 1.55);
+        const targetPitch = Math.atan2(dy, dist) * 0.3; // subtle
+        const currentPitch = (headTarget as THREE.Sprite).userData.facePitch ?? 0;
+        const newPitch = currentPitch + (targetPitch - currentPitch) * delta * 2;
+        (headTarget as THREE.Sprite).userData.facePitch = newPitch;
+        (headTarget as THREE.Sprite).position.y = 1.55 + newPitch * 0.3;
+      }
+    }
+
+    // ── Face expression ───────────────────────────────
+    const expression = getNPCExpression(npcId, dist);
+    if (expression !== state.currentExpression) {
+      state.currentExpression = expression;
+      const canvas = group.userData.faceCanvas as HTMLCanvasElement | undefined;
+      if (canvas) {
+        drawFaceExpression(canvas, expression);
+        // Notify texture update
+        const faceSprite = group.children.find(
+          (c): c is THREE.Sprite =>
+            c instanceof THREE.Sprite && c.userData.isFace,
+        );
+        if (faceSprite?.material instanceof THREE.SpriteMaterial && faceSprite.material.map) {
+          faceSprite.material.map.needsUpdate = true;
+        }
+      }
+    }
+  }
+}
+
 const interactionPrompt = document.getElementById('interaction-prompt')!;
 const interactionLabel = document.getElementById('interaction-label')!;
 
@@ -218,12 +328,15 @@ function spawnNPCs(npcs: NPCConfig[]): void {
   }
   npcMeshes = [];
   npcStatusIndicators.clear();
+  npcAnimStates.clear();
 
   for (const npc of npcs) {
     const group = createVoxelCharacter(npc);
-    group.userData = { npcId: npc.id };
+    group.userData.npcId = npc.id;
     scene.add(group);
     npcMeshes.push(group);
+
+    initNPCAnimState(npc.id, group.position.y);
 
     // Simple name label via sprite
     const labelSprite = createTextSprite(npc.name, 128, 40, '#ffffff', 'bold 18px sans-serif');
@@ -753,6 +866,7 @@ function animate(): void {
 
   collectibleManager?.update(delta);
   animatePortal(delta);
+  animateNPCs(delta);
 
   renderer.render(scene, camera);
 }
