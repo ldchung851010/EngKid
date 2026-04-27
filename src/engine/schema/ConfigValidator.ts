@@ -55,6 +55,10 @@ export function validateConfig(config: unknown): ValidationResult {
     errors.push({ path: '$/targetVocabulary', message: 'Must be an array', keyword: 'type' });
   }
 
+  if (c.collectibles !== undefined) {
+    validateCollectibles(c.collectibles, errors);
+  }
+
   // map
   if (!c.map || typeof c.map !== 'object') {
     errors.push({ path: '$/map', message: 'Missing required field: map', keyword: 'required' });
@@ -189,5 +193,50 @@ function validateTask(task: unknown, index: number, errors: ConfigError[]): void
   if (typeof t.scoreReward !== 'number') {
     errors.push({ path: `${base}/scoreReward`, message: 'Task scoreReward must be a number', keyword: 'type' });
   }
+}
+
+function validateCollectibles(collectibles: unknown, errors: ConfigError[]): void {
+  if (!Array.isArray(collectibles)) {
+    errors.push({ path: '$/collectibles', message: 'Collectibles must be an array', keyword: 'type' });
+    return;
+  }
+
+  const words = new Set<string>();
+
+  collectibles.forEach((collectible, index) => {
+    const base = `$/collectibles/${index}`;
+    if (!collectible || typeof collectible !== 'object') {
+      errors.push({ path: base, message: 'Collectible must be an object', keyword: 'type' });
+      return;
+    }
+
+    const item = collectible as Record<string, unknown>;
+    if (typeof item.word !== 'string' || item.word.trim() === '') {
+      errors.push({ path: `${base}/word`, message: 'Collectible word must be a non-empty string', keyword: 'required' });
+    } else {
+      const normalizedWord = item.word.trim().toLowerCase();
+      if (words.has(normalizedWord)) {
+        errors.push({ path: `${base}/word`, message: `Duplicate collectible word: ${item.word}`, keyword: 'uniqueItems' });
+      }
+      words.add(normalizedWord);
+    }
+
+    if (item.position !== undefined) {
+      if (!item.position || typeof item.position !== 'object') {
+        errors.push({ path: `${base}/position`, message: 'Collectible position must be an object', keyword: 'type' });
+      } else {
+        const position = item.position as Record<string, unknown>;
+        for (const axis of ['x', 'y', 'z']) {
+          if (typeof position[axis] !== 'number' || !Number.isFinite(position[axis])) {
+            errors.push({ path: `${base}/position/${axis}`, message: `Collectible position.${axis} must be a number`, keyword: 'type' });
+          }
+        }
+      }
+    }
+
+    if (item.svg !== undefined && typeof item.svg !== 'string') {
+      errors.push({ path: `${base}/svg`, message: 'Collectible svg must be a string', keyword: 'type' });
+    }
+  });
 }
 import { BLOCK_TYPE_BY_ID } from '../renderer/BlockTypes.js';

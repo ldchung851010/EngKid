@@ -25,6 +25,12 @@ export interface SceneEnvironmentConfig {
   fogFar?: number;
 }
 
+export interface CollectibleOverride {
+  word: string;
+  position?: { x: number; y: number; z: number };
+  svg?: string;
+}
+
 // ── NPC Types ────────────────────────────────────────────────────
 export interface DialogueNode {
   id: string;
@@ -78,6 +84,7 @@ export interface SceneConfig {
   targetVocabulary: string[];
   start?: SceneStartConfig;
   environment?: SceneEnvironmentConfig;
+  collectibles?: CollectibleOverride[];
   map: MapConfig;
   npcs: NPCConfig[];
   tasks: TaskConfig[];
