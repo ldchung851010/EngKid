@@ -5,6 +5,8 @@ import {
   findPlacementCandidates,
 } from '../../src/engine/collectibles/CollectibleManager.ts';
 import type { SceneConfig } from '../../src/engine/schema/SceneConfig.ts';
+import { airportConfig } from '../../src/scenes/airport/config.ts';
+import { restaurantConfig } from '../../src/scenes/restaurant/config.ts';
 
 function createConfig(overrides: Partial<SceneConfig> = {}): SceneConfig {
   return {
@@ -88,4 +90,25 @@ test('uses explicit collectible override positions first', () => {
 
 test('returns empty placements for empty vocabulary', () => {
   assert.deepEqual(computeCollectiblePlacements(createConfig({ targetVocabulary: [] })), []);
+});
+
+test('places restaurant food and drinks on scene props instead of floor scatter', () => {
+  const placements = computeCollectiblePlacements(restaurantConfig);
+  const byWord = new Map(placements.map((placement) => [placement.word, placement]));
+
+  assert.deepEqual(byWord.get('pizza')?.position, { x: 14, y: 1.68, z: 8.5 });
+  assert.deepEqual(byWord.get('hamburger')?.position, { x: 4, y: 1.68, z: 8.5 });
+  assert.equal(byWord.get('water')?.position.y, 1.96);
+  assert.equal(byWord.get('juice')?.position.y, 1.96);
+});
+
+test('places airport documents on counters and travel objects near matching props', () => {
+  const placements = computeCollectiblePlacements(airportConfig);
+  const byWord = new Map(placements.map((placement) => [placement.word, placement]));
+
+  assert.equal(byWord.get('ticket')?.position.y, 2.1);
+  assert.equal(byWord.get('passport')?.position.y, 2.1);
+  assert.equal(byWord.get('boarding pass')?.position.y, 2.1);
+  assert.equal(byWord.get('bag')?.position.y, 2.05);
+  assert.ok((byWord.get('gate')?.position.x ?? 0) > 19);
 });
