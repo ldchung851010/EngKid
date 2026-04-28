@@ -63,7 +63,11 @@ export class TTSEngine {
     });
 
     if (!res.ok) {
-      throw new Error(`TTS request failed: ${res.status}`);
+      let error = `TTS request failed: ${res.status}`;
+      if (res.status === 429) {
+        error = 'Voice quota is used up for now.';
+      }
+      throw new Error(error);
     }
 
     console.log(`[TTS] ← ${res.headers.get('content-length') || '?'} bytes in ${Date.now() - start}ms`);

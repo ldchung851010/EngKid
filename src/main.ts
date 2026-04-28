@@ -19,6 +19,7 @@ import { emptySceneHooks, type SceneHooks, type SceneModule } from './engine/run
 import type { FaceExpression } from './engine/renderer/CharacterFactory.js';
 import { drawFaceExpression } from './engine/renderer/CharacterFactory.js';
 import { CollectibleManager } from './engine/collectibles/index.js';
+import { learningDataStore } from './engine/runtime/LearningDataStore.js';
 
 // ── Dynamic Scene ─────────────────────────────────────────────
 const params = new URLSearchParams(location.search);
@@ -436,7 +437,12 @@ async function startDialogue(npcId: string, nodeId: string): Promise<void> {
   const revision = ++dialogueRevision;
 
   setNPCStatus(npcId, 'thinking');
-  await speakNPC(node);
+  try {
+    await speakNPC(node);
+  } catch (error) {
+    console.warn('[TTS] dialogue speech failed', error);
+    showServiceNotice('Voice is unavailable right now. You can keep practicing.');
+  }
 
   if (!isCurrentDialogue(npcId, nodeId, revision)) return;
   if (!isNPCInRange(npc)) {
@@ -469,13 +475,8 @@ function endDialogue(npcId: string, waitForExit: boolean): void {
 async function saveProgress(): Promise<void> {
   const score = scoreTracker.getSessionScore(activeSceneConfig.tasks.length);
   const completed = score.completedCount === score.totalTasks;
-  try {
-    await fetch('/api/progress', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sceneId: activeSceneId, score: score.total, completed }),
-    });
-  } catch {
+  const result = learningDataStore.saveSceneProgress({ sceneId: activeSceneId, score: score.total, completed });
+  if (!result.ok) {
     console.warn('Failed to save progress');
   }
 }
@@ -634,7 +635,9 @@ async function handleChildSpeech(transcript: string): Promise<void> {
       setNPCStatus(npcId, 'thinking');
       try {
         await tts.speak(nudgeText, activeNPC.voice, activeNPC.speechSpeed);
-      } catch { /* fallback if TTS fails */ }
+      } catch {
+        showServiceNotice('Voice is unavailable right now. You can keep practicing.');
+      }
       if (!isCurrentDialogue(npcId, nodeId, revision)) return;
       showMicWithHints(node);
     }
@@ -656,6 +659,18 @@ function showInteractionPrompt(target: InteractionTarget | null): void {
     interactionLabel.textContent = `Collect ${target.word}`;
   }
   interactionPrompt.style.display = 'flex';
+}
+
+function showServiceNotice(message: string): void {
+  let notice = document.getElementById('service-notice');
+  if (!notice) {
+    notice = document.createElement('div');
+    notice.id = 'service-notice';
+    document.body.appendChild(notice);
+  }
+  notice.textContent = message;
+  notice.classList.add('visible');
+  window.setTimeout(() => notice?.classList.remove('visible'), 5000);
 }
 
 function updateActiveDialogueRange(): void {

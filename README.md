@@ -17,8 +17,7 @@
 npm install
 cd server && npm install && cd ..
 
-# 2. 配置 API Keys（后端代理需要）
-export GLM_API_KEY="your-glm-key"
+# 2. 配置文本大模型 Key（ASR 默认在浏览器本地运行）
 export DEEPSEEK_API_KEY="your-deepseek-key"
 
 # 3. 启动后端代理（终端 1）
@@ -29,6 +28,24 @@ npm run dev
 ```
 
 打开 http://localhost:5173 ，点击画面锁定鼠标，WASD 移动，走到服务员面前开始对话！
+
+### 在线体验与成本控制
+
+- 学习进度、分数和单词收集保存在浏览器本地，不再写入服务器 SQLite。
+- 首页的 `Data` 按钮可以导出、导入或重置当前浏览器里的学习数据。
+- TTS 代理会把相同文本、声音和语速生成的 WAV 缓存在磁盘，缓存命中时不会再次调用 TTS 生成。
+- 文本 AI 调用统一经过后端网关，默认只需要 `DEEPSEEK_API_KEY`；`DEEPSEEK_MODEL` 可选。
+- ASR 保持浏览器本地 Whisper，不需要配置云端 ASR key。
+
+可选额度配置：
+
+```bash
+AI_DAILY_LIMIT=5000          # 全站每天文本 AI 请求数
+AI_IP_HOURLY_LIMIT=300       # 单 IP 每小时文本 AI 请求数
+TTS_DAILY_LIMIT=10000        # 全站每天 TTS cache-miss 生成数
+TTS_IP_HOURLY_LIMIT=600      # 单 IP 每小时 TTS cache-miss 生成数
+TTS_CACHE_DIR=server/data/tts-cache
+```
 
 ## 技术架构
 
@@ -45,9 +62,9 @@ npm run dev
                     │  │ Voxel 渲染器 │◄─────────│ Three.js │
                     │  └─────────────┘ │         └──────────┘
                     │                  │
-                    │  ┌─────────────┐ │  WebM   ┌──────────┐
-   🎤 按住说话       │  │ 语音流水线    │◄────────│ GLM-ASR  │
-──────► 松开发送 ────│──│ ASR→Intent │ │  text   │  (智谱)  │
+                    │  ┌─────────────┐ │  audio  ┌──────────┐
+   🎤 按住说话       │  │ 语音流水线    │◄────────│ Local    │
+──────► 松开发送 ────│──│ ASR→Intent │ │  text   │ Whisper  │
                     │  │ TTS ◄ NPC  │─┼────────►│          │
                     │  └─────────────┘ │         └──────────┘
                     │                  │
@@ -150,9 +167,9 @@ export const clinicConfig: SceneConfig = {
 | 层 | 方案 |
 |---|---|
 | 渲染 | Three.js 0.184.0 + InstancedMesh |
-| TTS | Kitten TTS (WebAssembly) / browser SpeechSynthesis fallback |
-| ASR | GLM-ASR-2512（智谱 AI） |
-| 意图路由 | DeepSeek V4 Flash |
+| TTS | Kitten TTS server + 磁盘缓存 |
+| ASR | 浏览器本地 Whisper |
+| 意图路由 | DeepSeek Chat（后端统一网关） |
 | 状态机 | XState v5 |
 | 构建 | Vite + TypeScript |
 | 后端 | Fastify |

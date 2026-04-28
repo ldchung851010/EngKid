@@ -1,7 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import fs from 'fs';
 import path from 'path';
-import { getProgress } from './db.js';
 
 interface SceneMeta {
   id: string;
@@ -9,9 +8,6 @@ interface SceneMeta {
   description: string;
   cefrLevel: string;
   targetVocabulary: string[];
-  unlocked: boolean;
-  completed: boolean;
-  score: number;
 }
 
 export async function scenesRoutes(app: FastifyInstance) {
@@ -20,10 +16,7 @@ export async function scenesRoutes(app: FastifyInstance) {
     const dirs = fs.readdirSync(scenesDir, { withFileTypes: true })
       .filter((d) => d.isDirectory());
 
-    const progressRows = getProgress();
-    const progressMap = new Map(progressRows.map((r) => [r.scene_id, r]));
-
-    const scenes: Omit<SceneMeta, 'unlocked'>[] = [];
+    const scenes: SceneMeta[] = [];
 
     for (const dir of dirs) {
       try {
@@ -33,35 +26,21 @@ export async function scenesRoutes(app: FastifyInstance) {
         const config = mod[Object.keys(mod).find((k) => k.endsWith('Config') || k === 'config') ?? ''];
         if (!config?.name) continue;
 
-        const progress = progressMap.get(dir.name);
         scenes.push({
           id: dir.name,
           name: config.name,
           description: config.description ?? '',
           cefrLevel: config.cefrLevel ?? 'A1',
           targetVocabulary: Array.isArray(config.targetVocabulary) ? config.targetVocabulary : [],
-          completed: progress?.completed === 1,
-          score: progress?.score ?? 0,
         });
       } catch (err) {
         console.warn(`[scenes] failed to load scene config: ${dir.name}`, String(err));
       }
     }
 
-    // Sort by CEFR level, then unlock based on previous scene completion
+    // Sort by CEFR level, then scene name. User progress lives in the browser.
     scenes.sort((a, b) => a.cefrLevel.localeCompare(b.cefrLevel) || a.name.localeCompare(b.name));
 
-    const result: SceneMeta[] = [];
-    let previousCompleted = true;
-
-    for (const scene of scenes) {
-      result.push({
-        ...scene,
-        unlocked: previousCompleted,
-      });
-      previousCompleted = scene.completed;
-    }
-
-    return { scenes: result };
+    return { scenes };
   });
 }

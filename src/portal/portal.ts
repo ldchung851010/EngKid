@@ -1,4 +1,5 @@
 import { getSvgForWord } from '../engine/collectibles/vocab-svg-map.js';
+import { learningDataStore, normalizeLearningWord, type CollectibleData } from '../engine/runtime/LearningDataStore.js';
 
 interface SceneInfo {
   id: string;
@@ -6,6 +7,9 @@ interface SceneInfo {
   description: string;
   cefrLevel: string;
   targetVocabulary: string[];
+}
+
+interface PortalScene extends SceneInfo {
   unlocked: boolean;
   completed: boolean;
   score: number;
@@ -32,12 +36,6 @@ interface QuoteItem {
   id: number;
   text: string;
   audioFile: string;
-}
-
-interface CollectibleItem {
-  word: string;
-  sceneId: string;
-  collectedAt: string;
 }
 
 interface ExampleItem {
@@ -138,26 +136,23 @@ async function loadPortal(): Promise<void> {
   loadQuotes();
 
   try {
-    const [scenesRes, progressRes, collectiblesResult] = await Promise.all([
-      fetch('/api/scenes'),
-      fetch('/api/progress'),
-      fetch('/api/collectibles').catch((error) => error as Error),
-    ]);
-
-    if (!scenesRes.ok || !progressRes.ok) throw new Error('API error');
+    const scenesRes = await fetch('/api/scenes');
+    if (!scenesRes.ok) throw new Error('API error');
 
     const { scenes } = await scenesRes.json() as { scenes: SceneInfo[] };
-    const { totalScore } = await progressRes.json() as { totalScore: number };
-    const collectibles = await parseCollectibles(collectiblesResult);
+    const portalScenes = applyLocalProgress(scenes);
+    const totalScore = learningDataStore.getTotalScore();
+    const collectibles = learningDataStore.getCollectibles();
 
     scoreCount.textContent = String(totalScore);
     updateTree(totalScore);
-    renderCompendiumButton(scenes, collectibles);
+    renderCompendiumButton(portalScenes, collectibles);
+    renderSettingsButton();
     loading.classList.add('hidden');
 
     // Render cards
     grid.innerHTML = '';
-    for (const scene of scenes) {
+    for (const scene of portalScenes) {
       const card = document.createElement('div');
       card.className = `card${!scene.unlocked ? ' locked' : ''}${scene.completed ? ' completed' : ''}`;
 
@@ -193,8 +188,8 @@ async function loadPortal(): Promise<void> {
     }
 
     // Kitten status based on progress
-    const completedCount = scenes.filter((s) => s.completed).length;
-    if (completedCount === scenes.length && scenes.length > 0) {
+    const completedCount = portalScenes.filter((s) => s.completed).length;
+    if (completedCount === portalScenes.length && portalScenes.length > 0) {
       defaultBubbleText = 'Amazing! You completed everything! 🌟';
     } else if (completedCount > 0) {
       defaultBubbleText = `You finished ${completedCount} scene(s)! Keep going! 🐱`;
@@ -210,36 +205,50 @@ async function loadPortal(): Promise<void> {
   }
 }
 
-async function parseCollectibles(result: Response | Error): Promise<CollectibleItem[] | null> {
-  if (result instanceof Error || !result.ok) {
-    console.warn('[compendium] failed to load collectibles', result);
-    return null;
-  }
-
-  const payload = await result.json() as { items?: CollectibleItem[] };
-  return payload.items ?? [];
+function applyLocalProgress(scenes: SceneInfo[]): PortalScene[] {
+  let previousCompleted = true;
+  return scenes.map((scene) => {
+    const progress = learningDataStore.getSceneProgress(scene.id);
+    const completed = progress?.completed ?? false;
+    const portalScene: PortalScene = {
+      ...scene,
+      unlocked: previousCompleted,
+      completed,
+      score: progress?.score ?? 0,
+    };
+    previousCompleted = completed;
+    return portalScene;
+  });
 }
 
-function renderCompendiumButton(scenes: SceneInfo[], collectibles: CollectibleItem[] | null): void {
+function renderCompendiumButton(scenes: PortalScene[], collectibles: CollectibleData[]): void {
   const scoreDisplay = document.getElementById('score-display')!;
   document.getElementById('compendium-btn')?.remove();
 
   const button = document.createElement('button');
   button.id = 'compendium-btn';
   button.type = 'button';
-  button.disabled = collectibles === null;
-  button.innerHTML = `<span class="compendium-icon">Book</span><span id="compendium-count">${collectibles?.length ?? '?'}</span>`;
+  button.innerHTML = `<span class="compendium-icon">Book</span><span id="compendium-count">${collectibles.length}</span>`;
   scoreDisplay.appendChild(button);
-
-  if (collectibles !== null) {
-    button.addEventListener('click', () => openCompendium(scenes, collectibles));
-  }
+  button.addEventListener('click', () => openCompendium(scenes, collectibles));
 }
 
-function openCompendium(scenes: SceneInfo[], collectibles: CollectibleItem[]): void {
+function renderSettingsButton(): void {
+  const scoreDisplay = document.getElementById('score-display')!;
+  document.getElementById('learning-data-btn')?.remove();
+
+  const button = document.createElement('button');
+  button.id = 'learning-data-btn';
+  button.type = 'button';
+  button.textContent = 'Data';
+  button.addEventListener('click', openLearningDataSettings);
+  scoreDisplay.appendChild(button);
+}
+
+function openCompendium(scenes: PortalScene[], collectibles: CollectibleData[]): void {
   const overlay = getCompendiumOverlay();
   const body = overlay.querySelector<HTMLDivElement>('.compendium-body')!;
-  const collectedSet = new Set(collectibles.map((item) => `${item.sceneId}:${item.word.toLowerCase()}`));
+  const collectedSet = new Set(collectibles.map((item) => `${item.sceneId}:${normalizeLearningWord(item.word)}`));
 
   body.innerHTML = '';
   if (collectibles.length === 0) {
@@ -251,7 +260,7 @@ function openCompendium(scenes: SceneInfo[], collectibles: CollectibleItem[]): v
 
   for (const scene of scenes) {
     const words = scene.targetVocabulary ?? [];
-    const collectedCount = words.filter((word) => collectedSet.has(`${scene.id}:${word.toLowerCase()}`)).length;
+    const collectedCount = words.filter((word) => collectedSet.has(`${scene.id}:${normalizeLearningWord(word)}`)).length;
     const section = document.createElement('section');
     section.className = 'compendium-scene';
     section.innerHTML = `
@@ -265,7 +274,7 @@ function openCompendium(scenes: SceneInfo[], collectibles: CollectibleItem[]): v
 
     const grid = section.querySelector<HTMLDivElement>('.compendium-grid')!;
     for (const word of words) {
-      const collected = collectedSet.has(`${scene.id}:${word.toLowerCase()}`);
+      const collected = collectedSet.has(`${scene.id}:${normalizeLearningWord(word)}`);
       const card = document.createElement('button');
       card.type = 'button';
       card.className = `compendium-item${collected ? ' collected' : ' missing'}`;
@@ -288,6 +297,101 @@ function openCompendium(scenes: SceneInfo[], collectibles: CollectibleItem[]): v
 
   overlay.classList.remove('hidden');
   overlay.querySelector<HTMLButtonElement>('.compendium-close')!.focus();
+}
+
+function openLearningDataSettings(): void {
+  const overlay = getLearningDataOverlay();
+  overlay.classList.remove('hidden');
+  overlay.querySelector<HTMLButtonElement>('.learning-data-close')!.focus();
+}
+
+function getLearningDataOverlay(): HTMLDivElement {
+  const existing = document.getElementById('learning-data-overlay') as HTMLDivElement | null;
+  if (existing) return existing;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'learning-data-overlay';
+  overlay.className = 'hidden';
+  overlay.innerHTML = `
+    <div class="learning-data-panel" role="dialog" aria-modal="true" aria-label="Learning data settings">
+      <div class="learning-data-header">
+        <h2>Learning Data</h2>
+        <button type="button" class="learning-data-close" aria-label="Close">x</button>
+      </div>
+      <div class="learning-data-body">
+        <p class="learning-data-note">Progress is saved in this browser.</p>
+        <div class="learning-data-actions">
+          <button type="button" id="learning-data-export">Export</button>
+          <button type="button" id="learning-data-import">Import</button>
+          <button type="button" id="learning-data-reset">Reset</button>
+        </div>
+        <input id="learning-data-file" type="file" accept="application/json,.json" hidden />
+        <p id="learning-data-status" role="status"></p>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) closeLearningDataSettings();
+  });
+  overlay.querySelector<HTMLButtonElement>('.learning-data-close')!.addEventListener('click', closeLearningDataSettings);
+  overlay.querySelector<HTMLButtonElement>('#learning-data-export')!.addEventListener('click', exportLearningData);
+  overlay.querySelector<HTMLButtonElement>('#learning-data-import')!.addEventListener('click', () => {
+    overlay.querySelector<HTMLInputElement>('#learning-data-file')!.click();
+  });
+  overlay.querySelector<HTMLButtonElement>('#learning-data-reset')!.addEventListener('click', resetLearningData);
+  overlay.querySelector<HTMLInputElement>('#learning-data-file')!.addEventListener('change', importLearningData);
+  document.addEventListener('keydown', (event) => {
+    if (overlay.classList.contains('hidden')) return;
+    if (event.code === 'Escape') closeLearningDataSettings();
+  });
+
+  return overlay;
+}
+
+function closeLearningDataSettings(): void {
+  document.getElementById('learning-data-overlay')?.classList.add('hidden');
+}
+
+function exportLearningData(): void {
+  const blob = new Blob([learningDataStore.exportData()], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `scene-engine-learning-data-${new Date().toISOString().slice(0, 10)}.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+  setLearningDataStatus('Exported.');
+}
+
+async function importLearningData(event: Event): Promise<void> {
+  const input = event.currentTarget as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+
+  const result = learningDataStore.importData(await file.text());
+  if (!result.ok) {
+    setLearningDataStatus('Import failed. Please choose a valid data file.');
+    return;
+  }
+  location.reload();
+}
+
+function resetLearningData(): void {
+  if (!window.confirm('Reset learning data in this browser?')) return;
+  const result = learningDataStore.reset();
+  if (!result.ok) {
+    setLearningDataStatus('Reset failed. Browser storage is unavailable.');
+    return;
+  }
+  location.reload();
+}
+
+function setLearningDataStatus(message: string): void {
+  const status = document.getElementById('learning-data-status');
+  if (status) status.textContent = message;
 }
 
 function getCompendiumOverlay(): HTMLDivElement {
@@ -342,7 +446,11 @@ function trapCompendiumFocus(event: KeyboardEvent, overlay: HTMLElement): void {
 
 async function handleCompendiumWordClick(card: HTMLElement, word: string, cefrLevel: string): Promise<void> {
   hideExampleBubbles();
-  await speakPortalText(word, 0.75);
+  try {
+    await speakPortalText(word, 0.75);
+  } catch (error) {
+    console.warn('[compendium] word speech failed', error);
+  }
 
   const bubble = document.createElement('div');
   bubble.className = 'compendium-example';
@@ -355,7 +463,11 @@ async function handleCompendiumWordClick(card: HTMLElement, word: string, cefrLe
     const example = await getExample(word, cefrLevel);
     bubble.innerHTML = `<strong>${example.sentence}</strong><span>${example.explanation}</span>`;
     positionBubble();
-    await speakPortalText(example.sentence, 0.85);
+    try {
+      await speakPortalText(example.sentence, 0.85);
+    } catch (error) {
+      console.warn('[compendium] example speech failed', error);
+    }
   } catch (error) {
     console.warn('[compendium] example failed', error);
     bubble.textContent = 'Example is unavailable right now.';

@@ -10,3 +10,4 @@ public/whisper/*.bin
 /server/model/
 server/model/
 server/data/*.db*
+/server/data/tts-cache/

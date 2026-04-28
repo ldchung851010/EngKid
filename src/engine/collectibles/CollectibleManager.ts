@@ -5,6 +5,7 @@ import type { TTSEngine } from '../voice/TTSEngine.js';
 import { SpeechPipeline, type TranscribeFn } from '../voice/SpeechPipeline.js';
 import { playCollectSound } from './celebration-sound.js';
 import { CollectOverlay } from './collect-overlay.js';
+import { learningDataStore, type LearningDataStore } from '../runtime/LearningDataStore.js';
 
 export interface Vector3Like {
   x: number;
@@ -33,12 +34,6 @@ interface CollectibleMarker {
   position: Vector3Like;
   anchored: boolean;
   collected: boolean;
-}
-
-interface CollectedApiItem {
-  word: string;
-  sceneId: string;
-  collectedAt: string;
 }
 
 const COLLECTIBLE_NPC_CLEARANCE = 3.25;
@@ -177,7 +172,8 @@ export class CollectibleManager {
     private tts: TTSEngine,
     private sceneId: string,
     private config: SceneConfig,
-    transcribeFn: TranscribeFn
+    transcribeFn: TranscribeFn,
+    private dataStore: LearningDataStore = learningDataStore
   ) {
     this.pronunciationPipeline = new SpeechPipeline({
       onStateChange: (state) => console.log(`[collectibles:pipeline] ${state}`),
@@ -330,13 +326,9 @@ export class CollectibleManager {
   }
 
   private async confirmCollect(marker: CollectibleMarker): Promise<void> {
-    const response = await fetch('/api/collectibles', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ word: marker.word, sceneId: this.sceneId }),
-    });
-    if (!response.ok) {
-      throw new Error(`Collectible save failed: ${response.status}`);
+    const result = this.dataStore.addCollectible(marker.word, this.sceneId);
+    if (!result.ok) {
+      throw new Error(`Collectible save failed: ${result.error}`);
     }
 
     playCollectSound();
@@ -359,15 +351,7 @@ export class CollectibleManager {
   }
 
   private async fetchCollectedWords(): Promise<Set<string>> {
-    try {
-      const response = await fetch(`/api/collectibles?sceneId=${encodeURIComponent(this.sceneId)}`);
-      if (!response.ok) throw new Error(`Collectibles fetch failed: ${response.status}`);
-      const payload = await response.json() as { items?: CollectedApiItem[] };
-      return new Set((payload.items ?? []).map((item) => normalizeWord(item.word)));
-    } catch (error) {
-      console.warn('[collectibles] failed to load collected words', error);
-      return new Set();
-    }
+    return new Set(this.dataStore.getCollectibles(this.sceneId).map((item) => normalizeWord(item.word)));
   }
 }
 

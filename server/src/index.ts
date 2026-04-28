@@ -4,11 +4,10 @@ import multipart from '@fastify/multipart';
 import { spawn, type ChildProcess } from 'child_process';
 import { intentRoutes } from './routes/intent.js';
 import { ttsRoutes } from './routes/tts.js';
-import { progressRoutes } from './routes/progress.js';
-import { collectiblesRoutes } from './routes/collectibles.js';
 import { exampleRoutes } from './routes/example.js';
 import { scenesRoutes } from './routes/scenes.js';
 import { quotesRoutes } from './routes/quotes.js';
+import { quotaRoutes } from './routes/quota.js';
 import { ensureQuotesGenerated } from './utils/quoteGenerator.js';
 
 const TTS_PORT = parseInt(process.env.TTS_PORT || '8081');
@@ -63,11 +62,10 @@ await ensureQuotesGenerated(TTS_PORT);
 
 await app.register(intentRoutes, { prefix: '/api' });
 await app.register(ttsRoutes(TTS_PORT), { prefix: '/api' });
-await app.register(progressRoutes, { prefix: '/api' });
-await app.register(collectiblesRoutes, { prefix: '/api' });
 await app.register(exampleRoutes, { prefix: '/api' });
 await app.register(scenesRoutes, { prefix: '/api' });
 await app.register(quotesRoutes(), { prefix: '/api' });
+await app.register(quotaRoutes, { prefix: '/api' });
 
 app.get('/api/health', async () => ({ status: 'ok', tts: 'ready' }));
 

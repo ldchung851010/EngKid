@@ -1,14 +1,8 @@
 import type { FastifyInstance } from 'fastify';
+import { callTextAIJson } from '../utils/aiGateway.js';
 
 export async function intentRoutes(app: FastifyInstance) {
   app.post('/intent', async (request, reply) => {
-    const start = Date.now();
-    const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
-    if (!DEEPSEEK_API_KEY) {
-      console.log('[Intent] ❌ DEEPSEEK_API_KEY not configured');
-      return reply.status(500).send({ error: 'DEEPSEEK_API_KEY not configured' });
-    }
-
     const body = request.body as {
       transcript: string;
       npcContext: { name: string; role: string };
@@ -38,37 +32,19 @@ Rules:
 
 Return ONLY a JSON object: {"intentId": "<id or 'none'>", "confidence": <0.0-1.0>}`;
 
-    try {
-      const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'deepseek-chat',
-          messages: [{ role: 'user', content: prompt }],
-          response_format: { type: 'json_object' },
-          temperature: 0.1,
-          max_tokens: 100,
-        }),
-      });
-
-      const result = await response.json();
-      const elapsed = Date.now() - start;
-
-      if (!response.ok) {
-        console.log(`[Intent] ❌ DeepSeek error (${response.status}):`, JSON.stringify(result));
-        return reply.status(response.status).send(result);
-      }
-
-      const content = JSON.parse(result.choices?.[0]?.message?.content ?? '{"intentId":"none","confidence":0}');
-      console.log(`[Intent] → DeepSeek: ${response.status} in ${elapsed}ms, result=${JSON.stringify(content)}`);
-      return reply.send(content);
-    } catch (err) {
-      const elapsed = Date.now() - start;
-      console.log(`[Intent] ❌ fetch failed after ${elapsed}ms:`, err);
-      return reply.status(502).send({ error: 'Intent upstream unavailable' });
+    const result = await callTextAIJson(request, {
+      logName: 'Intent',
+      prompt,
+      temperature: 0.1,
+      maxTokens: 100,
+    });
+    if (!result.ok) {
+      if (result.body.retryAfterSeconds) reply.header('Retry-After', result.body.retryAfterSeconds);
+      return reply.status(result.statusCode).send(result.body);
     }
+    return reply.send({
+      intentId: typeof result.content.intentId === 'string' ? result.content.intentId : 'none',
+      confidence: typeof result.content.confidence === 'number' ? result.content.confidence : 0,
+    });
   });
 }
