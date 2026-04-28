@@ -194,6 +194,11 @@ function animatePortal(delta: number): void {
   });
 }
 
+function animateSceneVisuals(delta: number, elapsed: number): void {
+  if (!sceneVisualGroup) return;
+  activeSceneModule?.animateVisuals?.(sceneVisualGroup, delta, elapsed);
+}
+
 function getPortalDistance(): number {
   if (!portalGroup) return Infinity;
   const pp = portalGroup.position;
@@ -867,6 +872,7 @@ function animate(): void {
   collectibleManager?.update(delta);
   animatePortal(delta);
   animateNPCs(delta);
+  animateSceneVisuals(delta, clock.elapsedTime);
 
   renderer.render(scene, camera);
 }

@@ -13,6 +13,7 @@ export interface SceneModule {
   config: SceneConfig;
   hooks?: SceneHooks;
   createVisuals?: () => THREE.Group;
+  animateVisuals?: (visuals: THREE.Group, delta: number, elapsed: number) => void;
 }
 
 export const emptySceneHooks: Required<SceneHooks> = {
