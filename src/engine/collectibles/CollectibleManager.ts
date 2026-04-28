@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { addBox, addLocalBox, createTextSprite, disposeObject3D } from '../renderer/ScenePrimitives.js';
 import type { MapConfig, SceneConfig } from '../schema/SceneConfig.js';
 import type { TTSEngine } from '../voice/TTSEngine.js';
-import { SpeechPipeline } from '../voice/SpeechPipeline.js';
+import { SpeechPipeline, type TranscribeFn } from '../voice/SpeechPipeline.js';
 import { playCollectSound } from './celebration-sound.js';
 import { CollectOverlay } from './collect-overlay.js';
 
@@ -126,18 +126,48 @@ export function getActiveCollectible<T extends ProximityCollectible>(
   return active;
 }
 
+function levenshteinDistance(a: string, b: string): number {
+  const matrix: number[][] = Array.from({ length: a.length + 1 }, (_, i) =>
+    Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
+  );
+
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      );
+    }
+  }
+
+  return matrix[a.length][b.length];
+}
+
 export function doesTranscriptMatchWord(transcript: string | null | undefined, word: string): boolean {
-  return normalizeSpokenText(transcript ?? '') === normalizeSpokenText(word);
+  const normalizedTranscript = normalizeSpokenText(transcript ?? '');
+  const normalizedWord = normalizeSpokenText(word);
+
+  if (!normalizedWord) return false;
+
+  // 1. Strict equality
+  if (normalizedTranscript === normalizedWord) return true;
+
+  // 2. Substring match (e.g. "it's a pizza" contains "pizza")
+  if (normalizedTranscript.includes(normalizedWord)) return true;
+
+  // 3. Fuzzy match: short words ≤1 edit, longer words ≤2 edits
+  const maxDistance = normalizedWord.length <= 4 ? 1 : 2;
+  if (levenshteinDistance(normalizedTranscript, normalizedWord) <= maxDistance) return true;
+
+  return false;
 }
 
 export class CollectibleManager {
   private markers: CollectibleMarker[] = [];
   private activeMarker: CollectibleMarker | null = null;
   private overlay = new CollectOverlay();
-  private pronunciationPipeline = new SpeechPipeline({
-    onStateChange: (state) => console.log(`[collectibles:pipeline] ${state}`),
-    onTranscript: (text) => console.log(`[collectibles:asr] "${text}"`),
-  });
+  private pronunciationPipeline: SpeechPipeline;
   private isOverlayOpen = false;
   private cooldownUntil = 0;
 
@@ -146,8 +176,14 @@ export class CollectibleManager {
     private camera: THREE.Camera,
     private tts: TTSEngine,
     private sceneId: string,
-    private config: SceneConfig
-  ) {}
+    private config: SceneConfig,
+    transcribeFn: TranscribeFn
+  ) {
+    this.pronunciationPipeline = new SpeechPipeline({
+      onStateChange: (state) => console.log(`[collectibles:pipeline] ${state}`),
+      onTranscript: (text) => console.log(`[collectibles:asr] "${text}"`),
+    }, transcribeFn);
+  }
 
   async init(): Promise<void> {
     const collected = await this.fetchCollectedWords();
