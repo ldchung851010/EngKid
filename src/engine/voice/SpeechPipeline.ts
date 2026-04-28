@@ -3,8 +3,8 @@
  *
  * Flow:
  *   press mic/Q → start recording → release → stop → WebM blob
- *   → browser WAV conversion → POST /api/asr → transcript
- *   → IntentRouter.route() → matched intent
+ *   → browser decode + resample to 16kHz Float32Array → WhisperASR.transcribe()
+ *   → transcript → IntentRouter.route() → matched intent
  */
 
 export type PipelineState = 'idle' | 'listening' | 'transcribing' | 'routing' | 'error';
@@ -19,18 +19,28 @@ export interface TranscriptionOptions {
   hotwords?: string[];
 }
 
+export type TranscribeFn = (
+  audioData: Float32Array,
+  options?: TranscriptionOptions
+) => Promise<string> | string;
+
+const SAMPLE_RATE = 16000;
+const MAX_RECORDING_S = 30;
+
 export class SpeechPipeline {
   private stream: MediaStream | null = null;
   private recorder: MediaRecorder | null = null;
   private chunks: Blob[] = [];
   private recordStartTime = 0;
   private callbacks: PipelineCallbacks;
+  private transcribeFn: TranscribeFn;
   private state: PipelineState = 'idle';
 
   private readonly MIN_DURATION_MS = 500;
 
-  constructor(callbacks: PipelineCallbacks) {
+  constructor(callbacks: PipelineCallbacks, transcribeFn: TranscribeFn) {
     this.callbacks = callbacks;
+    this.transcribeFn = transcribeFn;
   }
 
   get currentState(): PipelineState {
@@ -70,7 +80,6 @@ export class SpeechPipeline {
       this.stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
-          sampleRate: 16000,
           echoCancellation: true,
           noiseSuppression: true,
         },
@@ -128,31 +137,18 @@ export class SpeechPipeline {
         this.log(`WebM blob: ${(blob.size / 1024).toFixed(1)}KB`);
 
         try {
-          // Convert WebM → WAV via browser AudioContext
-          this.log('converting WebM → WAV...');
-          const wav = await this.convertToWav(blob);
-          this.log(`WAV ready: ${(wav.size / 1024).toFixed(1)}KB`);
+          // Decode WebM to 16kHz mono Float32Array
+          this.log('decoding audio to Float32Array...');
+          const floatData = await this.decodeToFloat32(blob);
+          this.log(`audio ready: ${(floatData.length / SAMPLE_RATE).toFixed(1)}s @ ${SAMPLE_RATE}Hz`);
 
-          // Send to ASR backend proxy
-          this.log('POST /api/asr...');
-          const formData = new FormData();
-          formData.append('file', wav, 'recording.wav');
-          if (options.prompt) {
-            formData.append('prompt', options.prompt);
-          }
-          for (const hotword of options.hotwords ?? []) {
-            formData.append('hotwords', hotword);
+          // whisper.cpp does not support prompt/hotwords — ignore them
+          if (options.prompt || options.hotwords?.length) {
+            this.log('note: prompt/hotwords are not supported by local whisper, ignoring');
           }
 
-          const response = await fetch('/api/asr', { method: 'POST', body: formData });
-
-          if (!response.ok) {
-            this.log(`❌ /api/asr returned ${response.status}`);
-            throw new Error(`ASR failed: ${response.status}`);
-          }
-
-          const data = await response.json();
-          const text = data.text ?? '';
+          // Local ASR
+          const text = await this.transcribeFn(floatData, options);
           this.log(`← ASR text: "${text}"`);
           this.callbacks.onTranscript(text);
           this.setState('idle');
@@ -171,60 +167,25 @@ export class SpeechPipeline {
     });
   }
 
-  /** Convert WebM audio blob to WAV via browser AudioContext */
-  private async convertToWav(webmBlob: Blob): Promise<Blob> {
-    try {
-      const audioCtx = new AudioContext({ sampleRate: 16000 });
-      const arrayBuffer = await webmBlob.arrayBuffer();
-      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-      const wavBlob = this.encodeWAV(audioBuffer);
-      audioCtx.close();
-      return wavBlob;
-    } catch (err) {
-      this.log(`⚠️ WAV conversion failed (${err}), sending raw WebM`);
-      return webmBlob;
-    }
-  }
+  /** Decode WebM blob to 16kHz mono Float32Array */
+  private async decodeToFloat32(webmBlob: Blob): Promise<Float32Array> {
+    const audioCtx = new AudioContext();
+    const arrayBuffer = await webmBlob.arrayBuffer();
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    audioCtx.close();
 
-  /** Simple WAV encoder (PCM 16-bit, mono) */
-  private encodeWAV(audioBuffer: AudioBuffer): Blob {
-    const numChannels = 1;
-    const sampleRate = audioBuffer.sampleRate;
-    const format = 1;
-    const bitsPerSample = 16;
+    // Resample to 16kHz mono via OfflineAudioContext
+    const targetLength = Math.min(
+      Math.ceil(audioBuffer.duration * SAMPLE_RATE),
+      MAX_RECORDING_S * SAMPLE_RATE
+    );
+    const offline = new OfflineAudioContext(1, targetLength, SAMPLE_RATE);
+    const src = offline.createBufferSource();
+    src.buffer = audioBuffer;
+    src.connect(offline.destination);
+    src.start(0);
 
-    const data = audioBuffer.getChannelData(0);
-    const dataLength = data.length * (bitsPerSample / 8);
-    const buffer = new ArrayBuffer(44 + dataLength);
-    const view = new DataView(buffer);
-
-    this.writeString(view, 0, 'RIFF');
-    view.setUint32(4, 36 + dataLength, true);
-    this.writeString(view, 8, 'WAVE');
-    this.writeString(view, 12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, format, true);
-    view.setUint16(22, numChannels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * numChannels * (bitsPerSample / 8), true);
-    view.setUint16(32, numChannels * (bitsPerSample / 8), true);
-    view.setUint16(34, bitsPerSample, true);
-    this.writeString(view, 36, 'data');
-    view.setUint32(40, dataLength, true);
-
-    let offset = 44;
-    for (let i = 0; i < data.length; i++) {
-      const sample = Math.max(-1, Math.min(1, data[i]));
-      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
-      offset += 2;
-    }
-
-    return new Blob([buffer], { type: 'audio/wav' });
-  }
-
-  private writeString(view: DataView, offset: number, str: string): void {
-    for (let i = 0; i < str.length; i++) {
-      view.setUint8(offset + i, str.charCodeAt(i));
-    }
+    const rendered = await offline.startRendering();
+    return rendered.getChannelData(0);
   }
 }

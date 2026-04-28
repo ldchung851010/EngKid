@@ -1,9 +1,11 @@
+.DS_Store
 /.idea/
 dist/
 node_modules/
 server/node_modules/
 node_modulesdist/
 public/tts-model/*.onnx
+public/whisper/*.bin
 /server/bin/
 /server/model/
 server/model/

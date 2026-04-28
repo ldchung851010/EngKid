@@ -2,7 +2,6 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import { spawn, type ChildProcess } from 'child_process';
-import { asrRoutes } from './routes/asr.js';
 import { intentRoutes } from './routes/intent.js';
 import { ttsRoutes } from './routes/tts.js';
 import { progressRoutes } from './routes/progress.js';
@@ -62,7 +61,6 @@ app.addHook('onResponse', async (request, reply) => {
 // Pre-generate quote audio files
 await ensureQuotesGenerated(TTS_PORT);
 
-await app.register(asrRoutes, { prefix: '/api' });
 await app.register(intentRoutes, { prefix: '/api' });
 await app.register(ttsRoutes(TTS_PORT), { prefix: '/api' });
 await app.register(progressRoutes, { prefix: '/api' });

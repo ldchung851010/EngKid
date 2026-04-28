@@ -11,6 +11,7 @@ import { CollisionWorld } from './engine/runtime/CollisionWorld.js';
 import { ScoreTracker } from './engine/scoring/ScoreTracker.js';
 import { IntentRouter } from './engine/voice/IntentRouter.js';
 import { SpeechPipeline } from './engine/voice/SpeechPipeline.js';
+import { WhisperASR } from './engine/voice/WhisperASR.js';
 import { TTSEngine } from './engine/voice/TTSEngine.js';
 import { MicButton } from './engine/voice/MicButton.js';
 import type { NPCConfig, DialogueNode, SceneConfig } from './engine/schema/SceneConfig.js';
@@ -510,12 +511,16 @@ async function speakNPC(node: DialogueNode): Promise<void> {
   await tts.speak(text, activeNPC.voice, activeNPC.speechSpeed);
 }
 
+// ── ASR ────────────────────────────────────────────────────────
+const whisperASR = new WhisperASR();
+const transcribe = (audioData: Float32Array) => whisperASR.transcribe(audioData);
+
 // ── Mic & Speech Pipeline ──────────────────────────────────────
 const micContainer = document.getElementById('mic-container')!;
 const pipeline = new SpeechPipeline({
   onStateChange: (state) => console.log(`[pipeline] ${state}`),
   onTranscript: (text) => console.log(`[ASR] "${text}"`),
-});
+}, transcribe);
 
 const micButton = new MicButton(micContainer, pipeline, async (transcript) => {
   await handleChildSpeech(transcript);
@@ -783,7 +788,7 @@ async function loadScene(): Promise<void> {
   // Spawn NPCs
   currentNPCs = activeSceneConfig.npcs;
   spawnNPCs(currentNPCs);
-  collectibleManager = new CollectibleManager(scene, camera, tts, activeSceneId, activeSceneConfig);
+  collectibleManager = new CollectibleManager(scene, camera, tts, activeSceneId, activeSceneConfig, transcribe);
   await collectibleManager.init();
 
   if (activeSceneConfig.environment) {
@@ -817,9 +822,10 @@ const spinner = document.getElementById('loading-spinner')!;
 const statusEl = document.getElementById('loading-status')!;
 const errorEl = document.getElementById('loading-error')!;
 let isSceneReady = false;
+let isASRReady = false;
 
 function hideLoadingOverlay(): void {
-  if (!isSceneReady) return;
+  if (!isSceneReady || !isASRReady) return;
   overlay.style.display = 'none';
   errorEl.style.display = 'none';
 }
@@ -846,9 +852,20 @@ tts.onStatusChange((s) => {
     statusEl.textContent = 'Building scene...';
     await loadScene();
     isSceneReady = true;
+
+    statusEl.textContent = 'Loading ASR model... 0%';
+    await whisperASR.loadModel(undefined, (pct) => {
+      statusEl.textContent = `Loading ASR model... ${pct}%`;
+    });
+    statusEl.textContent = 'ASR model ready ✓';
+    isASRReady = true;
     hideLoadingOverlay();
   } catch (err) {
     console.error('Startup failed:', err);
+    statusEl.textContent = 'ASR model failed to load';
+    spinner.style.display = 'none';
+    errorEl.style.display = 'block';
+    errorEl.innerHTML = `<strong>Failed to load ASR model</strong><br><br>${err}`;
   }
 })();
 

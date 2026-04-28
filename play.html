@@ -178,6 +178,23 @@
     </div>
   </div>
 
+  <script>
+    // Intercept console before whisper.js loads so its internal `out` function
+    // (defaultPrint=console.log.bind(console)) binds to our wrapper instead
+    // of the raw console.log. We toggle capture via __whisperCollect.
+    window.__origConsoleLog = console.log;
+    window.__origConsoleError = console.error;
+    window.__whisperCollect = null;
+    console.log = function(...args) {
+      if (window.__whisperCollect) window.__whisperCollect(args.join(' '));
+      window.__origConsoleLog.apply(console, args);
+    };
+    console.error = function(...args) {
+      if (window.__whisperCollect) window.__whisperCollect(args.join(' '));
+      window.__origConsoleError.apply(console, args);
+    };
+  </script>
+  <script src="/whisper/whisper.js"></script>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
