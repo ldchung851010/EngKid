@@ -1,19 +1,6 @@
 import { getSvgForWord } from '../engine/collectibles/vocab-svg-map.js';
 import { learningDataStore, normalizeLearningWord, type CollectibleData } from '../engine/runtime/LearningDataStore.js';
-
-interface SceneInfo {
-  id: string;
-  name: string;
-  description: string;
-  cefrLevel: string;
-  targetVocabulary: string[];
-}
-
-interface PortalScene extends SceneInfo {
-  unlocked: boolean;
-  completed: boolean;
-  score: number;
-}
+import { applyLocalProgress, type PortalScene, type SceneInfo } from './portal-progress.js';
 
 const sceneEmoji: Record<string, string> = {
   restaurant: '🍽️',
@@ -175,7 +162,7 @@ async function loadPortal(): Promise<void> {
     if (!scenesRes.ok) throw new Error('API error');
 
     const { scenes } = await scenesRes.json() as { scenes: SceneInfo[] };
-    const portalScenes = applyLocalProgress(scenes);
+    const portalScenes = applyLocalProgress(scenes, learningDataStore);
     const totalScore = learningDataStore.getTotalScore();
     const collectibles = learningDataStore.getCollectibles();
 
@@ -242,22 +229,6 @@ async function loadPortal(): Promise<void> {
     console.error('Portal load failed:', err);
     loading.innerHTML = '<p>Failed to load scenes. Make sure the server is running.</p>';
   }
-}
-
-function applyLocalProgress(scenes: SceneInfo[]): PortalScene[] {
-  let previousCompleted = true;
-  return scenes.map((scene) => {
-    const progress = learningDataStore.getSceneProgress(scene.id);
-    const completed = progress?.completed ?? false;
-    const portalScene: PortalScene = {
-      ...scene,
-      unlocked: previousCompleted,
-      completed,
-      score: progress?.score ?? 0,
-    };
-    previousCompleted = completed;
-    return portalScene;
-  });
 }
 
 function renderCompendiumButton(scenes: PortalScene[], collectibles: CollectibleData[]): void {
