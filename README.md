@@ -8,7 +8,7 @@
 
 ## 当前状态
 
-**V1 已实现** — 包含一个完整的「餐厅」场景：走进餐厅，服务员 Tom 会上前打招呼，孩子按住麦克风按钮说出想点的食物，引擎理解意图、推进对话、并给出积分反馈。
+当前已经包含餐厅、学校、动物园、机场、酒店等场景。孩子在 3D 世界里探索、与 NPC 对话、收集词汇物件；首页会展示场景进度、总积分和词汇图鉴。
 
 ## 开始使用
 
@@ -17,7 +17,7 @@
 npm install
 cd server && npm install && cd ..
 
-# 2. 配置文本大模型 Key（ASR 默认在浏览器本地运行）
+# 2. 配置文本大模型 Key
 export DEEPSEEK_API_KEY="your-deepseek-key"
 
 # 3. 启动后端代理（终端 1）
@@ -27,15 +27,19 @@ npm run server:dev
 npm run dev
 ```
 
-打开 http://localhost:5173 ，点击画面锁定鼠标，WASD 移动，走到服务员面前开始对话！
+打开 http://localhost:5173 进入首页。选择一个已解锁场景后，点击画面锁定鼠标，WASD 移动，走到 NPC 或词汇物件旁边按提示互动。
 
-### 在线体验与成本控制
+## 学习数据
 
-- 学习进度、分数和单词收集保存在浏览器本地，不再写入服务器 SQLite。
-- 首页的 `Data` 按钮可以导出、导入或重置当前浏览器里的学习数据。
-- TTS 代理会把相同文本、声音和语速生成的 WAV 缓存在磁盘，缓存命中时不会再次调用 TTS 生成。
-- 文本 AI 调用统一经过后端网关，默认只需要 `DEEPSEEK_API_KEY`；`DEEPSEEK_MODEL` 可选。
-- ASR 保持浏览器本地 Whisper，不需要配置云端 ASR key。
+进度、分数、单词收集记录和偏好保存在当前浏览器里。首页右上角积分面板里有 `Data` 按钮，可以导出、导入或重置这份学习数据。
+
+这种方式适合开源自部署和在线体验：部署者只需要提供服务能力，学习者的数据默认留在自己的浏览器中。需要换浏览器或换设备时，使用 `Data` 导出 JSON，再在新浏览器中导入即可。
+
+## 成本控制
+
+语音识别在浏览器本地运行，不需要配置云端 ASR key。文本 AI 调用统一经过后端网关，默认使用 `DEEPSEEK_API_KEY`；`DEEPSEEK_MODEL` 可选。
+
+TTS 由后端代理本地 Kitten TTS 服务完成。相同文本、声音和语速会缓存为 WAV 文件；缓存命中时直接返回音频，缓存未命中时才生成新音频并计入 TTS 额度。
 
 可选额度配置：
 
@@ -46,6 +50,8 @@ TTS_DAILY_LIMIT=10000        # 全站每天 TTS cache-miss 生成数
 TTS_IP_HOURLY_LIMIT=600      # 单 IP 每小时 TTS cache-miss 生成数
 TTS_CACHE_DIR=server/data/tts-cache
 ```
+
+后端还提供 `GET /api/quota` 查看当前请求 IP 对应的 AI/TTS 剩余额度。
 
 ## 技术架构
 
@@ -69,8 +75,8 @@ TTS_CACHE_DIR=server/data/tts-cache
                     │  └─────────────┘ │         └──────────┘
                     │                  │
                     │  ┌─────────────┐ │         ┌──────────┐
-                    │  │ 意图路由器    │◄────────│ DeepSeek │
-                    │  │ (LLM 匹配)   │ │  intent │  V4 Flash│
+                    │  │ 意图路由器    │◄────────│ AI 网关   │
+                    │  │ (LLM 匹配)   │ │  intent │ DeepSeek │
                     │  └─────────────┘ │         └──────────┘
                     │                  │
                     │  ┌─────────────┐ │
@@ -97,9 +103,8 @@ scene-engine/
 │   ├── runtime/         # 会话状态机、场景加载
 │   ├── scoring/         # 计分
 │   └── schema/          # 场景配置类型 + 校验
-├── src/scenes/          # 场景定义
-│   └── restaurant/      # V1 餐厅场景
-├── server/              # 后端 API 代理 (Fastify)
+├── src/scenes/          # 场景定义（restaurant/school/zoo/airport/hotel）
+├── server/              # 后端 API 代理（TTS、文本 AI、场景元数据、额度）
 ├── docs/
 │   ├── brainstorms/     # 需求文档
 │   └── plans/           # 规划文档
@@ -160,7 +165,7 @@ export const clinicConfig: SceneConfig = {
 };
 ```
 
-然后在 `main.ts` 中加载它即可。
+然后新增 `src/scenes/clinic/index.ts` 导出 `{ id, config, hooks, createVisuals, animateVisuals }`。前端会通过 `src/main.ts` 和 `server/src/routes/scenes.ts` 的场景目录扫描加载它。
 
 ## 技术栈
 
@@ -170,6 +175,7 @@ export const clinicConfig: SceneConfig = {
 | TTS | Kitten TTS server + 磁盘缓存 |
 | ASR | 浏览器本地 Whisper |
 | 意图路由 | DeepSeek Chat（后端统一网关） |
+| 学习数据 | 浏览器本地 LearningDataStore |
 | 状态机 | XState v5 |
 | 构建 | Vite + TypeScript |
 | 后端 | Fastify |
