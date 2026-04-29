@@ -6,7 +6,10 @@ import {
 } from '../../src/engine/collectibles/CollectibleManager.ts';
 import type { SceneConfig } from '../../src/engine/schema/SceneConfig.ts';
 import { airportConfig } from '../../src/scenes/airport/config.ts';
+import { hotelConfig } from '../../src/scenes/hotel/config.ts';
 import { restaurantConfig } from '../../src/scenes/restaurant/config.ts';
+import { schoolConfig } from '../../src/scenes/school/config.ts';
+import { zooConfig } from '../../src/scenes/zoo/config.ts';
 
 function createConfig(overrides: Partial<SceneConfig> = {}): SceneConfig {
   return {
@@ -116,4 +119,24 @@ test('places airport documents on counters and travel objects near matching prop
   assert.equal(byWord.get('boarding pass')?.position.y, 2.1);
   assert.equal(byWord.get('bag')?.position.y, 2.05);
   assert.ok((byWord.get('gate')?.position.x ?? 0) > 19);
+});
+
+test('keeps current scene collectibles away from the home portal', () => {
+  const configs = [restaurantConfig, schoolConfig, zooConfig, airportConfig, hotelConfig];
+
+  for (const config of configs) {
+    const start = config.start ?? {
+      position: { x: config.map.width / 2, y: 2.6, z: config.map.depth - 2 },
+      lookAt: { x: config.map.width / 2, y: 2.3, z: config.map.depth / 2 },
+    };
+    const portal = { x: start.position.x, z: start.position.z + 1.5 };
+
+    for (const placement of computeCollectiblePlacements(config)) {
+      const distance = Math.hypot(placement.position.x - portal.x, placement.position.z - portal.z);
+      assert.ok(
+        distance > 3.25,
+        `${config.name} "${placement.word}" is too close to portal: ${distance.toFixed(2)}`
+      );
+    }
+  }
 });

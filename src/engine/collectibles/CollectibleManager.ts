@@ -442,8 +442,8 @@ function getSceneAnchoredPlacements(sceneName: string): Record<string, Omit<Coll
         bird: { position: { x: 12.8, y: 1.55, z: 8.8 }, rotationY: -0.2 },
         tiger: { position: { x: 9.5, y: 1.08, z: 12 }, rotationY: -0.3 },
         big: { position: { x: 13.1, y: 1.08, z: 11.8 }, rotationY: 0.15 },
-        small: { position: { x: 10.2, y: 1.08, z: 14.5 }, rotationY: -0.15 },
-        where: { position: { x: 11.8, y: 1.08, z: 15.1 }, rotationY: 0.1 },
+        small: { position: { x: 10.2, y: 1.08, z: 10.4 }, rotationY: -0.15 },
+        where: { position: { x: 11.8, y: 1.08, z: 10.8 }, rotationY: 0.1 },
       };
     default:
       return {};
