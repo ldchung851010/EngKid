@@ -77,6 +77,27 @@ export class LearningDataStore {
     return this.getAllSceneProgress().reduce((sum, scene) => sum + scene.score, 0);
   }
 
+  getPreference<T>(key: string): T | null {
+    const value = this.getData().preferences?.[key];
+    return value === undefined ? null : value as T;
+  }
+
+  setPreference(key: string, value: unknown): LearningDataResult<LearningDataDocument> {
+    const normalizedKey = key.trim();
+    if (!normalizedKey) {
+      return {
+        ok: false,
+        error: 'invalid_schema',
+        message: 'Preference key is required.',
+      };
+    }
+
+    const data = this.getData();
+    data.preferences ??= {};
+    data.preferences[normalizedKey] = value;
+    return this.save(data);
+  }
+
   saveSceneProgress(input: SaveSceneProgressInput): LearningDataResult<SceneProgressData> {
     const sceneId = normalizeId(input.sceneId);
     if (!sceneId || !Number.isInteger(input.score) || input.score < 0) {

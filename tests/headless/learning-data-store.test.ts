@@ -41,6 +41,7 @@ test('initializes empty learning data document', () => {
   assert.deepEqual(data.scenes, {});
   assert.deepEqual(data.collectibles, {});
   assert.equal(store.getTotalScore(), 0);
+  assert.equal(store.getPreference<boolean>('onboardingTutorialSeen'), null);
 });
 
 test('saves and reads scene progress', () => {
@@ -73,6 +74,7 @@ test('exports and imports complete learning data', () => {
   const source = createStore();
   source.saveSceneProgress({ sceneId: 'restaurant', score: 12, completed: true, lastPlayedAt: '2026-04-29T00:00:00.000Z' });
   source.addCollectible('pizza', 'restaurant', '2026-04-29T00:01:00.000Z');
+  source.setPreference('onboardingTutorialSeen', true);
 
   const target = createStore();
   const result = target.importData(source.exportData());
@@ -87,6 +89,15 @@ test('exports and imports complete learning data', () => {
   assert.deepEqual(target.getCollectibles('restaurant'), [
     { word: 'pizza', sceneId: 'restaurant', collectedAt: '2026-04-29T00:01:00.000Z' },
   ]);
+  assert.equal(target.getPreference<boolean>('onboardingTutorialSeen'), true);
+});
+
+test('saves and reads preferences', () => {
+  const store = createStore();
+  const result = store.setPreference('onboardingTutorialSeen', true);
+
+  assert.equal(result.ok, true);
+  assert.equal(store.getPreference<boolean>('onboardingTutorialSeen'), true);
 });
 
 test('rejects malformed import without overwriting current data', () => {
@@ -127,11 +138,13 @@ test('reset clears data while preserving a valid empty document', () => {
   const store = createStore();
   store.saveSceneProgress({ sceneId: 'restaurant', score: 8, completed: true });
   store.addCollectible('pizza', 'restaurant');
+  store.setPreference('onboardingTutorialSeen', true);
 
   const result = store.reset();
 
   assert.equal(result.ok, true);
   assert.deepEqual(store.getData(), { version: 1, scenes: {}, collectibles: {}, preferences: {} });
+  assert.equal(store.getPreference<boolean>('onboardingTutorialSeen'), null);
 });
 
 test('write failures are returned as storage errors', () => {

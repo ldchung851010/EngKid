@@ -43,6 +43,41 @@ interface ExampleItem {
   explanation: string;
 }
 
+interface OnboardingStep {
+  icon: string;
+  title: string;
+  subtitle: string;
+  body: string;
+}
+
+const ONBOARDING_TUTORIAL_SEEN_KEY = 'onboardingTutorialSeen';
+const onboardingSteps: OnboardingStep[] = [
+  {
+    icon: '🌈',
+    title: 'Welcome!',
+    subtitle: '欢迎来到英语场景世界',
+    body: '在这里，孩子可以进入不同的 3D 场景，一边探索，一边开口练习英语。',
+  },
+  {
+    icon: '🗺️',
+    title: 'Pick a scene',
+    subtitle: '选择一个场景',
+    body: '点击已经解锁的场景卡片开始学习。每个场景都有不同的生活主题和英语任务。',
+  },
+  {
+    icon: '⭐',
+    title: 'Earn stars',
+    subtitle: '获得星星',
+    body: '和 NPC 对话、说出合适的句子、完成任务后，就能获得星星积分。',
+  },
+  {
+    icon: '📖',
+    title: 'Collect words',
+    subtitle: '收集单词',
+    body: '找到词汇物件后，它们会进入词汇图鉴。进度和数据会保存在当前浏览器里。',
+  },
+];
+
 let quoteList: QuoteItem[] = [];
 let currentAudio: HTMLAudioElement | null = null;
 let defaultBubbleText = '';
@@ -147,6 +182,7 @@ async function loadPortal(): Promise<void> {
     scoreCount.textContent = String(totalScore);
     updateTree(totalScore);
     renderCompendiumButton(portalScenes, collectibles);
+    renderGuideButton();
     renderSettingsButton();
     loading.classList.add('hidden');
 
@@ -199,6 +235,9 @@ async function loadPortal(): Promise<void> {
     showBubble(bubble, defaultBubbleText);
 
     bubbleHideTimer = setTimeout(() => bubble.classList.add('hidden'), 6000);
+    if (learningDataStore.getPreference<boolean>(ONBOARDING_TUTORIAL_SEEN_KEY) !== true) {
+      window.setTimeout(openOnboardingTutorial, 500);
+    }
   } catch (err) {
     console.error('Portal load failed:', err);
     loading.innerHTML = '<p>Failed to load scenes. Make sure the server is running.</p>';
@@ -228,9 +267,38 @@ function renderCompendiumButton(scenes: PortalScene[], collectibles: Collectible
   const button = document.createElement('button');
   button.id = 'compendium-btn';
   button.type = 'button';
-  button.innerHTML = `<span class="compendium-icon">Book</span><span id="compendium-count">${collectibles.length}</span>`;
+  button.innerHTML = `
+    <span class="compendium-book-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" role="img">
+        <path d="M4 5.5C4 4.7 4.7 4 5.5 4H10c1 0 1.8.3 2.4.9.6-.6 1.4-.9 2.4-.9h3.7c.8 0 1.5.7 1.5 1.5v12.8c0 .5-.4.9-.9.9h-4.7c-.7 0-1.3.2-1.8.7l-.2.2-.2-.2c-.5-.5-1.1-.7-1.8-.7H4.9c-.5 0-.9-.4-.9-.9V5.5Z" fill="currentColor"/>
+        <path d="M12.4 5v13.5M6.5 7.5H10M6.5 10.2H10M15 7.5h2.5M15 10.2h2.5" fill="none" stroke="#fff8d6" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+    </span>
+    <span class="compendium-icon">Book</span>
+    <span id="compendium-count">${collectibles.length}</span>
+  `;
   scoreDisplay.appendChild(button);
   button.addEventListener('click', () => openCompendium(scenes, collectibles));
+}
+
+function renderGuideButton(): void {
+  const scoreDisplay = document.getElementById('score-display')!;
+  document.getElementById('onboarding-guide-btn')?.remove();
+
+  const button = document.createElement('button');
+  button.id = 'onboarding-guide-btn';
+  button.type = 'button';
+  button.setAttribute('aria-label', 'Open guide');
+  button.title = 'Guide';
+  button.innerHTML = `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M9.8 9.3a2.4 2.4 0 0 1 4.5 1.2c0 1.8-2.3 2-2.3 3.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M12 17h.01" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+  `;
+  button.addEventListener('click', openOnboardingTutorial);
+  scoreDisplay.appendChild(button);
 }
 
 function renderSettingsButton(): void {
@@ -240,7 +308,14 @@ function renderSettingsButton(): void {
   const button = document.createElement('button');
   button.id = 'learning-data-btn';
   button.type = 'button';
-  button.textContent = 'Data';
+  button.setAttribute('aria-label', 'Learning data settings');
+  button.title = 'Learning data';
+  button.innerHTML = `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M19.4 13.5c.1-.5.1-1 .1-1.5s0-1-.1-1.5l2-1.5-2-3.4-2.4 1a8 8 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.6A8 8 0 0 0 7 6.6l-2.4-1-2 3.4 2 1.5c-.1.5-.1 1-.1 1.5s0 1 .1 1.5l-2 1.5 2 3.4 2.4-1a8 8 0 0 0 2.6 1.5l.4 2.6h4l.4-2.6a8 8 0 0 0 2.6-1.5l2.4 1 2-3.4-2-1.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    </svg>
+  `;
   button.addEventListener('click', openLearningDataSettings);
   scoreDisplay.appendChild(button);
 }
@@ -394,6 +469,115 @@ function setLearningDataStatus(message: string): void {
   if (status) status.textContent = message;
 }
 
+function openOnboardingTutorial(): void {
+  const overlay = getOnboardingOverlay();
+  overlay.dataset.step = '0';
+  renderOnboardingStep(overlay);
+  overlay.classList.remove('hidden');
+  overlay.querySelector<HTMLButtonElement>('.onboarding-close')?.focus();
+}
+
+function getOnboardingOverlay(): HTMLDivElement {
+  const existing = document.getElementById('onboarding-overlay') as HTMLDivElement | null;
+  if (existing) return existing;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'onboarding-overlay';
+  overlay.className = 'hidden';
+  overlay.dataset.step = '0';
+  overlay.innerHTML = `
+    <div class="onboarding-panel" role="dialog" aria-modal="true" aria-label="New player guide">
+      <div class="onboarding-content"></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) closeOnboardingTutorial();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (overlay.classList.contains('hidden')) return;
+    if (event.code === 'Escape') closeOnboardingTutorial();
+    if (event.code === 'Tab') trapOverlayFocus(event, overlay);
+  });
+
+  return overlay;
+}
+
+function renderOnboardingStep(overlay: HTMLDivElement): void {
+  const stepIndex = getOnboardingStepIndex(overlay);
+  const step = onboardingSteps[stepIndex]!;
+  const isFirst = stepIndex === 0;
+  const isLast = stepIndex === onboardingSteps.length - 1;
+  const content = overlay.querySelector<HTMLDivElement>('.onboarding-content')!;
+
+  content.innerHTML = `
+    <div class="onboarding-header">
+      <span class="onboarding-kicker">New Player Guide</span>
+      <button type="button" class="onboarding-close" aria-label="Close">x</button>
+    </div>
+    <div class="onboarding-illustration" aria-hidden="true">
+      <span class="onboarding-icon">${step.icon}</span>
+      <span class="onboarding-sparkle onboarding-sparkle-1">✨</span>
+      <span class="onboarding-sparkle onboarding-sparkle-2">⭐</span>
+    </div>
+    <div class="onboarding-copy">
+      <h2>${step.title}</h2>
+      <p class="onboarding-subtitle">${step.subtitle}</p>
+      <p class="onboarding-body">${step.body}</p>
+    </div>
+    <div class="onboarding-dots" aria-label="Tutorial progress">
+      ${onboardingSteps.map((_, index) => `
+        <button type="button" class="onboarding-dot${index === stepIndex ? ' active' : ''}" aria-label="Go to step ${index + 1}" data-step="${index}"></button>
+      `).join('')}
+    </div>
+    <div class="onboarding-actions">
+      <button type="button" class="onboarding-skip">Skip</button>
+      <div class="onboarding-nav">
+        <button type="button" class="onboarding-back" ${isFirst ? 'disabled' : ''}>Back</button>
+        <button type="button" class="onboarding-next">${isLast ? 'Start' : 'Next'}</button>
+      </div>
+    </div>
+  `;
+
+  content.querySelector<HTMLButtonElement>('.onboarding-close')!.addEventListener('click', closeOnboardingTutorial);
+  content.querySelector<HTMLButtonElement>('.onboarding-skip')!.addEventListener('click', closeOnboardingTutorial);
+  content.querySelector<HTMLButtonElement>('.onboarding-back')!.addEventListener('click', () => {
+    setOnboardingStep(overlay, stepIndex - 1);
+  });
+  content.querySelector<HTMLButtonElement>('.onboarding-next')!.addEventListener('click', () => {
+    if (isLast) {
+      closeOnboardingTutorial();
+      return;
+    }
+    setOnboardingStep(overlay, stepIndex + 1);
+  });
+  content.querySelectorAll<HTMLButtonElement>('.onboarding-dot').forEach((dot) => {
+    dot.addEventListener('click', () => {
+      setOnboardingStep(overlay, Number(dot.dataset.step ?? 0));
+    });
+  });
+}
+
+function setOnboardingStep(overlay: HTMLDivElement, stepIndex: number): void {
+  overlay.dataset.step = String(Math.max(0, Math.min(stepIndex, onboardingSteps.length - 1)));
+  renderOnboardingStep(overlay);
+  overlay.querySelector<HTMLButtonElement>('.onboarding-next')?.focus();
+}
+
+function getOnboardingStepIndex(overlay: HTMLDivElement): number {
+  const step = Number(overlay.dataset.step ?? 0);
+  return Number.isInteger(step) ? Math.max(0, Math.min(step, onboardingSteps.length - 1)) : 0;
+}
+
+function closeOnboardingTutorial(): void {
+  document.getElementById('onboarding-overlay')?.classList.add('hidden');
+  const result = learningDataStore.setPreference(ONBOARDING_TUTORIAL_SEEN_KEY, true);
+  if (!result.ok) {
+    console.warn('Failed to save onboarding preference');
+  }
+}
+
 function getCompendiumOverlay(): HTMLDivElement {
   const existing = document.getElementById('compendium-overlay') as HTMLDivElement | null;
   if (existing) return existing;
@@ -427,6 +611,21 @@ function getCompendiumOverlay(): HTMLDivElement {
 
 function closeCompendium(): void {
   document.getElementById('compendium-overlay')?.classList.add('hidden');
+}
+
+function trapOverlayFocus(event: KeyboardEvent, overlay: HTMLElement): void {
+  const focusable = [...overlay.querySelectorAll<HTMLElement>('button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])')];
+  if (focusable.length === 0) return;
+
+  const first = focusable[0]!;
+  const last = focusable[focusable.length - 1]!;
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 function trapCompendiumFocus(event: KeyboardEvent, overlay: HTMLElement): void {
