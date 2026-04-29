@@ -27,7 +27,7 @@ await app.register(multipart);
 
 // Start kitten-tts-server
 function startTTSServer(): ChildProcess {
-  const binPath = new URL('../bin/kitten-tts-server', import.meta.url).pathname;
+  const binPath = getTTSBinaryPath();
   const args = [TTS_MODEL_PATH, '--port', String(TTS_PORT)];
   console.log(`[TTS] starting: ${binPath} ${args.join(' ')}`);
 
@@ -36,6 +36,23 @@ function startTTSServer(): ChildProcess {
   proc.stderr?.on('data', (d: Buffer) => console.log(`[TTS server] ${d.toString().trim()}`));
   proc.on('exit', (code) => console.log(`[TTS] server exited code=${code}`));
   return proc;
+}
+
+function getTTSBinaryPath(): string {
+  const binaryName = getTTSBinaryName();
+  return new URL(`../bin/${binaryName}`, import.meta.url).pathname;
+}
+
+function getTTSBinaryName(): string {
+  if (process.platform === 'darwin' && process.arch === 'arm64') {
+    return 'kitten-tts-server-aarch64-macos';
+  }
+
+  if (process.platform === 'linux' && process.arch === 'x64') {
+    return 'kitten-tts-server-x86_64-linux';
+  }
+
+  throw new Error(`Unsupported TTS platform: ${process.platform}/${process.arch}`);
 }
 
 // Wait for TTS server to be ready

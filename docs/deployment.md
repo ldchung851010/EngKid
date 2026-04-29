@@ -91,6 +91,82 @@ npm run build
 
 前端产物输出到 `dist/`，服务端编译产物输出到 `server/dist/`。
 
+## 安装 Kitten TTS 二进制和模型
+
+本项目使用 `second-state/kitten_tts_rs` 的 OpenAI 兼容 TTS server。上游仓库是 [second-state/kitten_tts_rs](https://github.com/second-state/kitten_tts_rs)。
+
+上游 release 包里包含两个程序：
+
+- `kitten-tts`：命令行一次性生成语音的 CLI，本项目不使用。
+- `kitten-tts-server`：OpenAI 兼容 API server，本项目需要这个文件。
+
+本项目要求把不同平台的 `kitten-tts-server` 放在 `server/bin/` 下，并使用固定文件名：
+
+| 平台 | 上游下载包 | 解压后的文件 | 放入本项目后的文件名 |
+|---|---|---|---|
+| macOS Apple Silicon / arm64 | `kitten-tts-aarch64-macos.tar.gz` | `kitten-tts-server` | `server/bin/kitten-tts-server-aarch64-macos` |
+| Linux x86_64 | `kitten-tts-x86_64-linux.tar.gz` | `kitten-tts-server` | `server/bin/kitten-tts-server-x86_64-linux` |
+
+示例安装命令：
+
+```bash
+mkdir -p server/bin /tmp/kitten-tts
+
+# macOS Apple Silicon / arm64
+curl -L -o /tmp/kitten-tts/kitten-tts-aarch64-macos.tar.gz \
+  https://github.com/second-state/kitten_tts_rs/releases/latest/download/kitten-tts-aarch64-macos.tar.gz
+tar -xzf /tmp/kitten-tts/kitten-tts-aarch64-macos.tar.gz -C /tmp/kitten-tts
+cp /tmp/kitten-tts/kitten-tts-server server/bin/kitten-tts-server-aarch64-macos
+chmod +x server/bin/kitten-tts-server-aarch64-macos
+
+# Linux x86_64
+curl -L -o /tmp/kitten-tts/kitten-tts-x86_64-linux.tar.gz \
+  https://github.com/second-state/kitten_tts_rs/releases/latest/download/kitten-tts-x86_64-linux.tar.gz
+tar -xzf /tmp/kitten-tts/kitten-tts-x86_64-linux.tar.gz -C /tmp/kitten-tts
+cp /tmp/kitten-tts/kitten-tts-server server/bin/kitten-tts-server-x86_64-linux
+chmod +x server/bin/kitten-tts-server-x86_64-linux
+```
+
+服务端启动时会自动选择当前平台对应的文件：
+
+- macOS arm64: `server/bin/kitten-tts-server-aarch64-macos`
+- Linux x86_64: `server/bin/kitten-tts-server-x86_64-linux`
+
+模型也来自同一个上游 release。下载模型包：
+
+```bash
+curl -L -o /tmp/kitten-tts/kitten-tts-models.tar.gz \
+  https://github.com/second-state/kitten_tts_rs/releases/latest/download/kitten-tts-models.tar.gz
+tar -xzf /tmp/kitten-tts/kitten-tts-models.tar.gz -C /tmp/kitten-tts
+```
+
+上游模型包会解出 `models/` 目录，里面通常包含：
+
+```text
+models/
+  kitten-tts-mini/
+  kitten-tts-micro/
+  kitten-tts-nano/
+  kitten-tts-nano-int8/
+```
+
+本项目默认 `TTS_MODEL_PATH` 指向 `server/model`，当前只使用 micro 模型文件。`server/model/` 需要包含：
+
+```text
+server/model/
+  kitten_tts_micro_v0_8.onnx
+```
+
+安装 micro 模型示例：
+
+```bash
+rm -rf server/model
+mkdir -p server/model
+cp /tmp/kitten-tts/models/kitten-tts-micro/kitten_tts_micro_v0_8.onnx server/model/
+```
+
+如果你把模型文件放在其他目录，可以设置 `TTS_MODEL_PATH` 指向该目录。
+
 ## 运行
 
 单机部署示例：
@@ -103,7 +179,10 @@ EXAMPLE_CACHE_DIR=/var/lib/scene-engine/example-cache \
 npm start
 ```
 
-服务端会在 `3001` 端口启动 Fastify，并在 `TTS_PORT` 上启动 `server/bin/kitten-tts-server`。
+服务端会在 `3001` 端口启动 Fastify，并在 `TTS_PORT` 上启动匹配当前平台的 TTS 二进制：
+
+- macOS arm64: `server/bin/kitten-tts-server-aarch64-macos`
+- Linux x86_64: `server/bin/kitten-tts-server-x86_64-linux`
 
 前端 `dist/` 可以交给 Nginx、Caddy、CDN 或其他静态文件服务托管。将 `/api/*` 代理到 Fastify 服务。
 
