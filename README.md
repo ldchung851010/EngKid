@@ -17,13 +17,17 @@
 npm install
 cd server && npm install && cd ..
 
-# 2. 配置文本大模型 Key
+# 2. 安装本地 TTS 二进制和模型
+#    需要准备 server/bin 下的平台二进制，以及 server/model/kitten_tts_micro_v0_8.onnx
+#    具体下载和放置方式见 docs/deployment.md 的“安装 Kitten TTS 二进制和模型”
+
+# 3. 配置文本大模型 Key
 export DEEPSEEK_API_KEY="your-deepseek-key"
 
-# 3. 启动后端代理（终端 1）
+# 4. 启动后端代理（终端 1）
 npm run server:dev
 
-# 4. 启动前端（终端 2）
+# 5. 启动前端（终端 2）
 npm run dev
 ```
 
