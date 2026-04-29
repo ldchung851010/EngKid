@@ -37,7 +37,7 @@ export async function callTextAIJson(request: FastifyRequest, options: TextAIOpt
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
+        model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash',
         messages: [{ role: 'user', content: options.prompt }],
         response_format: { type: 'json_object' },
         temperature: options.temperature,

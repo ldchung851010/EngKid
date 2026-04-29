@@ -13,10 +13,16 @@ import { ensureQuotesGenerated } from './utils/quoteGenerator.js';
 const TTS_PORT = parseInt(process.env.TTS_PORT || '8081');
 const TTS_MODEL_PATH = process.env.TTS_MODEL_PATH ||
   new URL('../model', import.meta.url).pathname;
+const SERVER_BODY_LIMIT = readPositiveInt('SERVER_BODY_LIMIT', 256 * 1024);
+const TRUST_PROXY = process.env.TRUST_PROXY === 'true';
 
-const app = Fastify({ logger: true });
+const app = Fastify({
+  logger: true,
+  bodyLimit: SERVER_BODY_LIMIT,
+  trustProxy: TRUST_PROXY,
+});
 
-await app.register(cors, { origin: true });
+await app.register(cors, { origin: createCorsOrigin() });
 await app.register(multipart);
 
 // Start kitten-tts-server
@@ -81,3 +87,36 @@ try {
 // Cleanup
 process.on('SIGTERM', () => ttsProcess.kill());
 process.on('SIGINT', () => { ttsProcess.kill(); process.exit(0); });
+
+function createCorsOrigin() {
+  const allowedOrigins = parseList(process.env.CORS_ORIGIN);
+  if (allowedOrigins.length === 0 && process.env.NODE_ENV !== 'production') {
+    allowedOrigins.push('http://localhost:5173', 'http://127.0.0.1:5173');
+  }
+
+  return (origin: string | undefined, callback: (error: Error | null, allow: boolean) => void) => {
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(null, false);
+  };
+}
+
+function parseList(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function readPositiveInt(name: string, fallback: number): number {
+  const value = Number.parseInt(process.env[name] ?? '', 10);
+  return Number.isInteger(value) && value > 0 ? value : fallback;
+}

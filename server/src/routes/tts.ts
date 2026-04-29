@@ -8,14 +8,11 @@ export function ttsRoutes(ttsPort: number) {
     const ttsBase = `http://localhost:${ttsPort}`;
 
     app.post('/tts', async (request, reply) => {
-      const body = request.body as { input: string; voice?: string; speed?: number };
-      if (!body?.input) {
-        return reply.status(400).send({ error: 'Missing "input" field' });
-      }
+      const parsed = parseTTSBody(request.body);
+      if (!parsed.ok) return reply.status(400).send({ error: parsed.error });
 
-      const voice = body.voice || 'Kiki';
-      const speed = Number.isFinite(body.speed) ? Number(body.speed) : 1.0;
-      const cacheKey = { input: body.input, voice, speed };
+      const { input, voice, speed } = parsed;
+      const cacheKey = { input, voice, speed };
       const cached = await readCachedTTS(cacheKey);
       if (cached) {
         reply.header('Content-Type', 'audio/wav');
@@ -33,14 +30,14 @@ export function ttsRoutes(ttsPort: number) {
         });
       }
 
-      console.log(`[TTS] ← generate: "${body.input.substring(0, 40)}..."`);
+      console.log(`[TTS] ← generate: "${input.substring(0, 40)}..."`);
 
       try {
         const res = await fetch(`${ttsBase}/v1/audio/speech`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            input: body.input,
+            input,
             voice,
             response_format: 'pcm',
             stream: false,
@@ -75,4 +72,33 @@ export function ttsRoutes(ttsPort: number) {
       }
     });
   };
+}
+
+type TTSBodyResult =
+  | { ok: true; input: string; voice: string; speed: number }
+  | { ok: false; error: string };
+
+function parseTTSBody(body: unknown): TTSBodyResult {
+  if (!isRecord(body)) return { ok: false, error: 'request body must be an object' };
+  if (typeof body.input !== 'string') return { ok: false, error: 'input is required and must be a string' };
+
+  const input = body.input.trim();
+  if (!input) return { ok: false, error: 'input must be non-empty' };
+  if (input.length > 300) return { ok: false, error: 'input is too long' };
+
+  const voice = typeof body.voice === 'string' && body.voice.trim() ? body.voice.trim() : 'Kiki';
+  if (voice.length > 40 || !/^[A-Za-z0-9_-]+$/.test(voice)) {
+    return { ok: false, error: 'voice is invalid' };
+  }
+
+  const speed = body.speed === undefined ? 1.0 : Number(body.speed);
+  if (!Number.isFinite(speed) || speed < 0.5 || speed > 1.5) {
+    return { ok: false, error: 'speed must be between 0.5 and 1.5' };
+  }
+
+  return { ok: true, input, voice, speed: Number(speed.toFixed(2)) };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

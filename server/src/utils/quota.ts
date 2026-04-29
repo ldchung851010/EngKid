@@ -103,10 +103,6 @@ function hourlyKey(resource: QuotaResource, ip: string): string {
 }
 
 function getClientIp(request: FastifyRequest): string {
-  const forwardedFor = request.headers['x-forwarded-for'];
-  if (typeof forwardedFor === 'string' && forwardedFor.trim()) {
-    return forwardedFor.split(',')[0]!.trim();
-  }
   return request.ip;
 }
 

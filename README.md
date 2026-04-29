@@ -49,6 +49,10 @@ AI_IP_HOURLY_LIMIT=300       # 单 IP 每小时文本 AI 请求数
 TTS_DAILY_LIMIT=10000        # 全站每天 TTS cache-miss 生成数
 TTS_IP_HOURLY_LIMIT=600      # 单 IP 每小时 TTS cache-miss 生成数
 TTS_CACHE_DIR=server/data/tts-cache
+EXAMPLE_CACHE_DIR=server/data/example-cache
+CORS_ORIGIN=https://learn.example.com
+TRUST_PROXY=true
+SERVER_BODY_LIMIT=262144
 ```
 
 后端还提供 `GET /api/quota` 查看当前请求 IP 对应的 AI/TTS 剩余额度。
@@ -92,6 +96,8 @@ npm run dev          # Vite 开发服务器 (:5173)
 npm run build        # 生产构建
 npm run server:dev   # Fastify 后端代理 (:3001)
 ```
+
+部署到公网前请阅读 [部署指南](docs/deployment.md)，其中包含服务端接口清单、安全检查和反向代理示例。
 
 ## 目录结构
 

@@ -84,16 +84,21 @@ npm run server:dev  # 后端代理 (:3001)
 
 ```bash
 DEEPSEEK_API_KEY=xxx       # 文本 AI Key，用于意图路由和例句生成
-DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_MODEL=deepseek-v4-flash
 
 TTS_PORT=8081              # kitten-tts-server 本地端口
 TTS_MODEL_PATH=server/model
 TTS_CACHE_DIR=server/data/tts-cache
+EXAMPLE_CACHE_DIR=server/data/example-cache
 
 AI_DAILY_LIMIT=5000        # 全站每日文本 AI 请求上限
 AI_IP_HOURLY_LIMIT=300     # 单 IP 每小时文本 AI 请求上限
 TTS_DAILY_LIMIT=10000      # 全站每日 TTS 生成上限（缓存命中不计入）
 TTS_IP_HOURLY_LIMIT=600    # 单 IP 每小时 TTS 生成上限（缓存命中不计入）
+
+CORS_ORIGIN=https://learn.example.com
+TRUST_PROXY=true           # 仅在可信反向代理后开启
+SERVER_BODY_LIMIT=262144
 ```
 
 ## Git Workflow
