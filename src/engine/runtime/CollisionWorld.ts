@@ -26,9 +26,11 @@ interface CollisionBox {
  */
 export class CollisionWorld {
   private boxes: CollisionBox[] = [];
+  private bounds: { minX: number; maxX: number; minZ: number; maxZ: number } | null = null;
 
   clear(): void {
     this.boxes = [];
+    this.bounds = null;
   }
 
   loadChunk(chunk: ChunkData): void {
@@ -51,6 +53,13 @@ export class CollisionWorld {
         }
       }
     }
+
+    this.bounds = {
+      minX: originX,
+      maxX: originX + width,
+      minZ: originZ,
+      maxZ: originZ + depth,
+    };
   }
 
   addObjectColliders(object: THREE.Object3D): void {
@@ -84,6 +93,16 @@ export class CollisionWorld {
     const radius = options.radius ?? 0.35;
     const minY = options.minY ?? 1.05;
     const maxY = options.maxY ?? 2.85;
+
+    // Boundary check — cannot walk outside the map
+    if (this.bounds) {
+      if (position.x - radius < this.bounds.minX || position.x + radius > this.bounds.maxX) {
+        return false;
+      }
+      if (position.z - radius < this.bounds.minZ || position.z + radius > this.bounds.maxZ) {
+        return false;
+      }
+    }
 
     for (const box of this.boxes) {
       if (maxY < box.minY || minY > box.maxY) continue;
