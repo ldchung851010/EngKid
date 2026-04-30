@@ -180,6 +180,97 @@
       opacity: 1;
       transform: translate(-50%, 0);
     }
+
+    /* First-run controls hint */
+    #controls-hint {
+      position: fixed;
+      left: 18px;
+      bottom: 18px;
+      width: min(340px, calc(100vw - 36px));
+      padding: 14px;
+      border-radius: 16px;
+      background: rgba(18, 25, 39, 0.84);
+      color: #fff;
+      box-shadow: 0 14px 32px rgba(0,0,0,0.28);
+      backdrop-filter: blur(8px);
+      z-index: 12;
+      transition: opacity 0.28s, transform 0.28s;
+    }
+
+    #controls-hint.hidden {
+      opacity: 0;
+      transform: translateY(10px);
+      pointer-events: none;
+    }
+
+    .controls-hint-title {
+      margin-bottom: 10px;
+      color: #ffe082;
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .controls-hint-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .controls-hint-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: rgba(255,255,255,0.92);
+      font-size: 13px;
+      line-height: 1.3;
+    }
+
+    .controls-hint-key {
+      min-width: 66px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 8px;
+      border: 1px solid rgba(255,255,255,0.26);
+      border-bottom-color: rgba(0,0,0,0.35);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.13);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0;
+      box-shadow: inset 0 -1px 0 rgba(0,0,0,0.2);
+    }
+
+    #controls-hint-close {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.12);
+      color: #fff;
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    #controls-hint-close:hover,
+    #controls-hint-close:focus-visible {
+      background: rgba(255,255,255,0.22);
+      outline: 2px solid rgba(255,224,130,0.8);
+      outline-offset: 2px;
+    }
+
+    @media (max-width: 560px) {
+      #controls-hint {
+        left: 12px;
+        right: 12px;
+        bottom: 112px;
+        width: auto;
+      }
+    }
   </style>
 </head>
 <body>
@@ -200,6 +291,24 @@
       <div id="interaction-key">E</div>
       <div id="interaction-label">Interact</div>
     </div>
+    <aside id="controls-hint" class="hidden" aria-label="操作提示">
+      <button id="controls-hint-close" type="button" aria-label="关闭操作提示">×</button>
+      <div class="controls-hint-title">操作提示</div>
+      <div class="controls-hint-list">
+        <div class="controls-hint-row">
+          <span class="controls-hint-key">W A S D</span>
+          <span>移动角色</span>
+        </div>
+        <div class="controls-hint-row">
+          <span class="controls-hint-key">鼠标</span>
+          <span>点击画面后移动鼠标看四周</span>
+        </div>
+        <div class="controls-hint-row">
+          <span class="controls-hint-key">E</span>
+          <span>靠近人物或物品时互动</span>
+        </div>
+      </div>
+    </aside>
   </div>
 
   <script>

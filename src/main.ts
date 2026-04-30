@@ -963,14 +963,37 @@ const overlay = document.getElementById('loading-overlay')!;
 const spinner = document.getElementById('loading-spinner')!;
 const statusEl = document.getElementById('loading-status')!;
 const errorEl = document.getElementById('loading-error')!;
+const controlsHint = document.getElementById('controls-hint');
+const controlsHintClose = document.getElementById('controls-hint-close');
 let isSceneReady = false;
 let isASRReady = false;
+let hasShownControlsHint = false;
+let controlsHintTimer: number | null = null;
 
 function hideLoadingOverlay(): void {
   if (!isSceneReady || !isASRReady) return;
   overlay.style.display = 'none';
   errorEl.style.display = 'none';
+  showControlsHint();
 }
+
+function hideControlsHint(): void {
+  controlsHint?.classList.add('hidden');
+  if (controlsHintTimer !== null) {
+    window.clearTimeout(controlsHintTimer);
+    controlsHintTimer = null;
+  }
+}
+
+function showControlsHint(): void {
+  if (!controlsHint || hasShownControlsHint) return;
+
+  hasShownControlsHint = true;
+  controlsHint.classList.remove('hidden');
+  controlsHintTimer = window.setTimeout(hideControlsHint, 12000);
+}
+
+controlsHintClose?.addEventListener('click', hideControlsHint);
 
 tts.onStatusChange((s) => {
   statusEl.textContent = s.progress;
