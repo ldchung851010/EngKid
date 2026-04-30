@@ -6,9 +6,15 @@ import {
 } from '../../src/engine/collectibles/CollectibleManager.ts';
 import type { SceneConfig } from '../../src/engine/schema/SceneConfig.ts';
 import { airportConfig } from '../../src/scenes/airport/config.ts';
+import { beachConfig } from '../../src/scenes/beach/config.ts';
+import { farmConfig } from '../../src/scenes/farm/config.ts';
+import { homeConfig } from '../../src/scenes/home/config.ts';
+import { hospitalConfig } from '../../src/scenes/hospital/config.ts';
 import { hotelConfig } from '../../src/scenes/hotel/config.ts';
+import { parkConfig } from '../../src/scenes/park/config.ts';
 import { restaurantConfig } from '../../src/scenes/restaurant/config.ts';
 import { schoolConfig } from '../../src/scenes/school/config.ts';
+import { shopConfig } from '../../src/scenes/shop/config.ts';
 import { zooConfig } from '../../src/scenes/zoo/config.ts';
 
 function createConfig(overrides: Partial<SceneConfig> = {}): SceneConfig {
@@ -122,7 +128,19 @@ test('places airport documents on counters and travel objects near matching prop
 });
 
 test('keeps current scene collectibles away from the home portal', () => {
-  const configs = [restaurantConfig, schoolConfig, zooConfig, airportConfig, hotelConfig];
+  const configs = [
+    restaurantConfig,
+    schoolConfig,
+    parkConfig,
+    hospitalConfig,
+    shopConfig,
+    airportConfig,
+    zooConfig,
+    homeConfig,
+    beachConfig,
+    farmConfig,
+    hotelConfig,
+  ];
 
   for (const config of configs) {
     const start = config.start ?? {
@@ -138,5 +156,21 @@ test('keeps current scene collectibles away from the home portal', () => {
         `${config.name} "${placement.word}" is too close to portal: ${distance.toFixed(2)}`
       );
     }
+  }
+});
+
+test('anchors new scene collectibles to visible props', () => {
+  const sceneChecks: Array<[SceneConfig, string, number]> = [
+    [parkConfig, 'kite', 3.28],
+    [hospitalConfig, 'medicine', 2.1],
+    [shopConfig, 'money', 2.18],
+    [homeConfig, 'lamp', 2.48],
+    [beachConfig, 'sun', 2.9],
+    [farmConfig, 'tractor', 2.25],
+  ];
+
+  for (const [config, word, expectedY] of sceneChecks) {
+    const placement = computeCollectiblePlacements(config).find((item) => item.word === word);
+    assert.equal(placement?.position.y, expectedY, `${config.name} ${word}`);
   }
 });

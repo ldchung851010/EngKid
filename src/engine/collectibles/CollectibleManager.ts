@@ -445,6 +445,72 @@ function getSceneAnchoredPlacements(sceneName: string): Record<string, Omit<Coll
         small: { position: { x: 10.2, y: 1.08, z: 10.4 }, rotationY: -0.15 },
         where: { position: { x: 11.8, y: 1.08, z: 10.8 }, rotationY: 0.1 },
       };
+    case 'park':
+      return {
+        park: { position: { x: 12, y: 1.28, z: 2.25 }, rotationY: 0 },
+        tree: { position: { x: 4, y: 1.68, z: 13 }, rotationY: 0.1 },
+        flower: { position: { x: 5.8, y: 1.42, z: 7.7 }, rotationY: -0.2 },
+        bench: { position: { x: 7.5, y: 1.62, z: 10.6 }, rotationY: 0.15 },
+        ball: { position: { x: 13.8, y: 1.82, z: 8.6 }, rotationY: -0.15 },
+        kite: { position: { x: 9, y: 3.28, z: 5.2 }, rotationY: 0.4 },
+        play: { position: { x: 16.5, y: 1.62, z: 10.6 }, rotationY: -0.1 },
+        run: { position: { x: 12, y: 1.18, z: 12.8 }, rotationY: 0 },
+      };
+    case 'hospital':
+      return {
+        doctor: { position: { x: 11, y: 2.1, z: 5.85 }, rotationY: 0 },
+        nurse: { position: { x: 8.5, y: 2.08, z: 5.82 }, rotationY: -0.12 },
+        headache: { position: { x: 5.4, y: 2.28, z: 3.25 }, rotationY: 0.2 },
+        stomachache: { position: { x: 16.5, y: 1.92, z: 3.4 }, rotationY: -0.2 },
+        medicine: { position: { x: 18.82, y: 2.1, z: 6.4 }, rotationY: Math.PI / 2 },
+        water: { position: { x: 12.5, y: 2.08, z: 5.82 }, rotationY: 0.1 },
+        rest: { position: { x: 16.5, y: 1.92, z: 3.18 }, rotationY: 0.12 },
+        help: { position: { x: 9.2, y: 2.15, z: 5.85 }, rotationY: -0.1 },
+      };
+    case 'shop':
+      return {
+        shop: { position: { x: 11, y: 2.2, z: 5.85 }, rotationY: 0 },
+        apple: { position: { x: 5.45, y: 1.9, z: 10.5 }, rotationY: -0.1 },
+        milk: { position: { x: 20.0, y: 2.35, z: 6.1 }, rotationY: Math.PI / 2 },
+        bread: { position: { x: 2.0, y: 2.35, z: 6.9 }, rotationY: -Math.PI / 2 },
+        toy: { position: { x: 16.0, y: 2.08, z: 10.8 }, rotationY: 0.18 },
+        price: { position: { x: 9.2, y: 2.1, z: 5.85 }, rotationY: -0.1 },
+        money: { position: { x: 13.2, y: 2.18, z: 5.8 }, rotationY: 0.1 },
+        bag: { position: { x: 18.2, y: 1.78, z: 14.6 }, rotationY: -0.2 },
+      };
+    case 'home':
+      return {
+        home: { position: { x: 10, y: 1.22, z: 10.5 }, rotationY: 0 },
+        bed: { position: { x: 15.0, y: 1.85, z: 7.2 }, rotationY: 0.1 },
+        table: { position: { x: 10, y: 1.62, z: 7.2 }, rotationY: -0.1 },
+        sofa: { position: { x: 6.2, y: 1.88, z: 11.65 }, rotationY: 0.15 },
+        lamp: { position: { x: 15.5, y: 2.48, z: 13.2 }, rotationY: 0 },
+        kitchen: { position: { x: 4.8, y: 2.12, z: 4.1 }, rotationY: 0.1 },
+        clean: { position: { x: 3.4, y: 2.2, z: 4.65 }, rotationY: -0.15 },
+        help: { position: { x: 8.2, y: 1.42, z: 7.2 }, rotationY: 0.1 },
+      };
+    case 'beach':
+      return {
+        beach: { position: { x: 12, y: 1.28, z: 6.05 }, rotationY: 0 },
+        sand: { position: { x: 12, y: 1.62, z: 12.2 }, rotationY: -0.1 },
+        sea: { position: { x: 8.5, y: 1.18, z: 4.6 }, rotationY: 0.1 },
+        shell: { position: { x: 9.2, y: 1.38, z: 9.8 }, rotationY: -0.2 },
+        sun: { position: { x: 6.5, y: 2.9, z: 11.4 }, rotationY: 0 },
+        hat: { position: { x: 17.5, y: 2.9, z: 12.1 }, rotationY: 0.25 },
+        swim: { position: { x: 12.85, y: 2.2, z: 7.0 }, rotationY: -0.15 },
+        water: { position: { x: 15.6, y: 1.18, z: 4.4 }, rotationY: 0.1 },
+      };
+    case 'farm':
+      return {
+        farm: { position: { x: 12, y: 2.45, z: 2.9 }, rotationY: 0 },
+        cow: { position: { x: 9.4, y: 1.72, z: 14.5 }, rotationY: 0.15 },
+        chicken: { position: { x: 18.5, y: 2.15, z: 15.2 }, rotationY: -0.2 },
+        sheep: { position: { x: 12.2, y: 1.72, z: 14.6 }, rotationY: 0.1 },
+        egg: { position: { x: 18.5, y: 2.15, z: 14.5 }, rotationY: -0.1 },
+        milk: { position: { x: 9.0, y: 1.55, z: 12.9 }, rotationY: 0.15 },
+        tractor: { position: { x: 6.4, y: 2.25, z: 15.2 }, rotationY: -0.2 },
+        water: { position: { x: 15.9, y: 1.55, z: 12.1 }, rotationY: 0.1 },
+      };
     default:
       return {};
   }
