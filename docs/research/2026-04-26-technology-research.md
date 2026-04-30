@@ -669,7 +669,7 @@ export class IntentRouterWithFallback extends IntentRouter {
 ### 5.1 推荐项目结构
 
 ```
-scene-engine/
+hi-kid-fun/
 ├── index.html
 ├── package.json
 ├── tsconfig.json
@@ -714,7 +714,7 @@ scene-engine/
 
 ```json
 {
-  "name": "scene-engine",
+  "name": "hi-kid-fun",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -831,7 +831,7 @@ export interface BlockDef {
 
 /** 场景配置（顶层） */
 export interface SceneConfig {
-  schema: 'scene-engine/v1';
+  schema: 'hi-kid-fun/v1';
   id: string;
   name: string;
   description: string;
@@ -943,7 +943,7 @@ export default defineConfig({
 ┌─────────────────────────────────────────────────────────┐
 │                    Browser (Desktop Chrome/Edge)         │
 │                                                         │
-│  ┌────────────────── Scene Engine ────────────────────┐ │
+│  ┌────────────────── HiKid.Fun ───────────────────────┐ │
 │  │                                                     │ │
 │  │  ┌──────────┐  ┌──────────┐  ┌──────────────────┐  │ │
 │  │  │ Three.js  │  │ Kitten   │  │ Intent Router    │  │ │

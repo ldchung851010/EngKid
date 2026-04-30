@@ -1,7 +1,7 @@
 {
-  "name": "scene-engine",
+  "name": "hi-kid-fun",
   "version": "1.0.0",
-  "description": "Three.js voxel scene engine for children's English speaking & listening learning",
+  "description": "HiKid.Fun — 3D voxel English learning world for children",
   "type": "module",
   "engines": {
     "node": "22.x"

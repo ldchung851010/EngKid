@@ -90,7 +90,7 @@ index.html     — 当前直接进入 3D 场景的入口
 ## Output Structure
 
 ```
-scene-engine/
+hi-kid-fun/
 ├── index.html                  # [NEW] 入口网站（卡片、吉祥物、积分树）
 ├── play.html                   # [NEW] 原 index.html → 3D 场景引擎入口
 ├── src/

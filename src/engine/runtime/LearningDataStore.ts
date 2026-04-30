@@ -1,5 +1,5 @@
 export const LEARNING_DATA_VERSION = 1;
-export const LEARNING_DATA_STORAGE_KEY = 'scene-engine.learning-data';
+export const LEARNING_DATA_STORAGE_KEY = 'hi-kid-fun.learning-data';
 export const LEARNING_DATA_MAX_IMPORT_BYTES = 256 * 1024;
 
 export interface StorageAdapter {

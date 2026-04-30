@@ -1,4 +1,4 @@
-# Scene Engine 部署指南
+# HiKid.Fun 部署指南
 
 ## 服务端接口清单
 
@@ -58,9 +58,9 @@ DEEPSEEK_API_KEY=your-deepseek-key
 DEEPSEEK_MODEL=deepseek-v4-flash
 
 TTS_PORT=8081
-TTS_MODEL_PATH=/srv/scene-engine/server/model
-TTS_CACHE_DIR=/var/lib/scene-engine/tts-cache
-EXAMPLE_CACHE_DIR=/var/lib/scene-engine/example-cache
+TTS_MODEL_PATH=/srv/hi-kid-fun/server/model
+TTS_CACHE_DIR=/var/lib/hi-kid-fun/tts-cache
+EXAMPLE_CACHE_DIR=/var/lib/hi-kid-fun/example-cache
 
 AI_DAILY_LIMIT=5000
 AI_IP_HOURLY_LIMIT=300
@@ -174,8 +174,8 @@ cp /tmp/kitten-tts/models/kitten-tts-micro/kitten_tts_micro_v0_8.onnx server/mod
 ```bash
 cd server
 DEEPSEEK_API_KEY=your-deepseek-key \
-TTS_CACHE_DIR=/var/lib/scene-engine/tts-cache \
-EXAMPLE_CACHE_DIR=/var/lib/scene-engine/example-cache \
+TTS_CACHE_DIR=/var/lib/hi-kid-fun/tts-cache \
+EXAMPLE_CACHE_DIR=/var/lib/hi-kid-fun/example-cache \
 npm start
 ```
 
@@ -193,7 +193,7 @@ server {
   listen 443 ssl http2;
   server_name learn.example.com;
 
-  root /srv/scene-engine/dist;
+  root /srv/hi-kid-fun/dist;
   index index.html;
 
   location / {
@@ -220,18 +220,18 @@ systemd 示例：
 
 ```ini
 [Unit]
-Description=Scene Engine API
+Description=HiKid.Fun API
 After=network.target
 
 [Service]
-WorkingDirectory=/srv/scene-engine/server
+WorkingDirectory=/srv/hi-kid-fun/server
 ExecStart=/usr/bin/npm start
 Restart=always
 Environment=NODE_ENV=production
 Environment=DEEPSEEK_API_KEY=your-deepseek-key
 Environment=DEEPSEEK_MODEL=deepseek-v4-flash
-Environment=TTS_CACHE_DIR=/var/lib/scene-engine/tts-cache
-Environment=EXAMPLE_CACHE_DIR=/var/lib/scene-engine/example-cache
+Environment=TTS_CACHE_DIR=/var/lib/hi-kid-fun/tts-cache
+Environment=EXAMPLE_CACHE_DIR=/var/lib/hi-kid-fun/example-cache
 Environment=AI_DAILY_LIMIT=5000
 Environment=AI_IP_HOURLY_LIMIT=300
 Environment=TTS_DAILY_LIMIT=10000
@@ -247,9 +247,9 @@ WantedBy=multi-user.target
 启动前创建可写数据目录：
 
 ```bash
-sudo mkdir -p /var/lib/scene-engine/tts-cache
-sudo mkdir -p /var/lib/scene-engine/example-cache
-sudo chown -R scene-engine:scene-engine /var/lib/scene-engine
+sudo mkdir -p /var/lib/hi-kid-fun/tts-cache
+sudo mkdir -p /var/lib/hi-kid-fun/example-cache
+sudo chown -R hi-kid-fun:hi-kid-fun /var/lib/hi-kid-fun
 ```
 
 ## 部署后验证

@@ -1,12 +1,12 @@
 ---
-title: feat: Build scene-engine — Three.js voxel English learning engine
+title: feat: Build hi-kid-fun — Three.js voxel English learning engine
 type: feat
 status: active
 date: 2026-04-26
-origin: docs/brainstorms/2026-04-26-scene-engine-requirements.md
+origin: docs/brainstorms/2026-04-26-hi-kid-fun-requirements.md
 ---
 
-# 场景引擎 — V1 实现规划
+# HiKid.Fun — V1 实现规划
 
 ## Overview
 
@@ -123,7 +123,7 @@ GLM-ASR-2512 和 DeepSeek 都通过后端代理调用，避免浏览器端暴露
 ## Output Structure
 
 ```
-scene-engine/
+hi-kid-fun/
 ├── index.html                  # V1 入口页面
 ├── package.json
 ├── tsconfig.json
@@ -554,7 +554,7 @@ scene-engine/
 
 ## Sources & References
 
-- **Origin document:** [docs/brainstorms/2026-04-26-scene-engine-requirements.md](docs/brainstorms/2026-04-26-scene-engine-requirements.md)
+- **Origin document:** [docs/brainstorms/2026-04-26-hi-kid-fun-requirements.md](docs/brainstorms/2026-04-26-hi-kid-fun-requirements.md)
 - Kitten TTS Web Demo: https://github.com/clowerweb/kitten-tts-web-demo
 - GLM-ASR-2512 API: https://docs.bigmodel.cn/cn/guide/models/sound-and-video/glm-asr-2512
 - DeepSeek API: https://platform.deepseek.com/api-docs

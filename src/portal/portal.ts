@@ -405,7 +405,7 @@ function exportLearningData(): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = `scene-engine-learning-data-${new Date().toISOString().slice(0, 10)}.json`;
+  anchor.download = `hi-kid-fun-learning-data-${new Date().toISOString().slice(0, 10)}.json`;
   anchor.click();
   URL.revokeObjectURL(url);
   setLearningDataStatus('Exported.');

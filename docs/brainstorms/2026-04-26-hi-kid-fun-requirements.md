@@ -1,9 +1,9 @@
 ---
 date: 2026-04-26
-topic: scene-engine
+topic: hi-kid-fun
 ---
 
-# 沉浸式英语口语听力学习场景引擎 — 需求文档
+# HiKid.Fun — 需求文档
 
 ## Problem Frame
 

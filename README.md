@@ -1,4 +1,4 @@
-# Scene Engine 🎮
+# HiKid.Fun 🎮
 
 > Three.js 体素场景引擎 —— 为 6-12 岁儿童打造的沉浸式英语口语学习世界
 
@@ -114,7 +114,7 @@ npm run server:dev   # Fastify 后端代理 (:3001)
 ## 目录结构
 
 ```
-scene-engine/
+hi-kid-fun/
 ├── src/engine/          # 引擎核心
 │   ├── renderer/        # Three.js 体素渲染
 │   ├── voice/           # TTS、ASR、意图路由、麦克风 UI

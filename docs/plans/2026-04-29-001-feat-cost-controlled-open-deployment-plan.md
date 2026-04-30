@@ -168,7 +168,7 @@ flowchart LR
 - Modify: `src/vite-env.d.ts`
 
 **Approach:**
-- Store a single versioned JSON document under a namespaced key such as `scene-engine.learning-data`.
+- Store a single versioned JSON document under a namespaced key such as `hi-kid-fun.learning-data`.
 - Model scene progress by scene id and collectibles by scene id + normalized word.
 - Include export/import helpers on the same service so import validation, size checks, version checks, and atomic replacement are centralized.
 - Treat imported JSON as untrusted: parse into unknown, validate allowed shape, normalize strings, reject unknown incompatible versions, and never partially merge failed imports.
@@ -304,7 +304,7 @@ flowchart LR
 **Test scenarios:**
 - Covers AE5. Happy path: scenes route returns no SQLite-derived completed/score/unlocked values.
 - Error path: a malformed scene config is skipped with warning and does not break the route.
-- Integration: server can start without `SCENE_ENGINE_DB_PATH` or writable progress DB.
+- Integration: server can start without `HI_KID_FUN_DB_PATH` or writable progress DB.
 - Regression: no public `/api/progress` or `/api/collectibles` route remains required by Portal/scene code.
 
 **Verification:**

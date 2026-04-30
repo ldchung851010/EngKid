@@ -1,4 +1,4 @@
-# Scene Engine — Agent Instructions
+# HiKid.Fun — Agent Instructions
 
 ## Project Overview
 
