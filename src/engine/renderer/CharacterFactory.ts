@@ -2,6 +2,18 @@ import * as THREE from 'three';
 import type { NPCConfig } from '../schema/SceneConfig.js';
 import { addLocalBox } from './ScenePrimitives.js';
 
+/** Create a MeshStandardMaterial with flatShading enabled for low-poly look */
+function mat(color: number, opts?: { roughness?: number; metalness?: number; emissive?: number; emissiveIntensity?: number }): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    color,
+    roughness: opts?.roughness ?? 0.6,
+    metalness: opts?.metalness ?? 0,
+    emissive: opts?.emissive,
+    emissiveIntensity: opts?.emissiveIntensity,
+    flatShading: true,
+  });
+}
+
 export type FaceExpression = 'idle' | 'happy' | 'curious' | 'talking' | 'thinking';
 
 export function createVoxelCharacter(npc: NPCConfig): THREE.Group {
@@ -176,14 +188,14 @@ function createWaiterModel(npc: NPCConfig): THREE.Group {
   const group = new THREE.Group();
   positionCharacter(group, npc);
 
-  const skin = new THREE.MeshStandardMaterial({ color: 0xffc7a3, roughness: 0.7 });
-  const hair = new THREE.MeshStandardMaterial({ color: 0x3d2a1f, roughness: 0.8 });
-  const shirt = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.55 });
-  const apron = new THREE.MeshStandardMaterial({ color: 0xff6f61, roughness: 0.55 });
-  const pants = new THREE.MeshStandardMaterial({ color: 0x263238, roughness: 0.7 });
-  const shoes = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 });
-  const black = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.6 });
-  const tray = new THREE.MeshStandardMaterial({ color: 0xcfd8dc, roughness: 0.35, metalness: 0.2 });
+  const skin = mat(0xffc7a3, { roughness: 0.7 });
+  const hair = mat(0x3d2a1f, { roughness: 0.8 });
+  const shirt = mat(0xffffff, { roughness: 0.55 });
+  const apron = mat(0xff6f61, { roughness: 0.55 });
+  const pants = mat(0x263238, { roughness: 0.7 });
+  const shoes = mat(0x111111, { roughness: 0.5 });
+  const black = mat(0x111111, { roughness: 0.6 });
+  const tray = mat(0xcfd8dc, { roughness: 0.35, metalness: 0.2 });
 
   addLocalBox(group, [0, 0.34, 0], [0.22, 0.68, 0.22], pants);
   addLocalBox(group, [-0.16, 0.34, 0], [0.2, 0.68, 0.22], pants);
@@ -195,7 +207,7 @@ function createWaiterModel(npc: NPCConfig): THREE.Group {
   addLocalBox(group, [-0.48, 0.98, 0], [0.18, 0.68, 0.18], skin);
   addLocalBox(group, [0.4, 0.98, 0], [0.18, 0.68, 0.18], skin);
   addLocalBox(group, [0.54, 0.88, 0.22], [0.5, 0.06, 0.32], tray);
-  addLocalBox(group, [0.54, 0.95, 0.22], [0.18, 0.08, 0.18], new THREE.MeshStandardMaterial({ color: 0xfff176, roughness: 0.5 }));
+  addLocalBox(group, [0.54, 0.95, 0.22], [0.18, 0.08, 0.18], mat(0xfff176, { roughness: 0.5 }));
   addLocalBox(group, [0, 1.55, 0], [0.52, 0.52, 0.52], skin);
   addLocalBox(group, [0, 1.84, 0], [0.58, 0.18, 0.58], hair);
 
@@ -213,11 +225,11 @@ function createDefaultCharacter(npc: NPCConfig): THREE.Group {
   const group = new THREE.Group();
   positionCharacter(group, npc);
 
-  const skin = new THREE.MeshStandardMaterial({ color: 0xffc7a3, roughness: 0.7 });
-  const shirt = new THREE.MeshStandardMaterial({ color: 0x64b5f6, roughness: 0.6 });
-  const pants = new THREE.MeshStandardMaterial({ color: 0x455a64, roughness: 0.7 });
-  const shoes = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 });
-  const hair = new THREE.MeshStandardMaterial({ color: 0x4e342e, roughness: 0.75 });
+  const skin = mat(0xffc7a3, { roughness: 0.7 });
+  const shirt = mat(0x64b5f6, { roughness: 0.6 });
+  const pants = mat(0x455a64, { roughness: 0.7 });
+  const shoes = mat(0x111111, { roughness: 0.5 });
+  const hair = mat(0x4e342e, { roughness: 0.75 });
 
   addLocalBox(group, [-0.14, 0.34, 0], [0.2, 0.68, 0.22], pants);
   addLocalBox(group, [0.14, 0.34, 0], [0.2, 0.68, 0.22], pants);
@@ -244,15 +256,15 @@ function createAirportAgentModel(npc: NPCConfig): THREE.Group {
   const group = new THREE.Group();
   positionCharacter(group, npc);
 
-  const skin = new THREE.MeshStandardMaterial({ color: 0xffc7a3, roughness: 0.7 });
-  const hair = new THREE.MeshStandardMaterial({ color: 0x2c1810, roughness: 0.8 });
-  const blazer = new THREE.MeshStandardMaterial({ color: 0x1a237e, roughness: 0.45 });
-  const shirtW = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.5 });
-  const tie = new THREE.MeshStandardMaterial({ color: 0xc62828, roughness: 0.5 });
-  const pantsN = new THREE.MeshStandardMaterial({ color: 0x263238, roughness: 0.7 });
-  const shoesN = new THREE.MeshStandardMaterial({ color: 0x1b1b1b, roughness: 0.45, metalness: 0.1 });
-  const badge = new THREE.MeshStandardMaterial({ color: 0xffd54f, roughness: 0.4, metalness: 0.3, emissive: 0x3e2700, emissiveIntensity: 0.2 });
-  const cap = new THREE.MeshStandardMaterial({ color: 0x1a237e, roughness: 0.45 });
+  const skin = mat(0xffc7a3, { roughness: 0.7 });
+  const hair = mat(0x2c1810, { roughness: 0.8 });
+  const blazer = mat(0x1a237e, { roughness: 0.45 });
+  const shirtW = mat(0xf5f5f5, { roughness: 0.5 });
+  const tie = mat(0xc62828, { roughness: 0.5 });
+  const pantsN = mat(0x263238, { roughness: 0.7 });
+  const shoesN = mat(0x1b1b1b, { roughness: 0.45, metalness: 0.1 });
+  const badge = mat(0xffd54f, { roughness: 0.4, metalness: 0.3, emissive: 0x3e2700, emissiveIntensity: 0.2 });
+  const cap = mat(0x1a237e, { roughness: 0.45 });
 
   // Legs + shoes
   addLocalBox(group, [-0.16, 0.34, 0], [0.2, 0.68, 0.22], pantsN);
@@ -289,13 +301,13 @@ function createReceptionistModel(npc: NPCConfig): THREE.Group {
   const group = new THREE.Group();
   positionCharacter(group, npc);
 
-  const skin = new THREE.MeshStandardMaterial({ color: 0xffcc99, roughness: 0.7 });
-  const hair = new THREE.MeshStandardMaterial({ color: 0xbf8f5a, roughness: 0.8 });
-  const blazerR = new THREE.MeshStandardMaterial({ color: 0x37474f, roughness: 0.45 });
-  const blouse = new THREE.MeshStandardMaterial({ color: 0xfff9e6, roughness: 0.5 });
-  const skirt = new THREE.MeshStandardMaterial({ color: 0x37474f, roughness: 0.5 });
-  const heels = new THREE.MeshStandardMaterial({ color: 0x263238, roughness: 0.45, metalness: 0.1 });
-  const nametag = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 });
+  const skin = mat(0xffcc99, { roughness: 0.7 });
+  const hair = mat(0xbf8f5a, { roughness: 0.8 });
+  const blazerR = mat(0x37474f, { roughness: 0.45 });
+  const blouse = mat(0xfff9e6, { roughness: 0.5 });
+  const skirt = mat(0x37474f, { roughness: 0.5 });
+  const heels = mat(0x263238, { roughness: 0.45, metalness: 0.1 });
+  const nametag = mat(0xffffff, { roughness: 0.4 });
 
   // Legs/skirt + shoes
   addLocalBox(group, [0, 0.34, 0], [0.42, 0.56, 0.22], skirt);
@@ -327,15 +339,15 @@ function createTeacherModel(npc: NPCConfig): THREE.Group {
   const group = new THREE.Group();
   positionCharacter(group, npc);
 
-  const skin = new THREE.MeshStandardMaterial({ color: 0xffcc99, roughness: 0.7 });
-  const hair = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.8 });
-  const cardigan = new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.6 });
-  const dress = new THREE.MeshStandardMaterial({ color: 0xfff3e0, roughness: 0.55 });
-  const pantsG = new THREE.MeshStandardMaterial({ color: 0x455a64, roughness: 0.7 });
-  const flats = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.55 });
-  const glasses = new THREE.MeshStandardMaterial({ color: 0x263238, roughness: 0.35, metalness: 0.1 });
-  const book = new THREE.MeshStandardMaterial({ color: 0xef5350, roughness: 0.6 });
-  const bookPage = new THREE.MeshStandardMaterial({ color: 0xfff8e1, roughness: 0.55 });
+  const skin = mat(0xffcc99, { roughness: 0.7 });
+  const hair = mat(0x5d4037, { roughness: 0.8 });
+  const cardigan = mat(0x2e7d32, { roughness: 0.6 });
+  const dress = mat(0xfff3e0, { roughness: 0.55 });
+  const pantsG = mat(0x455a64, { roughness: 0.7 });
+  const flats = mat(0x5d4037, { roughness: 0.55 });
+  const glasses = mat(0x263238, { roughness: 0.35, metalness: 0.1 });
+  const book = mat(0xef5350, { roughness: 0.6 });
+  const bookPage = mat(0xfff8e1, { roughness: 0.55 });
 
   // Legs + shoes
   addLocalBox(group, [-0.14, 0.34, 0], [0.2, 0.66, 0.22], pantsG);
@@ -370,14 +382,14 @@ function createZookeeperModel(npc: NPCConfig): THREE.Group {
   const group = new THREE.Group();
   positionCharacter(group, npc);
 
-  const skin = new THREE.MeshStandardMaterial({ color: 0xffcc99, roughness: 0.7 });
-  const hair = new THREE.MeshStandardMaterial({ color: 0xffb74d, roughness: 0.75 });
-  const tee = new THREE.MeshStandardMaterial({ color: 0x66bb6a, roughness: 0.6 });
-  const shorts = new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.7 });
-  const boots = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.6 });
-  const hat = new THREE.MeshStandardMaterial({ color: 0xdfc47a, roughness: 0.7 });
-  const hatBand = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.65 });
-  const khakiGreen = new THREE.MeshStandardMaterial({ color: 0x9ccc65, roughness: 0.65 });
+  const skin = mat(0xffcc99, { roughness: 0.7 });
+  const hair = mat(0xffb74d, { roughness: 0.75 });
+  const tee = mat(0x66bb6a, { roughness: 0.6 });
+  const shorts = mat(0x8d6e63, { roughness: 0.7 });
+  const boots = mat(0x5d4037, { roughness: 0.6 });
+  const hat = mat(0xdfc47a, { roughness: 0.7 });
+  const hatBand = mat(0x5d4037, { roughness: 0.65 });
+  const khakiGreen = mat(0x9ccc65, { roughness: 0.65 });
 
   // Legs + boots
   addLocalBox(group, [-0.14, 0.34, 0], [0.2, 0.62, 0.22], shorts);
@@ -391,7 +403,7 @@ function createZookeeperModel(npc: NPCConfig): THREE.Group {
   addLocalBox(group, [-0.47, 0.96, 0], [0.18, 0.56, 0.18], tee);
   addLocalBox(group, [0.47, 0.96, 0], [0.18, 0.56, 0.18], tee);
   // Feed bucket
-  addLocalBox(group, [0.46, 0.86, -0.16], [0.2, 0.22, 0.2], new THREE.MeshStandardMaterial({ color: 0x78909c, roughness: 0.5, metalness: 0.2 }));
+  addLocalBox(group, [0.46, 0.86, -0.16], [0.2, 0.22, 0.2], mat(0x78909c, { roughness: 0.5, metalness: 0.2 }));
   // Head
   addLocalBox(group, [0, 1.53, 0], [0.5, 0.5, 0.5], skin);
   addLocalBox(group, [0, 1.78, 0], [0.54, 0.2, 0.54], hair);

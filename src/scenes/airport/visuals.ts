@@ -2,16 +2,16 @@ import * as THREE from 'three';
 import { addBox, addLocalBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
-  counter: new THREE.MeshStandardMaterial({ color: 0x90a4ae, roughness: 0.5 }),
-  counterDark: new THREE.MeshStandardMaterial({ color: 0x546e7a, roughness: 0.56 }),
-  blue: new THREE.MeshStandardMaterial({ color: 0x1976d2, roughness: 0.6 }),
-  skyBlue: new THREE.MeshStandardMaterial({ color: 0x81d4fa, roughness: 0.26, transparent: true, opacity: 0.78 }),
-  yellow: new THREE.MeshStandardMaterial({ color: 0xffca28, roughness: 0.45 }),
-  white: new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.62 }),
-  black: new THREE.MeshStandardMaterial({ color: 0x263238, roughness: 0.52 }),
-  red: new THREE.MeshStandardMaterial({ color: 0xef5350, roughness: 0.72 }),
-  green: new THREE.MeshStandardMaterial({ color: 0x66bb6a, roughness: 0.72 }),
-  metal: new THREE.MeshStandardMaterial({ color: 0xb0bec5, roughness: 0.38, metalness: 0.08 }),
+  counter: new THREE.MeshStandardMaterial({ color: 0x90a4ae, roughness: 0.5, flatShading: true }),
+  counterDark: new THREE.MeshStandardMaterial({ color: 0x546e7a, roughness: 0.56, flatShading: true }),
+  blue: new THREE.MeshStandardMaterial({ color: 0x1976d2, roughness: 0.6, flatShading: true }),
+  skyBlue: new THREE.MeshStandardMaterial({ color: 0x81d4fa, roughness: 0.26, transparent: true, opacity: 0.78, flatShading: true }),
+  yellow: new THREE.MeshStandardMaterial({ color: 0xffca28, roughness: 0.45, flatShading: true }),
+  white: new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.62, flatShading: true }),
+  black: new THREE.MeshStandardMaterial({ color: 0x263238, roughness: 0.52, flatShading: true }),
+  red: new THREE.MeshStandardMaterial({ color: 0xef5350, roughness: 0.72, flatShading: true }),
+  green: new THREE.MeshStandardMaterial({ color: 0x66bb6a, roughness: 0.72, flatShading: true }),
+  metal: new THREE.MeshStandardMaterial({ color: 0xb0bec5, roughness: 0.38, metalness: 0.08, flatShading: true }),
 };
 
 export function createAirportDecor(): THREE.Group {
@@ -26,7 +26,6 @@ export function createAirportDecor(): THREE.Group {
   addSecurityQueue(group);
   addLuggage(group);
   addPlaneModel(group);
-  addCeilingLights(group);
 
   return group;
 }

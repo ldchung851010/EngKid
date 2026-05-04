@@ -7,7 +7,7 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; font-family: sans-serif; }
-    #app { width: 100%; height: 100%; position: relative; }
+    #app { width: 100%; height: 100%; position: relative; touch-action: none; }
 
     /* Loading / Error overlay */
     #loading-overlay {
@@ -296,35 +296,33 @@
       <div class="controls-hint-title">操作提示</div>
       <div class="controls-hint-list">
         <div class="controls-hint-row">
-          <span class="controls-hint-key">W A S D</span>
+          <span class="controls-hint-key">点击地面</span>
           <span>移动角色</span>
         </div>
         <div class="controls-hint-row">
-          <span class="controls-hint-key">鼠标</span>
-          <span>点击画面后移动鼠标看四周</span>
+          <span class="controls-hint-key">点击人物</span>
+          <span>对话互动</span>
         </div>
         <div class="controls-hint-row">
-          <span class="controls-hint-key">E</span>
-          <span>靠近人物或物品时互动</span>
+          <span class="controls-hint-key">点击物品</span>
+          <span>收集词汇</span>
         </div>
       </div>
     </aside>
   </div>
 
   <script>
-    // Intercept console before whisper.js loads so its internal `out` function
-    // (defaultPrint=console.log.bind(console)) binds to our wrapper instead
-    // of the raw console.log. We toggle capture via __whisperCollect.
-    window.__origConsoleLog = console.log;
-    window.__origConsoleError = console.error;
+    // Capture whisper WASM output via Module.print (more reliable than console proxy)
     window.__whisperCollect = null;
-    console.log = function(...args) {
-      if (window.__whisperCollect) window.__whisperCollect(args.join(' '));
-      window.__origConsoleLog.apply(console, args);
-    };
-    console.error = function(...args) {
-      if (window.__whisperCollect) window.__whisperCollect(args.join(' '));
-      window.__origConsoleError.apply(console, args);
+    window.Module = {
+      print: function(text) {
+        console.log(text);
+        if (window.__whisperCollect) window.__whisperCollect(text);
+      },
+      printErr: function(text) {
+        console.error(text);
+        if (window.__whisperCollect) window.__whisperCollect(text);
+      },
     };
   </script>
   <script src="/whisper/whisper.js"></script>

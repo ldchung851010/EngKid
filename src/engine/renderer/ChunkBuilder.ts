@@ -67,6 +67,7 @@ export class ChunkBuilder {
         color: visual.color,
         roughness: visual.roughness ?? 0.5,
         metalness: visual.metalness ?? 0,
+        flatShading: true,
       });
 
       const mesh = new THREE.InstancedMesh(sharedGeo, material, matrices.length);

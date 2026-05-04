@@ -15,7 +15,6 @@ export function createRestaurantDecor(): THREE.Group {
   }
 
   addCounter(group);
-  addCeiling(group);
   addMenuBoard(group);
   addDiningSet(group, 4, 8.5);
   addDiningSet(group, 14, 8.5);
@@ -26,9 +25,6 @@ export function createRestaurantDecor(): THREE.Group {
   addWindow(group, [1.03, 2.05, 7], [0.04, 1, 2.3]);
   addWindow(group, [16.97, 2.05, 7], [0.04, 1, 2.3]);
   addWallStripe(group, 9, 1.02);
-  addPendantLight(group, 4, 7.2);
-  addPendantLight(group, 14, 7.2);
-  addPendantLight(group, 12, 5.6);
 
   return group;
 }
@@ -152,9 +148,23 @@ function addWindow(group: THREE.Group, position: VectorTuple, scale: VectorTuple
 }
 
 function addPlant(group: THREE.Group, x: number, z: number): void {
-  addBox(group, [x, 1.25, z], [0.42, 0.48, 0.42], new THREE.MeshStandardMaterial({ color: 0xff8a65, roughness: 0.7 }));
-  addBox(group, [x, 1.62, z], [0.72, 0.45, 0.72], new THREE.MeshStandardMaterial({ color: 0x66bb6a, roughness: 0.75 }));
-  addBox(group, [x - 0.28, 1.82, z + 0.12], [0.4, 0.32, 0.4], new THREE.MeshStandardMaterial({ color: 0x43a047, roughness: 0.75 }));
+  // Low-poly pot
+  const potMat = new THREE.MeshStandardMaterial({ color: 0xff8a65, roughness: 0.7, flatShading: true });
+  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.18, 0.48, 6), potMat);
+  pot.position.set(x, 1.25, z);
+  pot.castShadow = true;
+  group.add(pot);
+  // Low-poly foliage (dodecahedron)
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x66bb6a, roughness: 0.75, flatShading: true });
+  const foliage = new THREE.Mesh(new THREE.DodecahedronGeometry(0.42, 0), leafMat);
+  foliage.position.set(x, 1.72, z);
+  foliage.castShadow = true;
+  group.add(foliage);
+  const leafMat2 = new THREE.MeshStandardMaterial({ color: 0x43a047, roughness: 0.75, flatShading: true });
+  const foliage2 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.3, 0), leafMat2);
+  foliage2.position.set(x - 0.2, 1.88, z + 0.1);
+  foliage2.castShadow = true;
+  group.add(foliage2);
 }
 
 function addPendantLight(group: THREE.Group, x: number, z: number): void {

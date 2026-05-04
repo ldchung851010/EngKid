@@ -2,13 +2,13 @@ import * as THREE from 'three';
 import { addBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
-  white: new THREE.MeshStandardMaterial({ color: 0xf8feff, roughness: 0.72 }),
-  mint: new THREE.MeshStandardMaterial({ color: 0xa5f3e4, roughness: 0.62 }),
-  blue: new THREE.MeshStandardMaterial({ color: 0x64b5f6, roughness: 0.48 }),
-  red: new THREE.MeshStandardMaterial({ color: 0xef5350, roughness: 0.62 }),
-  metal: new THREE.MeshStandardMaterial({ color: 0xb0bec5, roughness: 0.38, metalness: 0.08 }),
-  paper: new THREE.MeshStandardMaterial({ color: 0xfff8e1, roughness: 0.9 }),
-  dark: new THREE.MeshStandardMaterial({ color: 0x455a64, roughness: 0.58 }),
+  white: new THREE.MeshStandardMaterial({ color: 0xf8feff, roughness: 0.72, flatShading: true }),
+  mint: new THREE.MeshStandardMaterial({ color: 0xa5f3e4, roughness: 0.62, flatShading: true }),
+  blue: new THREE.MeshStandardMaterial({ color: 0x64b5f6, roughness: 0.48, flatShading: true }),
+  red: new THREE.MeshStandardMaterial({ color: 0xef5350, roughness: 0.62, flatShading: true }),
+  metal: new THREE.MeshStandardMaterial({ color: 0xb0bec5, roughness: 0.38, metalness: 0.08, flatShading: true }),
+  paper: new THREE.MeshStandardMaterial({ color: 0xfff8e1, roughness: 0.9, flatShading: true }),
+  dark: new THREE.MeshStandardMaterial({ color: 0x455a64, roughness: 0.58, flatShading: true }),
 };
 
 export function createHospitalDecor(): THREE.Group {
@@ -19,7 +19,6 @@ export function createHospitalDecor(): THREE.Group {
   addWaitingArea(group);
   addMedicineShelf(group);
   addWallSigns(group);
-  addCeilingLights(group);
   return group;
 }
 

@@ -2,18 +2,18 @@ import * as THREE from 'three';
 import { addBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
-  chalkboard: new THREE.MeshStandardMaterial({ color: 0x1f6f43, roughness: 0.62 }),
-  chalkTray: new THREE.MeshStandardMaterial({ color: 0xe0e0e0, roughness: 0.52 }),
-  wood: new THREE.MeshStandardMaterial({ color: 0x9a6a3a, roughness: 0.72 }),
-  darkWood: new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 0.78 }),
-  chairBlue: new THREE.MeshStandardMaterial({ color: 0x42a5f5, roughness: 0.66 }),
-  chairLeg: new THREE.MeshStandardMaterial({ color: 0x1565c0, roughness: 0.68 }),
-  paper: new THREE.MeshStandardMaterial({ color: 0xfff8e1, roughness: 0.9 }),
-  red: new THREE.MeshStandardMaterial({ color: 0xef5350, roughness: 0.65 }),
-  yellow: new THREE.MeshStandardMaterial({ color: 0xffd54f, roughness: 0.65 }),
-  green: new THREE.MeshStandardMaterial({ color: 0x66bb6a, roughness: 0.75 }),
-  purple: new THREE.MeshStandardMaterial({ color: 0x7e57c2, roughness: 0.65 }),
-  metal: new THREE.MeshStandardMaterial({ color: 0x90a4ae, roughness: 0.44 }),
+  chalkboard: new THREE.MeshStandardMaterial({ color: 0x1f6f43, roughness: 0.62, flatShading: true }),
+  chalkTray: new THREE.MeshStandardMaterial({ color: 0xe0e0e0, roughness: 0.52, flatShading: true }),
+  wood: new THREE.MeshStandardMaterial({ color: 0x9a6a3a, roughness: 0.72, flatShading: true }),
+  darkWood: new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 0.78, flatShading: true }),
+  chairBlue: new THREE.MeshStandardMaterial({ color: 0x42a5f5, roughness: 0.66, flatShading: true }),
+  chairLeg: new THREE.MeshStandardMaterial({ color: 0x1565c0, roughness: 0.68, flatShading: true }),
+  paper: new THREE.MeshStandardMaterial({ color: 0xfff8e1, roughness: 0.9, flatShading: true }),
+  red: new THREE.MeshStandardMaterial({ color: 0xef5350, roughness: 0.65, flatShading: true }),
+  yellow: new THREE.MeshStandardMaterial({ color: 0xffd54f, roughness: 0.65, flatShading: true }),
+  green: new THREE.MeshStandardMaterial({ color: 0x66bb6a, roughness: 0.75, flatShading: true }),
+  purple: new THREE.MeshStandardMaterial({ color: 0x7e57c2, roughness: 0.65, flatShading: true }),
+  metal: new THREE.MeshStandardMaterial({ color: 0x90a4ae, roughness: 0.44, flatShading: true }),
 };
 
 export function createSchoolDecor(): THREE.Group {
@@ -28,7 +28,6 @@ export function createSchoolDecor(): THREE.Group {
   addBulletinBoard(group, 3.2, 1.02, 'OUR CLASS');
   addBulletinBoard(group, 16.8, 1.02, 'WORDS');
   addAlphabetBanner(group);
-  addCeilingLights(group);
   addDoorAndWindows(group);
 
   return group;

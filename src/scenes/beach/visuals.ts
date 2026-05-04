@@ -2,14 +2,14 @@ import * as THREE from 'three';
 import { addBox, addLocalBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
-  sand: new THREE.MeshStandardMaterial({ color: 0xffe0a3, roughness: 0.92 }),
-  water: new THREE.MeshStandardMaterial({ color: 0x4fc3f7, roughness: 0.18, transparent: true, opacity: 0.7 }),
-  red: new THREE.MeshStandardMaterial({ color: 0xef5350, roughness: 0.6 }),
-  yellow: new THREE.MeshStandardMaterial({ color: 0xffd54f, roughness: 0.55 }),
-  blue: new THREE.MeshStandardMaterial({ color: 0x42a5f5, roughness: 0.5 }),
-  white: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.55 }),
-  wood: new THREE.MeshStandardMaterial({ color: 0x9a6a3a, roughness: 0.76 }),
-  leaf: new THREE.MeshStandardMaterial({ color: 0x43a047, roughness: 0.78 }),
+  sand: new THREE.MeshStandardMaterial({ color: 0xffe0a3, roughness: 0.92, flatShading: true }),
+  water: new THREE.MeshStandardMaterial({ color: 0x4fc3f7, roughness: 0.18, transparent: true, opacity: 0.7, flatShading: true }),
+  red: new THREE.MeshStandardMaterial({ color: 0xef5350, roughness: 0.6, flatShading: true }),
+  yellow: new THREE.MeshStandardMaterial({ color: 0xffd54f, roughness: 0.55, flatShading: true }),
+  blue: new THREE.MeshStandardMaterial({ color: 0x42a5f5, roughness: 0.5, flatShading: true }),
+  white: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.55, flatShading: true }),
+  wood: new THREE.MeshStandardMaterial({ color: 0x9a6a3a, roughness: 0.76, flatShading: true }),
+  leaf: new THREE.MeshStandardMaterial({ color: 0x43a047, roughness: 0.78, flatShading: true }),
 };
 
 export function createBeachDecor(): THREE.Group {
@@ -88,10 +88,20 @@ function addPalm(group: THREE.Group, x: number, z: number): void {
   const tree = new THREE.Group();
   tree.position.set(x, 0, z);
   tree.rotation.z = x < 12 ? -0.12 : 0.12;
-  addLocalBox(tree, [0, 1.8, 0], [0.38, 1.8, 0.38], mat.wood);
+  // Low-poly trunk (cylinder, 6 segments)
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.22, 2.2, 6), mat.wood);
+  trunk.position.set(0, 1.9, 0);
+  trunk.castShadow = true;
+  tree.add(trunk);
+  // Low-poly palm fronds (cones radiating outward)
   for (let i = 0; i < 5; i++) {
-    const leaf = addLocalBox(tree, [Math.cos(i) * 0.45, 2.8, Math.sin(i) * 0.45], [1.3, 0.18, 0.36], mat.leaf);
-    leaf.rotation.y = (i / 5) * Math.PI * 2;
+    const angle = (i / 5) * Math.PI * 2;
+    const frond = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.2, 4), mat.leaf);
+    frond.position.set(Math.cos(angle) * 0.35, 3.0, Math.sin(angle) * 0.35);
+    frond.rotation.z = Math.cos(angle) * 0.6;
+    frond.rotation.x = Math.sin(angle) * 0.6;
+    frond.castShadow = true;
+    tree.add(frond);
   }
   group.add(tree);
 }

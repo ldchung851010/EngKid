@@ -28,17 +28,17 @@ export interface BlockVisual {
 export const BLOCK_VISUALS: Record<BlockType, BlockVisual> = {
   [BlockType.AIR]: { color: 0x000000, transparent: true }, // never rendered
   [BlockType.FLOOR]: { color: 0xffe0b2, roughness: 0.85 },  // warm cartoon tile
-  [BlockType.WALL]: { color: 0xfff8e1, roughness: 0.82 },   // sunny cafe plaster
-  [BlockType.TABLE]: { color: 0xffb74d, roughness: 0.65 },
-  [BlockType.CHAIR]: { color: 0x4fc3f7, roughness: 0.65 },
+  [BlockType.WALL]: { color: 0xd4a373, roughness: 0.82 },   // warm plaster
+  [BlockType.TABLE]: { color: 0xbcaaa4, roughness: 0.7 },
+  [BlockType.CHAIR]: { color: 0x4db6ac, roughness: 0.65 },
   [BlockType.COUNTER]: { color: 0xff8a65, roughness: 0.55 },
-  [BlockType.GRASS]: { color: 0x66bb6a, roughness: 0.9 },
+  [BlockType.GRASS]: { color: 0x7cb342, roughness: 0.9 },
   [BlockType.WATER]: { color: 0x4fc3f7, roughness: 0.25, metalness: 0.05 },
   [BlockType.GLASS]: { color: 0xb3e5fc, roughness: 0.18, metalness: 0.05 },
   [BlockType.DESK]: { color: 0x8d6e63, roughness: 0.72 },
   [BlockType.BED]: { color: 0x90caf9, roughness: 0.72 },
   [BlockType.SIGN]: { color: 0xfff176, roughness: 0.55 },
-  [BlockType.ROAD]: { color: 0x78909c, roughness: 0.82 },
+  [BlockType.ROAD]: { color: 0x90a4ae, roughness: 0.82 },
   [BlockType.CARPET]: { color: 0xef9a9a, roughness: 0.95 },
   [BlockType.PORTAL]: { color: 0x7c4dff, roughness: 0.1, metalness: 0.8 },
 };

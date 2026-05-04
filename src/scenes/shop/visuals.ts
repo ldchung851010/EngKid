@@ -2,15 +2,15 @@ import * as THREE from 'three';
 import { addBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
-  shelf: new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.72 }),
-  wood: new THREE.MeshStandardMaterial({ color: 0xb77945, roughness: 0.68 }),
-  counter: new THREE.MeshStandardMaterial({ color: 0xffb74d, roughness: 0.58 }),
-  red: new THREE.MeshStandardMaterial({ color: 0xef5350, roughness: 0.62 }),
-  green: new THREE.MeshStandardMaterial({ color: 0x66bb6a, roughness: 0.72 }),
-  blue: new THREE.MeshStandardMaterial({ color: 0x42a5f5, roughness: 0.58 }),
-  yellow: new THREE.MeshStandardMaterial({ color: 0xffd54f, roughness: 0.56 }),
-  white: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.62 }),
-  dark: new THREE.MeshStandardMaterial({ color: 0x37474f, roughness: 0.52 }),
+  shelf: new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.72, flatShading: true }),
+  wood: new THREE.MeshStandardMaterial({ color: 0xb77945, roughness: 0.68, flatShading: true }),
+  counter: new THREE.MeshStandardMaterial({ color: 0xffb74d, roughness: 0.58, flatShading: true }),
+  red: new THREE.MeshStandardMaterial({ color: 0xef5350, roughness: 0.62, flatShading: true }),
+  green: new THREE.MeshStandardMaterial({ color: 0x66bb6a, roughness: 0.72, flatShading: true }),
+  blue: new THREE.MeshStandardMaterial({ color: 0x42a5f5, roughness: 0.58, flatShading: true }),
+  yellow: new THREE.MeshStandardMaterial({ color: 0xffd54f, roughness: 0.56, flatShading: true }),
+  white: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.62, flatShading: true }),
+  dark: new THREE.MeshStandardMaterial({ color: 0x37474f, roughness: 0.52, flatShading: true }),
 };
 
 export function createShopDecor(): THREE.Group {
@@ -23,7 +23,6 @@ export function createShopDecor(): THREE.Group {
   addToyTable(group, 16.0, 10.8);
   addFloorArrows(group);
   addBasketStack(group);
-  addCeilingLights(group);
   return group;
 }
 

@@ -2,19 +2,19 @@ import * as THREE from 'three';
 import { addBox, addLocalBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
-  trunk: new THREE.MeshStandardMaterial({ color: 0x795548, roughness: 0.82 }),
-  leaf: new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.92 }),
-  leafLight: new THREE.MeshStandardMaterial({ color: 0x66bb6a, roughness: 0.92 }),
-  fence: new THREE.MeshStandardMaterial({ color: 0xffcc80, roughness: 0.78 }),
-  rope: new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.72 }),
-  sign: new THREE.MeshStandardMaterial({ color: 0xffe082, roughness: 0.55 }),
-  stone: new THREE.MeshStandardMaterial({ color: 0x9e9e9e, roughness: 0.82 }),
-  lion: new THREE.MeshStandardMaterial({ color: 0xffb74d, roughness: 0.76 }),
-  mane: new THREE.MeshStandardMaterial({ color: 0x8d4b2d, roughness: 0.8 }),
-  monkey: new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.78 }),
-  elephant: new THREE.MeshStandardMaterial({ color: 0x90a4ae, roughness: 0.78 }),
-  water: new THREE.MeshStandardMaterial({ color: 0x4fc3f7, roughness: 0.25, transparent: true, opacity: 0.72 }),
-  grassSnack: new THREE.MeshStandardMaterial({ color: 0x8bc34a, roughness: 0.86 }),
+  trunk: new THREE.MeshStandardMaterial({ color: 0x795548, roughness: 0.82, flatShading: true }),
+  leaf: new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.92, flatShading: true }),
+  leafLight: new THREE.MeshStandardMaterial({ color: 0x66bb6a, roughness: 0.92, flatShading: true }),
+  fence: new THREE.MeshStandardMaterial({ color: 0xffcc80, roughness: 0.78, flatShading: true }),
+  rope: new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.72, flatShading: true }),
+  sign: new THREE.MeshStandardMaterial({ color: 0xffe082, roughness: 0.55, flatShading: true }),
+  stone: new THREE.MeshStandardMaterial({ color: 0x9e9e9e, roughness: 0.82, flatShading: true }),
+  lion: new THREE.MeshStandardMaterial({ color: 0xffb74d, roughness: 0.76, flatShading: true }),
+  mane: new THREE.MeshStandardMaterial({ color: 0x8d4b2d, roughness: 0.8, flatShading: true }),
+  monkey: new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.78, flatShading: true }),
+  elephant: new THREE.MeshStandardMaterial({ color: 0x90a4ae, roughness: 0.78, flatShading: true }),
+  water: new THREE.MeshStandardMaterial({ color: 0x4fc3f7, roughness: 0.25, transparent: true, opacity: 0.72, flatShading: true }),
+  grassSnack: new THREE.MeshStandardMaterial({ color: 0x8bc34a, roughness: 0.86, flatShading: true }),
 };
 
 type ZooAnimalKind = 'lion' | 'elephant' | 'monkey';
@@ -118,9 +118,20 @@ function addTrees(group: THREE.Group): void {
 }
 
 function addTree(group: THREE.Group, x: number, z: number): void {
-  addBox(group, [x, 1.58, z], [0.36, 1.12, 0.36], mat.trunk);
-  addBox(group, [x, 2.35, z], [1.25, 0.82, 1.25], mat.leaf);
-  addBox(group, [x - 0.36, 2.65, z + 0.18], [0.78, 0.58, 0.78], mat.leafLight);
+  // Low-poly trunk (cylinder, 6 segments)
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.25, 1.5, 6), mat.trunk);
+  trunk.position.set(x, 1.75, z);
+  trunk.castShadow = true;
+  group.add(trunk);
+  // Low-poly foliage (stacked cones, 6 segments)
+  const c1 = new THREE.Mesh(new THREE.ConeGeometry(0.9, 1.0, 6), mat.leaf);
+  c1.position.set(x, 2.6, z);
+  c1.castShadow = true;
+  group.add(c1);
+  const c2 = new THREE.Mesh(new THREE.ConeGeometry(0.65, 0.8, 6), mat.leafLight);
+  c2.position.set(x, 3.1, z);
+  c2.castShadow = true;
+  group.add(c2);
 }
 
 function addAnimalModels(group: THREE.Group): void {

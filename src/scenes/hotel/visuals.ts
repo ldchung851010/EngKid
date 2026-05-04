@@ -2,19 +2,19 @@ import * as THREE from 'three';
 import { addBox, addLocalBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
-  marble: new THREE.MeshStandardMaterial({ color: 0xfff8e1, roughness: 0.46 }),
-  marbleAlt: new THREE.MeshStandardMaterial({ color: 0xf5e6ca, roughness: 0.52 }),
-  gold: new THREE.MeshStandardMaterial({ color: 0xffca28, roughness: 0.34, metalness: 0.05 }),
-  walnut: new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 0.72 }),
-  wood: new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.7 }),
-  sofaBlue: new THREE.MeshStandardMaterial({ color: 0x3949ab, roughness: 0.74 }),
-  sofaGreen: new THREE.MeshStandardMaterial({ color: 0x00796b, roughness: 0.74 }),
-  plant: new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.82 }),
-  pot: new THREE.MeshStandardMaterial({ color: 0xc77745, roughness: 0.72 }),
-  glass: new THREE.MeshStandardMaterial({ color: 0xb3e5fc, roughness: 0.24, transparent: true, opacity: 0.68 }),
-  metal: new THREE.MeshStandardMaterial({ color: 0xb0bec5, roughness: 0.38, metalness: 0.08 }),
-  dark: new THREE.MeshStandardMaterial({ color: 0x263238, roughness: 0.52 }),
-  red: new THREE.MeshStandardMaterial({ color: 0xef5350, roughness: 0.72 }),
+  marble: new THREE.MeshStandardMaterial({ color: 0xfff8e1, roughness: 0.46, flatShading: true }),
+  marbleAlt: new THREE.MeshStandardMaterial({ color: 0xf5e6ca, roughness: 0.52, flatShading: true }),
+  gold: new THREE.MeshStandardMaterial({ color: 0xffca28, roughness: 0.34, metalness: 0.05, flatShading: true }),
+  walnut: new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 0.72, flatShading: true }),
+  wood: new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.7, flatShading: true }),
+  sofaBlue: new THREE.MeshStandardMaterial({ color: 0x3949ab, roughness: 0.74, flatShading: true }),
+  sofaGreen: new THREE.MeshStandardMaterial({ color: 0x00796b, roughness: 0.74, flatShading: true }),
+  plant: new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.82, flatShading: true }),
+  pot: new THREE.MeshStandardMaterial({ color: 0xc77745, roughness: 0.72, flatShading: true }),
+  glass: new THREE.MeshStandardMaterial({ color: 0xb3e5fc, roughness: 0.24, transparent: true, opacity: 0.68, flatShading: true }),
+  metal: new THREE.MeshStandardMaterial({ color: 0xb0bec5, roughness: 0.38, metalness: 0.08, flatShading: true }),
+  dark: new THREE.MeshStandardMaterial({ color: 0x263238, roughness: 0.52, flatShading: true }),
+  red: new THREE.MeshStandardMaterial({ color: 0xef5350, roughness: 0.72, flatShading: true }),
 };
 
 export function createHotelDecor(): THREE.Group {
@@ -126,9 +126,20 @@ function addLuggageCart(group: THREE.Group): void {
 
 function addPlants(group: THREE.Group): void {
   for (const [x, z] of [[2.2, 5.8], [17.8, 5.8], [2.2, 15.4], [17.8, 15.4]]) {
-    addBox(group, [x, 1.24, z], [0.48, 0.46, 0.48], mat.pot);
-    addBox(group, [x, 1.68, z], [0.88, 0.55, 0.88], mat.plant);
-    addBox(group, [x - 0.28, 1.92, z + 0.12], [0.52, 0.42, 0.52], mat.plant);
+    // Low-poly pot (cylinder)
+    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.2, 0.46, 6), mat.pot);
+    pot.position.set(x, 1.24, z);
+    pot.castShadow = true;
+    group.add(pot);
+    // Low-poly foliage (dodecahedron)
+    const foliage = new THREE.Mesh(new THREE.DodecahedronGeometry(0.45, 0), mat.plant);
+    foliage.position.set(x, 1.72, z);
+    foliage.castShadow = true;
+    group.add(foliage);
+    const foliage2 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.32, 0), mat.plant);
+    foliage2.position.set(x - 0.2, 1.95, z + 0.1);
+    foliage2.castShadow = true;
+    group.add(foliage2);
   }
 }
 

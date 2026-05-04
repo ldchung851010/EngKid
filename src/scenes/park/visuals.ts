@@ -2,17 +2,17 @@ import * as THREE from 'three';
 import { addBox, addLocalBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
-  path: new THREE.MeshStandardMaterial({ color: 0xfff0b3, roughness: 0.86 }),
-  trunk: new THREE.MeshStandardMaterial({ color: 0x8d5a2b, roughness: 0.78 }),
-  leaf: new THREE.MeshStandardMaterial({ color: 0x42a95b, roughness: 0.78 }),
-  leafDark: new THREE.MeshStandardMaterial({ color: 0x2f8f4c, roughness: 0.82 }),
-  flowerPink: new THREE.MeshStandardMaterial({ color: 0xff6fae, roughness: 0.62 }),
-  flowerYellow: new THREE.MeshStandardMaterial({ color: 0xffd54f, roughness: 0.62 }),
-  wood: new THREE.MeshStandardMaterial({ color: 0xa96f3b, roughness: 0.72 }),
-  metal: new THREE.MeshStandardMaterial({ color: 0x607d8b, roughness: 0.48 }),
-  red: new THREE.MeshStandardMaterial({ color: 0xef5350, roughness: 0.68 }),
-  blue: new THREE.MeshStandardMaterial({ color: 0x42a5f5, roughness: 0.58 }),
-  white: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 }),
+  path: new THREE.MeshStandardMaterial({ color: 0xfff0b3, roughness: 0.86, flatShading: true }),
+  trunk: new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.78, flatShading: true }),
+  leaf: new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.78, flatShading: true }),
+  leafDark: new THREE.MeshStandardMaterial({ color: 0x1b5e20, roughness: 0.82, flatShading: true }),
+  flowerPink: new THREE.MeshStandardMaterial({ color: 0xff6fae, roughness: 0.62, flatShading: true }),
+  flowerYellow: new THREE.MeshStandardMaterial({ color: 0xffd54f, roughness: 0.62, flatShading: true }),
+  wood: new THREE.MeshStandardMaterial({ color: 0xa96f3b, roughness: 0.72, flatShading: true }),
+  metal: new THREE.MeshStandardMaterial({ color: 0x607d8b, roughness: 0.48, flatShading: true }),
+  red: new THREE.MeshStandardMaterial({ color: 0xef5350, roughness: 0.68, flatShading: true }),
+  blue: new THREE.MeshStandardMaterial({ color: 0x42a5f5, roughness: 0.58, flatShading: true }),
+  white: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, flatShading: true }),
 };
 
 export function createParkDecor(): THREE.Group {
@@ -54,10 +54,21 @@ function addPond(group: THREE.Group): void {
 }
 
 function addTree(group: THREE.Group, x: number, z: number): void {
-  addBox(group, [x, 1.72, z], [0.45, 1.35, 0.45], mat.trunk);
-  addBox(group, [x, 2.62, z], [1.55, 1.0, 1.55], mat.leaf);
-  addBox(group, [x - 0.45, 3.05, z + 0.25], [1.0, 0.72, 1.0], mat.leafDark);
-  addBox(group, [x + 0.42, 3.12, z - 0.2], [1.0, 0.78, 1.0], mat.leaf);
+  // Low-poly trunk (cylinder, 6 segments)
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 1.8, 6), mat.trunk);
+  trunk.position.set(x, 1.9, z);
+  trunk.castShadow = true;
+  group.add(trunk);
+  // Low-poly foliage (stacked cones, 6 segments)
+  for (let i = 0; i < 3; i++) {
+    const cone = new THREE.Mesh(
+      new THREE.ConeGeometry(1.1 - i * 0.25, 1.0, 6),
+      i === 1 ? mat.leafDark : mat.leaf,
+    );
+    cone.position.set(x, 2.8 + i * 0.65, z);
+    cone.castShadow = true;
+    group.add(cone);
+  }
 }
 
 function addBench(group: THREE.Group, x: number, z: number, rotationY: number): void {
@@ -72,9 +83,21 @@ function addBench(group: THREE.Group, x: number, z: number, rotationY: number): 
 }
 
 function addFlowerBed(group: THREE.Group, x: number, z: number): void {
-  addBox(group, [x, 1.08, z], [2.4, 0.16, 1.0], new THREE.MeshStandardMaterial({ color: 0x5d9f4f, roughness: 0.82 }));
+  addBox(group, [x, 1.08, z], [2.4, 0.16, 1.0], new THREE.MeshStandardMaterial({ color: 0x5d9f4f, roughness: 0.82, flatShading: true }));
   for (let i = 0; i < 8; i++) {
-    addBox(group, [x - 0.9 + i * 0.28, 1.28, z + (i % 2 === 0 ? -0.18 : 0.18)], [0.16, 0.28, 0.16], i % 3 === 0 ? mat.flowerPink : mat.flowerYellow);
+    const fx = x - 0.9 + i * 0.28;
+    const fz = z + (i % 2 === 0 ? -0.18 : 0.18);
+    // Stem
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.2, 4), mat.leaf);
+    stem.position.set(fx, 1.26, fz);
+    group.add(stem);
+    // Flower head (cone)
+    const flower = new THREE.Mesh(
+      new THREE.ConeGeometry(0.08, 0.14, 5),
+      i % 3 === 0 ? mat.flowerPink : mat.flowerYellow,
+    );
+    flower.position.set(fx, 1.42, fz);
+    group.add(flower);
   }
 }
 

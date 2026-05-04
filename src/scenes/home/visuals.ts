@@ -2,15 +2,15 @@ import * as THREE from 'three';
 import { addBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
-  rug: new THREE.MeshStandardMaterial({ color: 0xef9a9a, roughness: 0.9 }),
-  wood: new THREE.MeshStandardMaterial({ color: 0x9a6a3a, roughness: 0.72 }),
-  darkWood: new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 0.78 }),
-  sofa: new THREE.MeshStandardMaterial({ color: 0x4fc3f7, roughness: 0.68 }),
-  bed: new THREE.MeshStandardMaterial({ color: 0x90caf9, roughness: 0.72 }),
-  pillow: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.82 }),
-  lamp: new THREE.MeshStandardMaterial({ color: 0xfff176, roughness: 0.35 }),
-  plant: new THREE.MeshStandardMaterial({ color: 0x66bb6a, roughness: 0.75 }),
-  metal: new THREE.MeshStandardMaterial({ color: 0x78909c, roughness: 0.44 }),
+  rug: new THREE.MeshStandardMaterial({ color: 0xef9a9a, roughness: 0.9, flatShading: true }),
+  wood: new THREE.MeshStandardMaterial({ color: 0x9a6a3a, roughness: 0.72, flatShading: true }),
+  darkWood: new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 0.78, flatShading: true }),
+  sofa: new THREE.MeshStandardMaterial({ color: 0x4fc3f7, roughness: 0.68, flatShading: true }),
+  bed: new THREE.MeshStandardMaterial({ color: 0x90caf9, roughness: 0.72, flatShading: true }),
+  pillow: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.82, flatShading: true }),
+  lamp: new THREE.MeshStandardMaterial({ color: 0xfff176, roughness: 0.35, flatShading: true }),
+  plant: new THREE.MeshStandardMaterial({ color: 0x66bb6a, roughness: 0.75, flatShading: true }),
+  metal: new THREE.MeshStandardMaterial({ color: 0x78909c, roughness: 0.44, flatShading: true }),
 };
 
 export function createHomeDecor(): THREE.Group {
@@ -76,8 +76,17 @@ function addLamp(group: THREE.Group, x: number, z: number): void {
 }
 
 function addPlant(group: THREE.Group, x: number, z: number): void {
-  addBox(group, [x, 1.22, z], [0.42, 0.42, 0.42], mat.darkWood);
-  addBox(group, [x, 1.62, z], [0.8, 0.55, 0.8], mat.plant);
+  // Low-poly pot
+  const potMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 0.78, flatShading: true });
+  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.18, 0.42, 6), potMat);
+  pot.position.set(x, 1.22, z);
+  pot.castShadow = true;
+  group.add(pot);
+  // Low-poly foliage
+  const foliage = new THREE.Mesh(new THREE.DodecahedronGeometry(0.4, 0), mat.plant);
+  foliage.position.set(x, 1.65, z);
+  foliage.castShadow = true;
+  group.add(foliage);
 }
 
 function addWallFamilySign(group: THREE.Group): void {

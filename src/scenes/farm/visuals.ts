@@ -2,14 +2,14 @@ import * as THREE from 'three';
 import { addBox, addLocalBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
-  soil: new THREE.MeshStandardMaterial({ color: 0xb9793b, roughness: 0.9 }),
-  crop: new THREE.MeshStandardMaterial({ color: 0x66bb6a, roughness: 0.82 }),
-  barn: new THREE.MeshStandardMaterial({ color: 0xd84315, roughness: 0.7 }),
-  roof: new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.76 }),
-  white: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.65 }),
-  yellow: new THREE.MeshStandardMaterial({ color: 0xffd54f, roughness: 0.58 }),
-  black: new THREE.MeshStandardMaterial({ color: 0x263238, roughness: 0.6 }),
-  metal: new THREE.MeshStandardMaterial({ color: 0x90a4ae, roughness: 0.48 }),
+  soil: new THREE.MeshStandardMaterial({ color: 0xb9793b, roughness: 0.9, flatShading: true }),
+  crop: new THREE.MeshStandardMaterial({ color: 0x66bb6a, roughness: 0.82, flatShading: true }),
+  barn: new THREE.MeshStandardMaterial({ color: 0xd84315, roughness: 0.7, flatShading: true }),
+  roof: new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.76, flatShading: true }),
+  white: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.65, flatShading: true }),
+  yellow: new THREE.MeshStandardMaterial({ color: 0xffd54f, roughness: 0.58, flatShading: true }),
+  black: new THREE.MeshStandardMaterial({ color: 0x263238, roughness: 0.6, flatShading: true }),
+  metal: new THREE.MeshStandardMaterial({ color: 0x90a4ae, roughness: 0.48, flatShading: true }),
 };
 
 export function createFarmDecor(): THREE.Group {
