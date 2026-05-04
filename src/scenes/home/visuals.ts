@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
+import { addBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
   rug: new THREE.MeshStandardMaterial({ color: 0xef9a9a, roughness: 0.9, flatShading: true }),
@@ -90,9 +90,8 @@ function addPlant(group: THREE.Group, x: number, z: number): void {
 }
 
 function addWallFamilySign(group: THREE.Group): void {
-  const sign = createTextSprite('HOME SWEET HOME', 512, 96, '#6d4c41', 'bold 38px sans-serif');
+  const sign = createTextPlane('HOME SWEET HOME', 512, 96, '#6d4c41', 'bold 38px sans-serif', 4.2, 0.62);
   sign.position.set(10, 2.86, 1.02);
-  sign.scale.set(4.2, 0.62, 1);
   group.add(sign);
 }
 

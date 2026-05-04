@@ -2,13 +2,13 @@ import * as THREE from 'three';
 
 export type VectorTuple = [number, number, number];
 
-export function createTextSprite(
+function drawTextToCanvas(
   text: string,
   width: number,
   height: number,
   color: string,
-  font: string
-): THREE.Sprite {
+  font: string,
+): { canvas: HTMLCanvasElement; texture: THREE.CanvasTexture } {
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -21,10 +21,39 @@ export function createTextSprite(
   ctx.shadowBlur = 5;
   ctx.fillText(text, width / 2, height / 2);
   const texture = new THREE.CanvasTexture(canvas);
-  const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+  return { canvas, texture };
+}
+
+/** Billboard text sprite — always faces the camera (for NPC names, labels) */
+export function createTextSprite(
+  text: string,
+  width: number,
+  height: number,
+  color: string,
+  font: string
+): THREE.Sprite {
+  const { texture } = drawTextToCanvas(text, width, height, color, font);
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, alphaTest: 0.01, depthWrite: false });
   const sprite = new THREE.Sprite(material);
   sprite.raycast = () => {};
   return sprite;
+}
+
+/** Fixed-orientation text plane — sits flat on surfaces (for blackboards, signs, walls) */
+export function createTextPlane(
+  text: string,
+  width: number,
+  height: number,
+  color: string,
+  font: string,
+  planeW: number,
+  planeH: number,
+): THREE.Mesh {
+  const { texture } = drawTextToCanvas(text, width, height, color, font);
+  const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, alphaTest: 0.01, side: THREE.DoubleSide });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(planeW, planeH), material);
+  mesh.raycast = () => {};
+  return mesh;
 }
 
 export function addBox(

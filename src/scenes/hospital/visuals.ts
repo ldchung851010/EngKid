@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
+import { addBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
   white: new THREE.MeshStandardMaterial({ color: 0xf8feff, roughness: 0.72, flatShading: true }),
@@ -61,13 +61,11 @@ function addMedicineShelf(group: THREE.Group): void {
 
 function addWallSigns(group: THREE.Group): void {
   addBox(group, [11, 2.88, 1.05], [2.8, 1.1, 0.12], mat.red);
-  const cross = createTextSprite('+ CLINIC', 384, 96, '#ffffff', 'bold 42px sans-serif');
+  const cross = createTextPlane('+ CLINIC', 384, 96, '#ffffff', 'bold 42px sans-serif', 2.4, 0.6);
   cross.position.set(11, 2.9, 0.96);
-  cross.scale.set(2.4, 0.6, 1);
   group.add(cross);
-  const advice = createTextSprite('Drink water. Take a rest.', 512, 80, '#1976d2', 'bold 32px sans-serif');
+  const advice = createTextPlane('Drink water. Take a rest.', 512, 80, '#1976d2', 'bold 32px sans-serif', 4.2, 0.48);
   advice.position.set(11, 3.72, 1.02);
-  advice.scale.set(4.2, 0.48, 1);
   group.add(advice);
 }
 

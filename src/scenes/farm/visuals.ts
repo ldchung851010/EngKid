@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addBox, addLocalBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
+import { addBox, addLocalBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
   soil: new THREE.MeshStandardMaterial({ color: 0xb9793b, roughness: 0.9, flatShading: true }),
@@ -43,9 +43,8 @@ function addBarn(group: THREE.Group): void {
   addBox(group, [12, 1.95, 2.0], [5.4, 1.9, 1.5], mat.barn);
   addBox(group, [12, 3.08, 2.0], [6.0, 0.44, 1.85], mat.roof);
   addBox(group, [12, 1.55, 2.82], [1.5, 1.1, 0.12], mat.roof);
-  const label = createTextSprite('FARM', 256, 80, '#ffffff', 'bold 36px sans-serif');
+  const label = createTextPlane('FARM', 256, 80, '#ffffff', 'bold 36px sans-serif', 1.6, 0.48);
   label.position.set(12, 2.42, 2.9);
-  label.scale.set(1.6, 0.48, 1);
   group.add(label);
 }
 
@@ -104,8 +103,7 @@ function addWaterTrough(group: THREE.Group): void {
 }
 
 function addFarmSign(group: THREE.Group): void {
-  const sign = createTextSprite('HELLO FARMER', 512, 96, '#5d4037', 'bold 40px sans-serif');
+  const sign = createTextPlane('HELLO FARMER', 512, 96, '#5d4037', 'bold 40px sans-serif', 3.8, 0.58);
   sign.position.set(12, 2.25, 6.0);
-  sign.scale.set(3.8, 0.58, 1);
   group.add(sign);
 }

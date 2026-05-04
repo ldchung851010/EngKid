@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addBox, addLocalBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
+import { addBox, addLocalBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
   counter: new THREE.MeshStandardMaterial({ color: 0x90a4ae, roughness: 0.5, flatShading: true }),
@@ -52,9 +52,8 @@ function addCheckInCounters(group: THREE.Group): void {
   addBox(group, [12, 1.92, 5.15], [14.1, 0.18, 1.24], mat.counterDark);
   for (const x of [6.5, 9.2, 12, 14.8, 17.5]) {
     addBox(group, [x, 2.32, 4.54], [1.65, 0.78, 0.12], mat.blue);
-    const label = createTextSprite('CHECK-IN', 256, 64, '#ffffff', 'bold 26px sans-serif');
+    const label = createTextPlane('CHECK-IN', 256, 64, '#ffffff', 'bold 26px sans-serif', 1.25, 0.34);
     label.position.set(x, 2.34, 4.44);
-    label.scale.set(1.25, 0.34, 1);
     group.add(label);
     addBox(group, [x - 0.42, 2.04, 5.76], [0.54, 0.08, 0.36], mat.white);
     addBox(group, [x + 0.36, 2.06, 5.68], [0.42, 0.2, 0.1], mat.black);
@@ -63,21 +62,18 @@ function addCheckInCounters(group: THREE.Group): void {
 
 function addFlightBoards(group: THREE.Group): void {
   addBox(group, [12, 3.15, 2.12], [6.5, 1.35, 0.12], mat.black);
-  const title = createTextSprite('DEPARTURES', 512, 96, '#ffeb3b', 'bold 44px sans-serif');
+  const title = createTextPlane('DEPARTURES', 512, 96, '#ffeb3b', 'bold 44px sans-serif', 3.9, 0.62);
   title.position.set(12, 3.42, 2.02);
-  title.scale.set(3.9, 0.62, 1);
   group.add(title);
-  const rows = createTextSprite('B12  LONDON   ON TIME', 512, 96, '#b2ff59', 'bold 30px monospace');
+  const rows = createTextPlane('B12  LONDON   ON TIME', 512, 96, '#b2ff59', 'bold 30px monospace', 4.2, 0.5);
   rows.position.set(12, 2.9, 2.0);
-  rows.scale.set(4.2, 0.5, 1);
   group.add(rows);
 }
 
 function addGateArea(group: THREE.Group): void {
   addBox(group, [20.6, 2.26, 9.5], [0.16, 1.7, 3.2], mat.blue);
-  const gate = createTextSprite('GATE B', 256, 96, '#ffffff', 'bold 42px sans-serif');
+  const gate = createTextPlane('GATE B', 256, 96, '#ffffff', 'bold 42px sans-serif', 0.62, 1.8);
   gate.position.set(20.5, 2.55, 9.5);
-  gate.scale.set(0.62, 1.8, 1);
   gate.rotation.z = -Math.PI / 2;
   group.add(gate);
   addBox(group, [20.35, 1.72, 11.9], [0.28, 1.1, 1.2], mat.skyBlue);

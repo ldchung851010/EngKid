@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
+import { addBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
   chalkboard: new THREE.MeshStandardMaterial({ color: 0x1f6f43, roughness: 0.62, flatShading: true }),
@@ -52,14 +52,12 @@ function addBlackboardWall(group: THREE.Group): void {
   addBox(group, [13.75, 2.45, 1], [0.14, 1.95, 0.18], mat.darkWood);
   addBox(group, [10, 3.4, 1], [7.65, 0.14, 0.18], mat.darkWood);
 
-  const abc = createTextSprite('ABC  123', 512, 128, '#ffffff', 'bold 54px sans-serif');
-  abc.position.set(10, 2.68, 0.92);
-  abc.scale.set(3.5, 0.78, 1);
+  const abc = createTextPlane('ABC  123', 512, 128, '#ffffff', 'bold 54px sans-serif', 3.5, 0.78);
+  abc.position.set(10, 2.68, 1.11);
   group.add(abc);
 
-  const prompt = createTextSprite('Can I have a pencil?', 512, 96, '#fff9c4', 'bold 34px sans-serif');
-  prompt.position.set(10, 2.08, 0.9);
-  prompt.scale.set(3.7, 0.62, 1);
+  const prompt = createTextPlane('Can I have a pencil?', 512, 96, '#fff9c4', 'bold 34px sans-serif', 3.7, 0.62);
+  prompt.position.set(10, 2.08, 1.11);
   group.add(prompt);
 }
 
@@ -130,18 +128,16 @@ function addBookshelf(group: THREE.Group, x: number, z: number): void {
 
 function addBulletinBoard(group: THREE.Group, x: number, z: number, text: string): void {
   addBox(group, [x, 2.42, z], [2.2, 1.34, 0.1], new THREE.MeshStandardMaterial({ color: 0xffcc80, roughness: 0.7 }));
-  const label = createTextSprite(text, 256, 64, '#5d4037', 'bold 30px sans-serif');
-  label.position.set(x, 2.85, z - 0.07);
-  label.scale.set(1.35, 0.38, 1);
+  const label = createTextPlane(text, 256, 64, '#5d4037', 'bold 30px sans-serif', 1.35, 0.38);
+  label.position.set(x, 2.85, z + 0.07);
   group.add(label);
   addBox(group, [x - 0.55, 2.28, z - 0.08], [0.52, 0.46, 0.04], mat.paper);
   addBox(group, [x + 0.45, 2.18, z - 0.08], [0.48, 0.38, 0.04], mat.green);
 }
 
 function addAlphabetBanner(group: THREE.Group): void {
-  const banner = createTextSprite('A  B  C  D  E  F  G', 512, 80, '#3949ab', 'bold 34px sans-serif');
-  banner.position.set(10, 4.25, 1.02);
-  banner.scale.set(4.8, 0.5, 1);
+  const banner = createTextPlane('A  B  C  D  E  F  G', 512, 80, '#3949ab', 'bold 34px sans-serif', 4.8, 0.5);
+  banner.position.set(10, 4.25, 1.11);
   group.add(banner);
 }
 

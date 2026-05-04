@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addBox, addLocalBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
+import { addBox, addLocalBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
   sand: new THREE.MeshStandardMaterial({ color: 0xffe0a3, roughness: 0.92, flatShading: true }),
@@ -107,8 +107,7 @@ function addPalm(group: THREE.Group, x: number, z: number): void {
 }
 
 function addBeachSign(group: THREE.Group): void {
-  const sign = createTextSprite('SUNNY BEACH', 512, 96, '#ffffff', 'bold 42px sans-serif');
+  const sign = createTextPlane('SUNNY BEACH', 512, 96, '#ffffff', 'bold 42px sans-serif', 3.7, 0.62);
   sign.position.set(12, 2.35, 6.05);
-  sign.scale.set(3.7, 0.62, 1);
   group.add(sign);
 }

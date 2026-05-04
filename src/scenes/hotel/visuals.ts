@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addBox, addLocalBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
+import { addBox, addLocalBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
   marble: new THREE.MeshStandardMaterial({ color: 0xfff8e1, roughness: 0.46, flatShading: true }),
@@ -59,9 +59,8 @@ function addReception(group: THREE.Group): void {
 function addLobbySign(group: THREE.Group): void {
   addBox(group, [10, 3.18, 1.05], [5.8, 1.28, 0.14], mat.gold);
   addBox(group, [10, 3.18, 0.96], [5.25, 0.96, 0.08], mat.walnut);
-  const sign = createTextSprite('SUNNY HOTEL', 512, 128, '#fff8e1', 'bold 50px sans-serif');
+  const sign = createTextPlane('SUNNY HOTEL', 512, 128, '#fff8e1', 'bold 50px sans-serif', 3.9, 0.78);
   sign.position.set(10, 3.22, 0.88);
-  sign.scale.set(3.9, 0.78, 1);
   group.add(sign);
 }
 
@@ -103,13 +102,11 @@ function addElevators(group: THREE.Group): void {
     addBox(group, [x, 2.32, 0.94], [1.76, 2.08, 0.08], mat.dark);
     addBox(group, [x, 3.62, 0.88], [1.25, 0.38, 0.08], mat.gold);
   }
-  const left = createTextSprite('LIFT', 128, 64, '#fff8e1', 'bold 28px sans-serif');
+  const left = createTextPlane('LIFT', 128, 64, '#fff8e1', 'bold 28px sans-serif', 0.9, 0.36);
   left.position.set(2.5, 3.64, 0.82);
-  left.scale.set(0.9, 0.36, 1);
   group.add(left);
-  const right = createTextSprite('LIFT', 128, 64, '#fff8e1', 'bold 28px sans-serif');
+  const right = createTextPlane('LIFT', 128, 64, '#fff8e1', 'bold 28px sans-serif', 0.9, 0.36);
   right.position.set(17.5, 3.64, 0.82);
-  right.scale.set(0.9, 0.36, 1);
   group.add(right);
 }
 

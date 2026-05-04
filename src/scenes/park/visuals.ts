@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addBox, addLocalBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
+import { addBox, addLocalBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
   path: new THREE.MeshStandardMaterial({ color: 0xfff0b3, roughness: 0.86, flatShading: true }),
@@ -127,8 +127,7 @@ function addKite(group: THREE.Group, x: number, z: number): void {
 
 function addParkSign(group: THREE.Group): void {
   addBox(group, [12, 1.8, 2.2], [3.2, 1.1, 0.14], mat.wood);
-  const sign = createTextSprite('SUNNY PARK', 384, 96, '#ffffff', 'bold 38px sans-serif');
+  const sign = createTextPlane('SUNNY PARK', 384, 96, '#ffffff', 'bold 38px sans-serif', 2.45, 0.62);
   sign.position.set(12, 1.9, 2.08);
-  sign.scale.set(2.45, 0.62, 1);
   group.add(sign);
 }

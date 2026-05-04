@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
+import { addBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
   shelf: new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.72, flatShading: true }),
@@ -28,9 +28,8 @@ export function createShopDecor(): THREE.Group {
 
 function addShopSign(group: THREE.Group): void {
   addBox(group, [11, 2.85, 1.04], [5.6, 1.15, 0.12], mat.yellow);
-  const sign = createTextSprite('HAPPY SHOP', 512, 96, '#5d4037', 'bold 44px sans-serif');
+  const sign = createTextPlane('HAPPY SHOP', 512, 96, '#5d4037', 'bold 44px sans-serif', 3.8, 0.62);
   sign.position.set(11, 2.88, 0.94);
-  sign.scale.set(3.8, 0.62, 1);
   group.add(sign);
 }
 

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addBox, addLocalBox, createTextSprite } from '../../engine/renderer/ScenePrimitives.js';
+import { addBox, addLocalBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
   trunk: new THREE.MeshStandardMaterial({ color: 0x795548, roughness: 0.82, flatShading: true }),
@@ -93,9 +93,8 @@ function addHabitatFence(group: THREE.Group, cx: number, cz: number, width: numb
   addBox(group, [minX, 1.64, cz], [0.12, 0.12, depth + 0.35], mat.rope);
   addBox(group, [maxX, 1.64, cz], [0.12, 0.12, depth + 0.35], mat.rope);
   addBox(group, [cx, 2.55, minZ - 0.15], [2.2, 0.55, 0.12], mat.sign);
-  const sign = createTextSprite(label, 256, 80, '#4e342e', 'bold 34px sans-serif');
+  const sign = createTextPlane(label, 256, 80, '#4e342e', 'bold 34px sans-serif', 1.6, 0.45);
   sign.position.set(cx, 2.58, minZ - 0.24);
-  sign.scale.set(1.6, 0.45, 1);
   group.add(sign);
 }
 
