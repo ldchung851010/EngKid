@@ -464,16 +464,17 @@ function animateNPCs(delta: number): void {
     const expression = getNPCExpression(npcId, dist);
     if (expression !== state.currentExpression) {
       state.currentExpression = expression;
-      const canvas = group.userData.faceCanvas as HTMLCanvasElement | undefined;
-      if (canvas) {
-        drawFaceExpression(canvas, expression);
-        // Notify texture update
-        const faceSprite = group.children.find(
-          (c): c is THREE.Sprite =>
-            c instanceof THREE.Sprite && c.userData.isFace,
-        );
-        if (faceSprite?.material instanceof THREE.SpriteMaterial && faceSprite.material.map) {
-          faceSprite.material.map.needsUpdate = true;
+      // Find the head mesh with face canvas (Minecraft-style texture)
+      const headMesh = group.children.find(
+        (c): c is THREE.Mesh => c instanceof THREE.Mesh && c.userData.isFace === true,
+      );
+      if (headMesh) {
+        const canvas = headMesh.userData.faceCanvas as HTMLCanvasElement | undefined;
+        const skinColor = headMesh.userData.skinColor as number | undefined;
+        if (canvas && skinColor !== undefined) {
+          drawFaceExpression(canvas, expression, skinColor);
+          const tex = headMesh.userData.faceTexture as THREE.CanvasTexture | undefined;
+          if (tex) tex.needsUpdate = true;
         }
       }
     }
@@ -1153,13 +1154,23 @@ function isObjectInRange(obj: THREE.Object3D): boolean {
   return false;
 }
 
+/** Get all MeshStandardMaterial instances from a mesh (handles single and multi-material) */
+function getMeshMaterials(mesh: THREE.Mesh): THREE.MeshStandardMaterial[] {
+  const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  return mats.filter((m): m is THREE.MeshStandardMaterial => m instanceof THREE.MeshStandardMaterial);
+}
+
 function applyEmissiveGlow(obj: THREE.Object3D): void {
   if (glowingObjects.has(obj)) return;
   glowingObjects.add(obj);
   obj.traverse((child) => {
-    if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
-      child.userData._savedEmissive = child.material.emissive.clone();
-      child.userData._savedEmissiveIntensity = child.material.emissiveIntensity;
+    if (child instanceof THREE.Mesh) {
+      const mats = getMeshMaterials(child);
+      child.userData._savedMaterials = mats.map((m) => ({
+        material: m,
+        emissive: m.emissive.clone(),
+        emissiveIntensity: m.emissiveIntensity,
+      }));
     }
   });
 }
@@ -1167,13 +1178,12 @@ function applyEmissiveGlow(obj: THREE.Object3D): void {
 function removeEmissiveGlow(obj: THREE.Object3D): void {
   if (!glowingObjects.delete(obj)) return;
   obj.traverse((child) => {
-    if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
-      if (child.userData._savedEmissive) {
-        child.material.emissive.copy(child.userData._savedEmissive);
-        child.material.emissiveIntensity = child.userData._savedEmissiveIntensity;
-        delete child.userData._savedEmissive;
-        delete child.userData._savedEmissiveIntensity;
+    if (child instanceof THREE.Mesh && child.userData._savedMaterials) {
+      for (const saved of child.userData._savedMaterials) {
+        saved.material.emissive.copy(saved.emissive);
+        saved.material.emissiveIntensity = saved.emissiveIntensity;
       }
+      delete child.userData._savedMaterials;
     }
   });
 }
@@ -1194,9 +1204,11 @@ function updateInteractionIndicators(elapsed: number): void {
   const glowColor = new THREE.Color(0xffee58);
   for (const obj of glowingObjects) {
     obj.traverse((child) => {
-      if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
-        child.material.emissive.copy(glowColor);
-        child.material.emissiveIntensity = pulse;
+      if (child instanceof THREE.Mesh) {
+        for (const m of getMeshMaterials(child)) {
+          m.emissive.copy(glowColor);
+          m.emissiveIntensity = pulse;
+        }
       }
     });
   }
