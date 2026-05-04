@@ -33,157 +33,174 @@ export function createVoxelCharacter(npc: NPCConfig): THREE.Group {
   }
 }
 
-/** Create a canvas-based face sprite with expression support */
-function createFaceSprite(): { sprite: THREE.Sprite; canvas: HTMLCanvasElement } {
-  const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 128;
+// ── Minecraft-style face on head mesh ──────────────────────────
 
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.minFilter = THREE.NearestFilter;
-  texture.magFilter = THREE.NearestFilter;
-  const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
-  material.depthTest = false;
-  material.depthWrite = false;
-  const sprite = new THREE.Sprite(material);
-  sprite.raycast = () => {};
-  sprite.scale.set(0.56, 0.56, 1);
-  sprite.renderOrder = 999;
+/**
+ * Add a head mesh with face texture on the front face (+Z).
+ * Other 5 faces use the skin-colored material.
+ * Minecraft-style pixel art: blocky eyes, simple mouth, cute proportions.
+ */
+function addFaceHead(
+  group: THREE.Group,
+  yPos: number,
+  size: number,
+  skinColor: number,
+): void {
+  const faceCanvas = document.createElement('canvas');
+  faceCanvas.width = 64;
+  faceCanvas.height = 64;
 
-  // Draw default idle face immediately
-  drawFaceExpression(canvas, 'idle');
+  const faceTexture = new THREE.CanvasTexture(faceCanvas);
+  faceTexture.minFilter = THREE.NearestFilter;
+  faceTexture.magFilter = THREE.NearestFilter;
 
-  return { sprite, canvas };
+  const faceMat = new THREE.MeshStandardMaterial({
+    map: faceTexture,
+    roughness: 0.7,
+    flatShading: true,
+  });
+
+  const skinMat = mat(skinColor, { roughness: 0.7 });
+
+  // BoxGeometry face order: +X, -X, +Y, -Y, +Z (front), -Z (back)
+  const headGeo = new THREE.BoxGeometry(size, size, size);
+  const head = new THREE.Mesh(headGeo, [skinMat, skinMat, skinMat, skinMat, faceMat, skinMat]);
+  head.position.set(0, yPos, 0);
+  head.castShadow = true;
+  group.add(head);
+
+  // Store references for expression updates
+  head.userData.isFace = true;
+  head.userData.faceCanvas = faceCanvas;
+  head.userData.faceTexture = faceTexture;
+  head.userData.skinColor = skinColor;
+
+  // Draw default idle face
+  drawFaceExpression(faceCanvas, 'idle', skinColor);
 }
 
-/** Draw a face expression on the given canvas */
-export function drawFaceExpression(canvas: HTMLCanvasElement, expression: FaceExpression): void {
+/** Draw a Minecraft-style face expression on the given canvas (64x64) */
+export function drawFaceExpression(canvas: HTMLCanvasElement, expression: FaceExpression, skinColor: number): void {
   const ctx = canvas.getContext('2d')!;
-  ctx.clearRect(0, 0, 128, 128);
+  ctx.clearRect(0, 0, 64, 64);
 
-  const cx = 64;
-  const cy = 62;
+  // Fill entire canvas with skin color as base
+  const r = (skinColor >> 16) & 0xff;
+  const g = (skinColor >> 8) & 0xff;
+  const b = skinColor & 0xff;
+  ctx.fillStyle = `rgb(${r},${g},${b})`;
+  ctx.fillRect(0, 0, 64, 64);
 
-  // Expression params
-  const params: Record<FaceExpression, {
-    eyeOpenY: number;
-    eyeClosed: boolean;
-    pupilDx: number;
-    pupilDy: number;
-    mouthType: 'smile' | 'open' | 'neutral' | 'bigsmile';
-    mouthAmt: number;
-    blushAlpha: number;
-  }> = {
-    idle:    { eyeOpenY: 8,  eyeClosed: false, pupilDx: 0,  pupilDy: 0, mouthType: 'smile',   mouthAmt: 0.3,  blushAlpha: 0.15 },
-    happy:   { eyeOpenY: 5,  eyeClosed: false, pupilDx: 0,  pupilDy: 1, mouthType: 'bigsmile', mouthAmt: 0.55, blushAlpha: 0.35 },
-    curious: { eyeOpenY: 10, eyeClosed: false, pupilDx: -2, pupilDy: -1, mouthType: 'open',    mouthAmt: 0.2,  blushAlpha: 0.1 },
-    talking: { eyeOpenY: 8,  eyeClosed: false, pupilDx: 0,  pupilDy: 0, mouthType: 'open',    mouthAmt: 0.4,  blushAlpha: 0.2 },
-    thinking:{ eyeOpenY: 6,  eyeClosed: false, pupilDx: 0,  pupilDy: -3, mouthType: 'neutral', mouthAmt: 0,    blushAlpha: 0.1 },
-  };
+  // ── Eyes ──
+  // Eye area: rows 18-36, centered around x=20 and x=44
+  const eyeY = 24;
+  const leftEyeX = 20;
+  const rightEyeX = 44;
 
-  const p = params[expression];
+  switch (expression) {
+    case 'happy': {
+      // Happy arc eyes (like ^_^)
+      ctx.strokeStyle = '#2d1b0e';
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(leftEyeX, eyeY + 2, 5, Math.PI * 1.1, Math.PI * 1.9);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(rightEyeX, eyeY + 2, 5, Math.PI * 1.1, Math.PI * 1.9);
+      ctx.stroke();
+      break;
+    }
+    case 'thinking': {
+      // Half-closed eyes looking up
+      ctx.fillStyle = '#2d1b0e';
+      ctx.fillRect(leftEyeX - 4, eyeY + 1, 8, 3);
+      ctx.fillRect(rightEyeX - 4, eyeY + 1, 8, 3);
+      break;
+    }
+    case 'idle':
+    case 'curious':
+    case 'talking':
+    default: {
+      // Open pixel eyes: 6x7 dark blocks with white highlight
+      ctx.fillStyle = '#2d1b0e';
+      ctx.fillRect(leftEyeX - 3, eyeY - 3, 6, 7);
+      ctx.fillRect(rightEyeX - 3, eyeY - 3, 6, 7);
 
-  // Blush circles
-  if (p.blushAlpha > 0) {
+      // White pupils (looking slightly down for curious)
+      const pupilOffset = expression === 'curious' ? 1 : -1;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(leftEyeX - 1, eyeY + pupilOffset, 2, 2);
+      ctx.fillRect(rightEyeX - 1, eyeY + pupilOffset, 2, 2);
+
+      // Eye shine
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(leftEyeX + 1, eyeY - 2, 2, 2);
+      ctx.fillRect(rightEyeX + 1, eyeY - 2, 2, 2);
+      break;
+    }
+  }
+
+  // ── Blush (rosy cheeks) ──
+  const blushAlpha = expression === 'happy' ? 0.4 : expression === 'curious' ? 0.15 : 0.2;
+  if (blushAlpha > 0) {
     ctx.save();
-    ctx.globalAlpha = p.blushAlpha;
-    ctx.fillStyle = '#ff8a80';
-    ctx.beginPath();
-    ctx.ellipse(cx - 26, cy + 4, 10, 6, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(cx + 26, cy + 4, 10, 6, 0, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.globalAlpha = blushAlpha;
+    ctx.fillStyle = '#ff6b6b';
+    ctx.fillRect(leftEyeX - 9, eyeY + 5, 7, 4);
+    ctx.fillRect(rightEyeX + 2, eyeY + 5, 7, 4);
     ctx.restore();
   }
 
-  // Eyes
-  const eyeY = cy - 6;
-  const leftEyeX = cx - 18;
-  const rightEyeX = cx + 18;
+  // ── Mouth ──
+  const mouthY = 38;
+  const mouthCX = 32;
 
-  if (p.eyeClosed) {
-    // Happy closed eyes (arcs)
-    ctx.strokeStyle = '#3e2723';
-    ctx.lineWidth = 3.5;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.arc(leftEyeX, eyeY - 2, 10, Math.PI * 0.05, Math.PI * 0.95);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(rightEyeX, eyeY - 2, 10, Math.PI * 0.05, Math.PI * 0.95);
-    ctx.stroke();
-  } else {
-    // Open eyes (white + pupil)
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.ellipse(leftEyeX, eyeY, 9, p.eyeOpenY, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(rightEyeX, eyeY, 9, p.eyeOpenY, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Pupils
-    ctx.fillStyle = '#3e2723';
-    ctx.beginPath();
-    ctx.arc(leftEyeX + p.pupilDx, eyeY + p.pupilDy, 5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(rightEyeX + p.pupilDx, eyeY + p.pupilDy, 5, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Eye shine
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(leftEyeX + p.pupilDx + 2, eyeY + p.pupilDy - 2.5, 2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(rightEyeX + p.pupilDx + 2, eyeY + p.pupilDy - 2.5, 2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Mouth
-  const mouthY = cy + 12;
-  ctx.strokeStyle = '#e57373';
-  ctx.lineWidth = 3;
-  ctx.lineCap = 'round';
-
-  switch (p.mouthType) {
-    case 'bigsmile': {
-      ctx.beginPath();
-      ctx.arc(cx, mouthY - 2, 16, Math.PI * 0.05, Math.PI * 0.95);
-      ctx.stroke();
-      // Inner mouth
-      ctx.fillStyle = '#d32f2f';
-      ctx.beginPath();
-      ctx.arc(cx, mouthY - 2, 8, Math.PI * 0.1, Math.PI * 0.9);
-      ctx.fill();
+  switch (expression) {
+    case 'happy': {
+      // Wide open smile
+      ctx.fillStyle = '#c0392b';
+      ctx.fillRect(mouthCX - 6, mouthY, 12, 5);
+      // Teeth
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(mouthCX - 5, mouthY, 10, 2);
       break;
     }
-    case 'smile': {
-      ctx.beginPath();
-      ctx.arc(cx, mouthY - 4, 14, Math.PI * 0.08, Math.PI * 0.92);
-      ctx.stroke();
+    case 'talking': {
+      // Open oval mouth
+      ctx.fillStyle = '#c0392b';
+      ctx.fillRect(mouthCX - 4, mouthY - 1, 8, 6);
+      ctx.fillStyle = '#e74c3c';
+      ctx.fillRect(mouthCX - 3, mouthY, 6, 4);
       break;
     }
-    case 'open': {
-      // Open mouth (oval)
-      ctx.fillStyle = '#d32f2f';
-      ctx.beginPath();
-      ctx.ellipse(cx, mouthY, 8, 6 + p.mouthAmt * 10, 0, 0, Math.PI * 2);
-      ctx.fill();
+    case 'curious': {
+      // Small "o" mouth
+      ctx.fillStyle = '#c0392b';
+      ctx.fillRect(mouthCX - 2, mouthY, 4, 4);
       break;
     }
-    case 'neutral': {
-      // Slight straight mouth
-      ctx.beginPath();
-      ctx.moveTo(cx - 10, mouthY - 2);
-      ctx.lineTo(cx + 10, mouthY - 2);
-      ctx.stroke();
+    case 'thinking': {
+      // Wavy line mouth
+      ctx.fillStyle = '#2d1b0e';
+      ctx.fillRect(mouthCX - 5, mouthY + 1, 4, 2);
+      ctx.fillRect(mouthCX - 1, mouthY, 4, 2);
+      ctx.fillRect(mouthCX + 3, mouthY + 1, 4, 2);
+      break;
+    }
+    case 'idle':
+    default: {
+      // Simple smile line
+      ctx.fillStyle = '#2d1b0e';
+      ctx.fillRect(mouthCX - 5, mouthY, 10, 2);
+      ctx.fillRect(mouthCX - 6, mouthY - 1, 2, 2);
+      ctx.fillRect(mouthCX + 4, mouthY - 1, 2, 2);
       break;
     }
   }
 }
+
+// ── Character Models ────────────────────────────────────────────
 
 function createWaiterModel(npc: NPCConfig): THREE.Group {
   const group = new THREE.Group();
@@ -209,15 +226,10 @@ function createWaiterModel(npc: NPCConfig): THREE.Group {
   addLocalBox(group, [0.4, 0.98, 0], [0.18, 0.68, 0.18], skin);
   addLocalBox(group, [0.54, 0.88, 0.22], [0.5, 0.06, 0.32], tray);
   addLocalBox(group, [0.54, 0.95, 0.22], [0.18, 0.08, 0.18], mat(0xfff176, { roughness: 0.5 }));
-  addLocalBox(group, [0, 1.55, 0], [0.52, 0.52, 0.52], skin);
-  addLocalBox(group, [0, 1.84, 0], [0.58, 0.18, 0.58], hair);
 
-  // Face sprite replaces static eye/mouth boxes
-  const face = createFaceSprite();
-  face.sprite.position.set(0, 1.55, 0.27);
-  face.sprite.userData.isFace = true;
-  group.add(face.sprite);
-  group.userData.faceCanvas = face.canvas;
+  // Head with face texture
+  addFaceHead(group, 1.55, 0.52, 0xffc7a3);
+  addLocalBox(group, [0, 1.84, 0], [0.58, 0.18, 0.58], hair);
 
   return group;
 }
@@ -239,15 +251,10 @@ function createDefaultCharacter(npc: NPCConfig): THREE.Group {
   addLocalBox(group, [0, 0.95, 0], [0.64, 0.76, 0.34], shirt);
   addLocalBox(group, [-0.47, 0.98, 0], [0.18, 0.64, 0.18], skin);
   addLocalBox(group, [0.47, 0.98, 0], [0.18, 0.64, 0.18], skin);
-  addLocalBox(group, [0, 1.55, 0], [0.52, 0.52, 0.52], skin);
-  addLocalBox(group, [0, 1.84, 0], [0.58, 0.18, 0.58], hair);
 
-  // Face sprite replaces static eye/mouth boxes
-  const face = createFaceSprite();
-  face.sprite.position.set(0, 1.55, 0.27);
-  face.sprite.userData.isFace = true;
-  group.add(face.sprite);
-  group.userData.faceCanvas = face.canvas;
+  // Head with face texture
+  addFaceHead(group, 1.55, 0.52, 0xffc7a3);
+  addLocalBox(group, [0, 1.84, 0], [0.58, 0.18, 0.58], hair);
 
   return group;
 }
@@ -282,17 +289,12 @@ function createAirportAgentModel(npc: NPCConfig): THREE.Group {
   // Arms
   addLocalBox(group, [-0.50, 0.98, 0], [0.18, 0.68, 0.18], blazer);
   addLocalBox(group, [0.50, 0.98, 0], [0.18, 0.68, 0.18], blazer);
-  // Head
-  addLocalBox(group, [0, 1.55, 0], [0.52, 0.52, 0.52], skin);
+
+  // Head with face texture
+  addFaceHead(group, 1.55, 0.52, 0xffc7a3);
   addLocalBox(group, [0, 1.84, 0], [0.58, 0.18, 0.58], hair);
   // Cap brim
   addLocalBox(group, [0, 1.83, 0.27], [0.7, 0.06, 0.16], cap);
-
-  const face = createFaceSprite();
-  face.sprite.position.set(0, 1.55, 0.27);
-  face.sprite.userData.isFace = true;
-  group.add(face.sprite);
-  group.userData.faceCanvas = face.canvas;
 
   return group;
 }
@@ -322,15 +324,10 @@ function createReceptionistModel(npc: NPCConfig): THREE.Group {
   // Arms
   addLocalBox(group, [-0.47, 0.98, 0], [0.18, 0.66, 0.18], blazerR);
   addLocalBox(group, [0.47, 0.98, 0], [0.18, 0.66, 0.18], blazerR);
-  // Head
-  addLocalBox(group, [0, 1.53, 0], [0.5, 0.5, 0.5], skin);
-  addLocalBox(group, [0, 1.78, 0], [0.58, 0.22, 0.58], hair);
 
-  const face = createFaceSprite();
-  face.sprite.position.set(0, 1.53, 0.26);
-  face.sprite.userData.isFace = true;
-  group.add(face.sprite);
-  group.userData.faceCanvas = face.canvas;
+  // Head with face texture
+  addFaceHead(group, 1.53, 0.5, 0xffcc99);
+  addLocalBox(group, [0, 1.78, 0], [0.58, 0.22, 0.58], hair);
 
   return group;
 }
@@ -346,7 +343,6 @@ function createTeacherModel(npc: NPCConfig): THREE.Group {
   const dress = mat(0xfff3e0, { roughness: 0.55 });
   const pantsG = mat(0x455a64, { roughness: 0.7 });
   const flats = mat(0x5d4037, { roughness: 0.55 });
-  const glasses = mat(0x263238, { roughness: 0.35, metalness: 0.1 });
   const book = mat(0xef5350, { roughness: 0.6 });
   const bookPage = mat(0xfff8e1, { roughness: 0.55 });
 
@@ -364,16 +360,10 @@ function createTeacherModel(npc: NPCConfig): THREE.Group {
   // Book in right arm area
   addLocalBox(group, [0.52, 0.98, -0.22], [0.24, 0.16, 0.18], book);
   addLocalBox(group, [0.52, 0.98, -0.18], [0.2, 0.12, 0.04], bookPage);
-  // Head
-  addLocalBox(group, [0, 1.53, 0], [0.5, 0.5, 0.5], skin);
-  addLocalBox(group, [0, 1.78, 0.1], [0.14, 0.04, 0.36], glasses);
-  addLocalBox(group, [0, 1.81, 0], [0.56, 0.2, 0.56], hair);
 
-  const face = createFaceSprite();
-  face.sprite.position.set(0, 1.53, 0.28);
-  face.sprite.userData.isFace = true;
-  group.add(face.sprite);
-  group.userData.faceCanvas = face.canvas;
+  // Head with face texture
+  addFaceHead(group, 1.53, 0.5, 0xffcc99);
+  addLocalBox(group, [0, 1.81, 0], [0.56, 0.2, 0.56], hair);
 
   return group;
 }
@@ -405,18 +395,13 @@ function createZookeeperModel(npc: NPCConfig): THREE.Group {
   addLocalBox(group, [0.47, 0.96, 0], [0.18, 0.56, 0.18], tee);
   // Feed bucket
   addLocalBox(group, [0.46, 0.86, -0.16], [0.2, 0.22, 0.2], mat(0x78909c, { roughness: 0.5, metalness: 0.2 }));
-  // Head
-  addLocalBox(group, [0, 1.53, 0], [0.5, 0.5, 0.5], skin);
+
+  // Head with face texture
+  addFaceHead(group, 1.53, 0.5, 0xffcc99);
   addLocalBox(group, [0, 1.78, 0], [0.54, 0.2, 0.54], hair);
   // Safari hat
   addLocalBox(group, [0, 1.88, 0], [0.66, 0.08, 0.6], hatBand);
   addLocalBox(group, [0, 1.96, 0], [0.6, 0.12, 0.54], hat);
-
-  const face = createFaceSprite();
-  face.sprite.position.set(0, 1.53, 0.26);
-  face.sprite.userData.isFace = true;
-  group.add(face.sprite);
-  group.userData.faceCanvas = face.canvas;
 
   return group;
 }
