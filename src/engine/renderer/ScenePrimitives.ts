@@ -22,7 +22,9 @@ export function createTextSprite(
   ctx.fillText(text, width / 2, height / 2);
   const texture = new THREE.CanvasTexture(canvas);
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
-  return new THREE.Sprite(material);
+  const sprite = new THREE.Sprite(material);
+  sprite.raycast = () => {};
+  return sprite;
 }
 
 export function addBox(

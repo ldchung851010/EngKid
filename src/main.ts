@@ -539,6 +539,7 @@ function createNPCStatusIndicator(npcId: string, parent: THREE.Object3D): void {
   material.depthTest = false;
   material.depthWrite = false;
   const sprite = new THREE.Sprite(material);
+  sprite.raycast = () => {};
   sprite.position.set(0, 2.78, 0);
   sprite.scale.set(0.75, 0.75, 1);
   sprite.renderOrder = 1000;

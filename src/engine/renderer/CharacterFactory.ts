@@ -46,6 +46,7 @@ function createFaceSprite(): { sprite: THREE.Sprite; canvas: HTMLCanvasElement }
   material.depthTest = false;
   material.depthWrite = false;
   const sprite = new THREE.Sprite(material);
+  sprite.raycast = () => {};
   sprite.scale.set(0.56, 0.56, 1);
   sprite.renderOrder = 999;
 

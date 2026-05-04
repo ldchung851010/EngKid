@@ -267,6 +267,7 @@ export class CollectibleManager {
     group.add(createCollectibleObject(placement.word, materials));
 
     const halo = createHaloSprite();
+    disableRaycast(halo);
     halo.position.set(0, 0.28, 0);
     halo.scale.set(1.45, 1.45, 1);
     halo.visible = false;
@@ -776,6 +777,10 @@ function addAnimalToy(group: THREE.Group, materials: THREE.MeshStandardMaterial[
 function addWordBlock(group: THREE.Group, materials: THREE.MeshStandardMaterial[], word: string): void {
   const color = word === 'big' ? 0x22c55e : word === 'small' ? 0x60a5fa : 0xa855f7;
   addLocalBox(group, [0, 0.12, 0], [word === 'big' ? 0.5 : 0.34, word === 'small' ? 0.2 : 0.28, 0.32], collectibleMaterial(materials, color));
+}
+
+function disableRaycast(obj: THREE.Object3D): void {
+  obj.raycast = () => {};
 }
 
 function normalizeWord(word: string): string {
