@@ -8,6 +8,7 @@ import { SceneLoader } from './engine/runtime/SceneLoader.js';
 import { sessionMachine } from './engine/runtime/SessionMachine.js';
 import type { SessionContext } from './engine/runtime/SessionMachine.js';
 import { CollisionWorld } from './engine/runtime/CollisionWorld.js';
+import { PathGrid } from './engine/runtime/PathGrid.js';
 import { ScoreTracker } from './engine/scoring/ScoreTracker.js';
 import { IntentRouter } from './engine/voice/IntentRouter.js';
 import { SpeechPipeline } from './engine/voice/SpeechPipeline.js';
@@ -52,23 +53,66 @@ renderer.shadowMap.enabled = true;
 app.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
-scene.fog = new THREE.Fog(0x87ceeb, 20, 60);
+scene.background = new THREE.Color(0x8bc34a);
 
-const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
 
 // ── Lighting ───────────────────────────────────────────────────
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const sun = new THREE.DirectionalLight(0xffffff, 0.8);
-sun.position.set(20, 30, 10);
+scene.add(new THREE.AmbientLight(0x404060, 0.9));
+const sun = new THREE.DirectionalLight(0xffeedd, 1.5);
+sun.position.set(10, 20, 5);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
+const shadowD = 15;
+sun.shadow.camera.left = -shadowD;
+sun.shadow.camera.right = shadowD;
+sun.shadow.camera.top = shadowD;
+sun.shadow.camera.bottom = -shadowD;
+sun.shadow.camera.near = 1;
+sun.shadow.camera.far = 30;
 scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xffffbb, 0x080820, 0.8));
+
+// ── Player Character ───────────────────────────────────────────
+const playerGroup = new THREE.Group();
+const playerBodyMat = new THREE.MeshStandardMaterial({ color: 0x4caf50, roughness: 0.6, flatShading: true });
+const playerHeadMat = new THREE.MeshStandardMaterial({ color: 0xffccbc, roughness: 0.5, flatShading: true });
+const playerPantsMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, flatShading: true });
+const playerArmMat = new THREE.MeshStandardMaterial({ color: 0xffccbc, roughness: 0.5, flatShading: true });
+
+const pBody = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.4), playerBodyMat);
+pBody.position.y = 1.0;
+pBody.castShadow = true;
+playerGroup.add(pBody);
+
+const pHead = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), playerHeadMat);
+pHead.position.y = 1.6;
+pHead.castShadow = true;
+playerGroup.add(pHead);
+
+const pLeg1 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.5, 0.2), playerPantsMat);
+pLeg1.position.set(-0.2, 0.25, 0);
+pLeg1.castShadow = true;
+playerGroup.add(pLeg1);
+
+const pLeg2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.5, 0.2), playerPantsMat);
+pLeg2.position.set(0.2, 0.25, 0);
+pLeg2.castShadow = true;
+playerGroup.add(pLeg2);
+
+const pArm = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.5, 0.2), playerArmMat);
+pArm.position.set(0.5, 1.1, 0);
+pArm.rotation.z = -0.3;
+pArm.castShadow = true;
+playerGroup.add(pArm);
+
+scene.add(playerGroup);
 
 // ── Engine Components ──────────────────────────────────────────
 const world = new VoxelWorld(scene);
-const controller = new CameraController(camera, renderer.domElement);
+const controller = new CameraController(camera, playerGroup, renderer.domElement);
 const collisionWorld = new CollisionWorld();
+const pathGrid = new PathGrid();
 const PLAYER_COLLISION_RADIUS = 0.62;
 const NPC_INTERACTION_RADIUS_PADDING = 1.25;
 const COLLECTIBLE_INTERACTION_RADIUS = 3.25;
@@ -112,6 +156,7 @@ const PORTAL_INTERACTION_RADIUS = 2;
 
 function createPortal(config: SceneConfig): THREE.Group {
   const group = new THREE.Group();
+  group.userData.isPortal = true;
   const start = config.start ?? { position: { x: 0, y: 2.6, z: 0 }, lookAt: { x: 0, y: 2.3, z: 0 } };
 
   const portalPos = {
@@ -331,8 +376,8 @@ function animateSceneVisuals(delta: number, elapsed: number): void {
 function getPortalDistance(): number {
   if (!portalGroup) return Infinity;
   const pp = portalGroup.position;
-  const dx = camera.position.x - pp.x;
-  const dz = camera.position.z - pp.z;
+  const dx = playerGroup.position.x - pp.x;
+  const dz = playerGroup.position.z - pp.z;
   return Math.sqrt(dx * dx + dz * dz);
 }
 
@@ -376,8 +421,8 @@ function animateNPCs(delta: number): void {
     if (!state) continue;
 
     const npcPos = group.position;
-    const dx = camera.position.x - npcPos.x;
-    const dz = camera.position.z - npcPos.z;
+    const dx = playerGroup.position.x - npcPos.x;
+    const dz = playerGroup.position.z - npcPos.z;
     const dist = Math.sqrt(dx * dx + dz * dz);
     const awarenessFactor = Math.max(0, 1 - dist / NPC_AWARENESS_RADIUS);
 
@@ -406,7 +451,7 @@ function animateNPCs(delta: number): void {
         (c) => c instanceof THREE.Sprite && c.userData.isFace,
       );
       if (headTarget) {
-        const dy = camera.position.y - (npcPos.y + 1.55);
+        const dy = playerGroup.position.y - (npcPos.y + 1.55);
         const targetPitch = Math.atan2(dy, dist) * 0.3; // subtle
         const currentPitch = (headTarget as THREE.Sprite).userData.facePitch ?? 0;
         const newPitch = currentPitch + (targetPitch - currentPitch) * delta * 2;
@@ -622,8 +667,8 @@ function getNPCInteractionRadius(npc: NPCConfig): number {
 
 function getNPCDistance(npc: NPCConfig): number {
   const npcPos = new THREE.Vector3(npc.position.x + 0.5, 0, npc.position.z + 0.5);
-  const dx = camera.position.x - npcPos.x;
-  const dz = camera.position.z - npcPos.z;
+  const dx = playerGroup.position.x - npcPos.x;
+  const dz = playerGroup.position.z - npcPos.z;
   return Math.sqrt(dx * dx + dz * dz);
 }
 
@@ -843,7 +888,7 @@ function updateInteractionTarget(): void {
     portalDist <= PORTAL_INTERACTION_RADIUS ? { type: 'portal', distance: portalDist } : null;
 
   const npcTarget = getNearestNPCTarget();
-  const collectibleTarget = collectibleManager?.getNearestCollectible(camera.position, COLLECTIBLE_INTERACTION_RADIUS) ?? null;
+  const collectibleTarget = collectibleManager?.getNearestCollectible(playerGroup.position, COLLECTIBLE_INTERACTION_RADIUS) ?? null;
 
   // Closest target wins (portal competes on distance)
   const candidates: InteractionTarget[] = [];
@@ -885,9 +930,54 @@ async function activateInteractionTarget(): Promise<void> {
   }
 }
 
-document.addEventListener('keydown', (event) => {
-  if (event.code !== 'KeyE' || event.repeat) return;
-  void activateInteractionTarget();
+// ── Click Interaction Setup ────────────────────────────────────
+function getCollectibleDistance(obj: THREE.Object3D): number {
+  const worldPos = new THREE.Vector3();
+  obj.getWorldPosition(worldPos);
+  const dx = playerGroup.position.x - worldPos.x;
+  const dz = playerGroup.position.z - worldPos.z;
+  return Math.sqrt(dx * dx + dz * dz);
+}
+
+controller.setOnObjectClick((hitObject) => {
+  // Determine what was clicked
+  if (hitObject.userData.isPortal) {
+    if (getPortalDistance() <= PORTAL_INTERACTION_RADIUS) {
+      navigateToHome();
+    }
+    return;
+  }
+
+  const npcId = hitObject.userData.npcId as string | undefined;
+  if (npcId) {
+    const npc = currentNPCs.find((n) => n.id === npcId);
+    if (npc) {
+      const dist = getNPCDistance(npc);
+      if (dist <= getNPCInteractionRadius(npc)) {
+        const rootNode = npc.dialogueTree[0];
+        if (rootNode) void startDialogue(npc.id, rootNode.id);
+      } else {
+        const targetPos = new THREE.Vector3(npc.position.x + 0.5, 0, npc.position.z + 0.5);
+        controller.setMoveTarget(targetPos);
+      }
+    }
+    return;
+  }
+
+  const collectibleWord = hitObject.userData.collectibleWord as string | undefined;
+  if (collectibleWord && collectibleManager) {
+    if (getCollectibleDistance(hitObject) <= COLLECTIBLE_INTERACTION_RADIUS) {
+      collectibleManager.setActiveCollectible(collectibleWord);
+      void collectibleManager.openActiveCollectible();
+    }
+  }
+});
+
+controller.setOnGroundClick((_worldPos) => {
+  // Cancel any active dialogue when clicking ground
+  if (activeNPC) {
+    endDialogue(activeNPC.id, false);
+  }
 });
 
 // ── Scene Loading ──────────────────────────────────────────────
@@ -919,6 +1009,14 @@ async function loadScene(): Promise<void> {
   }
   controller.setCollisionTester((position) => collisionWorld.canOccupy(position, { radius: PLAYER_COLLISION_RADIUS }));
 
+  // Build pathfinding grid
+  pathGrid.build(
+    activeSceneConfig.map.width,
+    activeSceneConfig.map.depth,
+    (pos) => collisionWorld.canOccupy(pos, { radius: PLAYER_COLLISION_RADIUS }),
+  );
+  controller.setPathfinder((start, end) => pathGrid.findPath(start, end));
+
   // Spawn portal at entrance
   if (portalGroup) {
     scene.remove(portalGroup);
@@ -933,23 +1031,30 @@ async function loadScene(): Promise<void> {
   collectibleManager = new CollectibleManager(scene, camera, tts, activeSceneId, activeSceneConfig, transcribe);
   await collectibleManager.init();
 
-  if (activeSceneConfig.environment) {
-    const skyColor = activeSceneConfig.environment.skyColor ?? 0x87ceeb;
-    const fogColor = activeSceneConfig.environment.fogColor ?? skyColor;
-    scene.background = new THREE.Color(skyColor);
-    scene.fog = new THREE.Fog(
-      fogColor,
-      activeSceneConfig.environment.fogNear ?? 20,
-      activeSceneConfig.environment.fogFar ?? 60
-    );
+  // Register clickable objects for interaction
+  const clickables: THREE.Object3D[] = [];
+  for (const npcGroup of npcMeshes) {
+    clickables.push(npcGroup);
   }
+  if (portalGroup) {
+    clickables.push(portalGroup);
+  }
+  // Collectible groups
+  if (collectibleManager) {
+    for (const group of collectibleManager.getCollectibleGroups()) {
+      clickables.push(group);
+    }
+  }
+  controller.setClickableObjects(clickables);
+
+  const skyColor = activeSceneConfig.environment?.skyColor ?? 0x8bc34a;
+  scene.background = new THREE.Color(skyColor);
 
   const start = activeSceneConfig.start ?? {
-    position: { x: activeSceneConfig.map.width / 2, y: 2.6, z: activeSceneConfig.map.depth - 2 },
-    lookAt: { x: activeSceneConfig.map.width / 2, y: 2.3, z: activeSceneConfig.map.depth / 2 },
+    position: { x: activeSceneConfig.map.width / 2, y: 0, z: activeSceneConfig.map.depth - 2 },
+    lookAt: { x: activeSceneConfig.map.width / 2, y: 0, z: activeSceneConfig.map.depth / 2 },
   };
-  camera.position.set(start.position.x, start.position.y, start.position.z);
-  camera.lookAt(start.lookAt.x, start.lookAt.y, start.lookAt.z);
+  playerGroup.position.set(start.position.x, 1, start.position.z);
 
   // Start session
   actor.send({ type: 'LOAD_SCENE', sceneId: activeSceneId });
@@ -1034,9 +1139,80 @@ tts.onStatusChange((s) => {
   }
 })();
 
+// ── Proximity Pulse Glow & Cursor ──────────────────────────────
+const glowingObjects = new Set<THREE.Object3D>();
+
+function isObjectInRange(obj: THREE.Object3D): boolean {
+  if (obj.userData.isPortal) return getPortalDistance() <= PORTAL_INTERACTION_RADIUS;
+  if (obj.userData.npcId) {
+    const npc = currentNPCs.find((n) => n.id === obj.userData.npcId);
+    return npc ? getNPCDistance(npc) <= getNPCInteractionRadius(npc) : false;
+  }
+  if (obj.userData.collectibleWord) return getCollectibleDistance(obj) <= COLLECTIBLE_INTERACTION_RADIUS;
+  return false;
+}
+
+function applyEmissiveGlow(obj: THREE.Object3D): void {
+  if (glowingObjects.has(obj)) return;
+  glowingObjects.add(obj);
+  obj.traverse((child) => {
+    if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
+      child.userData._savedEmissive = child.material.emissive.clone();
+      child.userData._savedEmissiveIntensity = child.material.emissiveIntensity;
+    }
+  });
+}
+
+function removeEmissiveGlow(obj: THREE.Object3D): void {
+  if (!glowingObjects.delete(obj)) return;
+  obj.traverse((child) => {
+    if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
+      if (child.userData._savedEmissive) {
+        child.material.emissive.copy(child.userData._savedEmissive);
+        child.material.emissiveIntensity = child.userData._savedEmissiveIntensity;
+        delete child.userData._savedEmissive;
+        delete child.userData._savedEmissiveIntensity;
+      }
+    }
+  });
+}
+
+function updateInteractionIndicators(elapsed: number): void {
+  const inRange = new Set<THREE.Object3D>();
+  for (const obj of controller.getClickableObjects()) {
+    if (isObjectInRange(obj)) inRange.add(obj);
+  }
+
+  for (const obj of inRange) applyEmissiveGlow(obj);
+  for (const obj of [...glowingObjects]) {
+    if (!inRange.has(obj)) removeEmissiveGlow(obj);
+  }
+
+  // Pulse emissive intensity
+  const pulse = 0.3 + Math.sin(elapsed * 3.5) * 0.25;
+  const glowColor = new THREE.Color(0xffee58);
+  for (const obj of glowingObjects) {
+    obj.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
+        child.material.emissive.copy(glowColor);
+        child.material.emissiveIntensity = pulse;
+      }
+    });
+  }
+}
+
+// Update cursor on mouse move
+renderer.domElement.addEventListener('mousemove', (e: MouseEvent) => {
+  const hitObj = controller.hitTestAtScreen(e.clientX, e.clientY);
+  if (hitObj && isObjectInRange(hitObj)) {
+    renderer.domElement.style.cursor = 'pointer';
+  } else {
+    renderer.domElement.style.cursor = '';
+  }
+});
+
 // ── Render Loop ────────────────────────────────────────────────
 const clock = new THREE.Clock();
-let proximityTimer = 0;
 
 function animate(): void {
   requestAnimationFrame(animate);
@@ -1044,17 +1220,11 @@ function animate(): void {
   const delta = Math.min(clock.getDelta(), 0.1); // Cap delta
   controller.update(delta);
 
-  // Resolve the single nearest interactive target every 500ms.
-  proximityTimer += delta;
-  if (proximityTimer > 0.5) {
-    proximityTimer = 0;
-    updateInteractionTarget();
-  }
-
   collectibleManager?.update(delta);
   animatePortal(delta, clock.elapsedTime);
   animateNPCs(delta);
   animateSceneVisuals(delta, clock.elapsedTime);
+  updateInteractionIndicators(clock.elapsedTime);
 
   renderer.render(scene, camera);
 }

@@ -228,6 +228,10 @@ export class CollectibleManager {
     this.syncMarkerPrompts();
   }
 
+  getCollectibleGroups(): THREE.Group[] {
+    return this.markers.filter((m) => !m.collected).map((m) => m.group);
+  }
+
   private syncMarkerPrompts(): void {
     for (const marker of this.markers) {
       const isActive = marker === this.activeMarker;
@@ -285,7 +289,6 @@ export class CollectibleManager {
 
     const marker = this.activeMarker;
     this.isOverlayOpen = true;
-    document.exitPointerLock?.();
     this.overlay.show(marker.word, {
       onReplay: async () => {
         await this.speakWord(marker.word);

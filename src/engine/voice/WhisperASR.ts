@@ -206,13 +206,13 @@ export class WhisperASR {
     Module.full_default(this.instance, audioData, language, nThreads, false);
 
     // Wait for async pthread output to finish.
-    // Once we see a result timestamp, wait 800ms of silence.
+    // Once we see a result timestamp, wait 2s of silence.
     // Before any result, wait up to 4s of silence (covers encoding gap).
     await new Promise<void>((resolve) => {
       const deadline = Date.now() + 15000;
       const check = () => {
         const silence = Date.now() - lastOutputTime;
-        const threshold = hasResult ? 800 : 4000;
+        const threshold = hasResult ? 2000 : 4000;
         if (silence > threshold || Date.now() > deadline) {
           resolve();
           return;
@@ -222,6 +222,8 @@ export class WhisperASR {
       setTimeout(check, 200);
     });
 
+    // Extra grace period to catch any trailing output
+    await new Promise((r) => setTimeout(r, 300));
     window.__whisperCollect = null;
 
     const elapsed = ((performance.now() - start) / 1000).toFixed(1);
