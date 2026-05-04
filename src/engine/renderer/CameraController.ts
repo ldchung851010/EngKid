@@ -130,6 +130,10 @@ export class CameraController {
     this.canOccupy = canOccupy;
   }
 
+  get isMoving(): boolean {
+    return this.moveTarget !== null;
+  }
+
   getPlayerPosition(): THREE.Vector3 {
     return this.playerGroup.position;
   }

@@ -75,36 +75,82 @@ scene.add(new THREE.HemisphereLight(0xffffbb, 0x080820, 0.8));
 
 // ── Player Character ───────────────────────────────────────────
 const playerGroup = new THREE.Group();
-const playerBodyMat = new THREE.MeshStandardMaterial({ color: 0x4caf50, roughness: 0.6, flatShading: true });
-const playerHeadMat = new THREE.MeshStandardMaterial({ color: 0xffccbc, roughness: 0.5, flatShading: true });
-const playerPantsMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, flatShading: true });
-const playerArmMat = new THREE.MeshStandardMaterial({ color: 0xffccbc, roughness: 0.5, flatShading: true });
+const playerSkinMat = new THREE.MeshStandardMaterial({ color: 0xffccbc, roughness: 0.6, flatShading: true });
+const playerShirtMat = new THREE.MeshStandardMaterial({ color: 0x4caf50, roughness: 0.6, flatShading: true });
+const playerPantsMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.7, flatShading: true });
+const playerShoesMat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.5, flatShading: true });
+const playerHairMat = new THREE.MeshStandardMaterial({ color: 0x4e342e, roughness: 0.8, flatShading: true });
 
-const pBody = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.4), playerBodyMat);
+// Torso
+const pBody = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.72, 0.36), playerShirtMat);
 pBody.position.y = 1.0;
 pBody.castShadow = true;
 playerGroup.add(pBody);
 
-const pHead = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), playerHeadMat);
+// Head with face texture (Minecraft-style)
+const SKIN_COLOR = 0xffccbc;
+const playerFaceCanvas = document.createElement('canvas');
+playerFaceCanvas.width = 64;
+playerFaceCanvas.height = 64;
+drawFaceExpression(playerFaceCanvas, 'idle', SKIN_COLOR);
+const playerFaceTex = new THREE.CanvasTexture(playerFaceCanvas);
+playerFaceTex.minFilter = THREE.NearestFilter;
+playerFaceTex.magFilter = THREE.NearestFilter;
+const playerFaceMat = new THREE.MeshStandardMaterial({ map: playerFaceTex, roughness: 0.6, flatShading: true });
+const headSize = 0.5;
+const pHead = new THREE.Mesh(
+  new THREE.BoxGeometry(headSize, headSize, headSize),
+  [playerSkinMat, playerSkinMat, playerSkinMat, playerSkinMat, playerFaceMat, playerSkinMat],
+);
 pHead.position.y = 1.6;
 pHead.castShadow = true;
 playerGroup.add(pHead);
 
-const pLeg1 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.5, 0.2), playerPantsMat);
-pLeg1.position.set(-0.2, 0.25, 0);
-pLeg1.castShadow = true;
-playerGroup.add(pLeg1);
+// Hair
+const pHair = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.16, 0.56), playerHairMat);
+pHair.position.y = 1.88;
+pHair.castShadow = true;
+playerGroup.add(pHair);
 
-const pLeg2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.5, 0.2), playerPantsMat);
-pLeg2.position.set(0.2, 0.25, 0);
-pLeg2.castShadow = true;
-playerGroup.add(pLeg2);
+// Legs (pivot at hip via Group)
+const pLegL = new THREE.Group();
+pLegL.position.set(-0.17, 0.55, 0);
+playerGroup.add(pLegL);
+const pLegLMesh = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.51, 0.22), playerPantsMat);
+pLegLMesh.position.y = -0.255;
+pLegLMesh.castShadow = true;
+pLegL.add(pLegLMesh);
+const pShoeL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.08, 0.28), playerShoesMat);
+pShoeL.position.set(0, -0.51, 0.03);
+pLegL.add(pShoeL);
 
-const pArm = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.5, 0.2), playerArmMat);
-pArm.position.set(0.5, 1.1, 0);
-pArm.rotation.z = -0.3;
-pArm.castShadow = true;
-playerGroup.add(pArm);
+const pLegR = new THREE.Group();
+pLegR.position.set(0.17, 0.55, 0);
+playerGroup.add(pLegR);
+const pLegRMesh = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.51, 0.22), playerPantsMat);
+pLegRMesh.position.y = -0.255;
+pLegRMesh.castShadow = true;
+pLegR.add(pLegRMesh);
+const pShoeR = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.08, 0.28), playerShoesMat);
+pShoeR.position.set(0, -0.51, 0.03);
+pLegR.add(pShoeR);
+
+// Arms (pivot at shoulder via Group)
+const pArmL = new THREE.Group();
+pArmL.position.set(-0.42, 1.32, 0);
+playerGroup.add(pArmL);
+const pArmLMesh = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.56, 0.2), playerSkinMat);
+pArmLMesh.position.y = -0.28;
+pArmLMesh.castShadow = true;
+pArmL.add(pArmLMesh);
+
+const pArmR = new THREE.Group();
+pArmR.position.set(0.42, 1.32, 0);
+playerGroup.add(pArmR);
+const pArmRMesh = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.56, 0.2), playerSkinMat);
+pArmRMesh.position.y = -0.28;
+pArmRMesh.castShadow = true;
+pArmR.add(pArmRMesh);
 
 scene.add(playerGroup);
 
@@ -114,7 +160,7 @@ const controller = new CameraController(camera, playerGroup, renderer.domElement
 const collisionWorld = new CollisionWorld();
 const pathGrid = new PathGrid();
 const PLAYER_COLLISION_RADIUS = 0.62;
-const NPC_INTERACTION_RADIUS_PADDING = 1.25;
+const NPC_INTERACTION_RADIUS_PADDING = 0.25;
 const COLLECTIBLE_INTERACTION_RADIUS = 3.25;
 const tts = new TTSEngine();
 const intentRouter = new IntentRouter('/api');
@@ -1226,12 +1272,30 @@ renderer.domElement.addEventListener('mousemove', (e: MouseEvent) => {
 
 // ── Render Loop ────────────────────────────────────────────────
 const clock = new THREE.Clock();
+let walkPhase = 0;
 
 function animate(): void {
   requestAnimationFrame(animate);
 
   const delta = Math.min(clock.getDelta(), 0.1); // Cap delta
   controller.update(delta);
+
+  // Player walk animation
+  if (controller.isMoving) {
+    walkPhase += delta * 10;
+    const legSwing = Math.sin(walkPhase) * 0.45;
+    const armSwing = Math.sin(walkPhase) * 0.35;
+    pLegL.rotation.x = legSwing;
+    pLegR.rotation.x = -legSwing;
+    pArmL.rotation.x = -armSwing;
+    pArmR.rotation.x = armSwing;
+  } else {
+    walkPhase = 0;
+    pLegL.rotation.x = 0;
+    pLegR.rotation.x = 0;
+    pArmL.rotation.x = 0;
+    pArmR.rotation.x = 0;
+  }
 
   collectibleManager?.update(delta);
   animatePortal(delta, clock.elapsedTime);
