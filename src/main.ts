@@ -260,14 +260,6 @@ function createPortal(config: SceneConfig): THREE.Group {
   lintel.castShadow = true;
   group.add(lintel);
 
-  // ── Arch decoration (top semi-cylinder) ──
-  const archGeo = new THREE.CylinderGeometry(portalW / 2 + pillarW / 2, portalW / 2 + pillarW / 2, pillarD + 0.04, 32, 1, false, 0, Math.PI);
-  const arch = new THREE.Mesh(archGeo, frameMat);
-  arch.position.set(0, baseTop + portalH + lintelH + (portalW / 2 + pillarW / 2) * 0.02, 0);
-  arch.rotation.z = Math.PI;
-  arch.castShadow = true;
-  group.add(arch);
-
   // ── Trim: thin glowing edges on pillars ──
   const trimGeo = new THREE.BoxGeometry(pillarW + 0.04, portalH + 0.02, 0.02);
   const leftTrim = new THREE.Mesh(trimGeo, trimMat);
