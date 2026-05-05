@@ -1,11 +1,5 @@
-import crypto from 'crypto';
-import fs from 'fs/promises';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DEFAULT_CACHE_DIR = path.resolve(__dirname, '../../data/example-cache');
-const CACHE_DIR = process.env.EXAMPLE_CACHE_DIR || DEFAULT_CACHE_DIR;
+import { getConfig } from '../config.js';
+import { getCacheFs } from './cacheFs.js';
 
 export const EXAMPLE_PROMPT_VERSION = 1;
 
@@ -22,8 +16,15 @@ export interface CachedExample {
 }
 
 export async function readCachedExample(keyInput: ExampleCacheKeyInput): Promise<CachedExample | null> {
+  const cacheDir = getConfig().exampleCacheDir;
+  if (!cacheDir) return null;
+
+  const fs = getCacheFs();
+  if (!fs) return null;
+
   try {
-    const raw = await fs.readFile(cachePath(keyInput), 'utf-8');
+    const filePath = `${cacheDir}/${await cacheKey(keyInput)}.json`;
+    const raw = await fs.readFileUtf8(filePath);
     const parsed = JSON.parse(raw) as Partial<CachedExample>;
     if (typeof parsed.sentence !== 'string' || typeof parsed.explanation !== 'string') return null;
     return { sentence: parsed.sentence, explanation: parsed.explanation };
@@ -33,26 +34,32 @@ export async function readCachedExample(keyInput: ExampleCacheKeyInput): Promise
 }
 
 export async function writeCachedExample(keyInput: ExampleCacheKeyInput, example: CachedExample): Promise<void> {
-  await fs.mkdir(CACHE_DIR, { recursive: true });
-  await fs.writeFile(cachePath(keyInput), JSON.stringify(example, null, 2));
+  const cacheDir = getConfig().exampleCacheDir;
+  if (!cacheDir) return;
+
+  const fs = getCacheFs();
+  if (!fs) return;
+
+  await fs.mkdir(cacheDir, { recursive: true });
+  const filePath = `${cacheDir}/${await cacheKey(keyInput)}.json`;
+  await fs.writeFile(filePath, JSON.stringify(example, null, 2));
 }
 
-function cachePath(keyInput: ExampleCacheKeyInput): string {
-  return path.join(CACHE_DIR, `${cacheKey(keyInput)}.json`);
-}
-
-function cacheKey(keyInput: ExampleCacheKeyInput): string {
-  return crypto
-    .createHash('sha256')
-    .update(JSON.stringify({
-      word: normalizeWord(keyInput.word),
-      cefrLevel: keyInput.cefrLevel,
-      model: keyInput.model,
-      promptVersion: keyInput.promptVersion,
-    }))
-    .digest('hex');
+async function cacheKey(keyInput: ExampleCacheKeyInput): Promise<string> {
+  return sha256Hex(JSON.stringify({
+    word: normalizeWord(keyInput.word),
+    cefrLevel: keyInput.cefrLevel,
+    model: keyInput.model,
+    promptVersion: keyInput.promptVersion,
+  }));
 }
 
 function normalizeWord(word: string): string {
   return word.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, '0')).join('');
 }

@@ -1,11 +1,5 @@
-import crypto from 'crypto';
-import fs from 'fs/promises';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DEFAULT_CACHE_DIR = path.resolve(__dirname, '../../data/tts-cache');
-const CACHE_DIR = process.env.TTS_CACHE_DIR || DEFAULT_CACHE_DIR;
+import { getConfig } from '../config.js';
+import { getCacheFs } from './cacheFs.js';
 
 export interface TTSCacheKeyInput {
   input: string;
@@ -13,34 +7,47 @@ export interface TTSCacheKeyInput {
   speed: number;
 }
 
-export async function readCachedTTS(keyInput: TTSCacheKeyInput): Promise<Buffer | null> {
+export async function readCachedTTS(keyInput: TTSCacheKeyInput): Promise<Uint8Array | null> {
+  const cacheDir = getConfig().ttsCacheDir;
+  if (!cacheDir) return null;
+
+  const fs = getCacheFs();
+  if (!fs) return null;
+
   try {
-    return await fs.readFile(cachePath(keyInput));
+    const filePath = `${cacheDir}/${await cacheKey(keyInput)}.wav`;
+    return await fs.readFile(filePath);
   } catch {
     return null;
   }
 }
 
-export async function writeCachedTTS(keyInput: TTSCacheKeyInput, wavBuffer: Buffer): Promise<void> {
-  await fs.mkdir(CACHE_DIR, { recursive: true });
-  await fs.writeFile(cachePath(keyInput), wavBuffer);
+export async function writeCachedTTS(keyInput: TTSCacheKeyInput, wavBuffer: Uint8Array): Promise<void> {
+  const cacheDir = getConfig().ttsCacheDir;
+  if (!cacheDir) return;
+
+  const fs = getCacheFs();
+  if (!fs) return;
+
+  await fs.mkdir(cacheDir, { recursive: true });
+  const filePath = `${cacheDir}/${await cacheKey(keyInput)}.wav`;
+  await fs.writeFile(filePath, wavBuffer);
 }
 
-export function cachePath(keyInput: TTSCacheKeyInput): string {
-  return path.join(CACHE_DIR, `${cacheKey(keyInput)}.wav`);
+async function cacheKey(keyInput: TTSCacheKeyInput): Promise<string> {
+  return sha256Hex(JSON.stringify({
+    input: keyInput.input,
+    voice: keyInput.voice,
+    speed: keyInput.speed,
+    format: 'wav',
+    sampleRate: 24000,
+    channels: 1,
+    bitDepth: 16,
+  }));
 }
 
-function cacheKey(keyInput: TTSCacheKeyInput): string {
-  return crypto
-    .createHash('sha256')
-    .update(JSON.stringify({
-      input: keyInput.input,
-      voice: keyInput.voice,
-      speed: keyInput.speed,
-      format: 'wav',
-      sampleRate: 24000,
-      channels: 1,
-      bitDepth: 16,
-    }))
-    .digest('hex');
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, '0')).join('');
 }

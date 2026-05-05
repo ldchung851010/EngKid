@@ -1,32 +1,45 @@
 /**
  * Convert raw PCM buffer to WAV format buffer.
+ * Uses DataView for cross-platform compatibility (Node.js and Workers).
  */
 export function pcmToWav(
-  pcm: Buffer,
+  pcm: Uint8Array,
   sampleRate: number,
   numChannels: number,
   bitsPerSample: number
-): Buffer {
+): Uint8Array {
   const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
   const blockAlign = numChannels * (bitsPerSample / 8);
   const dataSize = pcm.length;
   const headerSize = 44;
-  const buf = Buffer.alloc(headerSize + dataSize);
+  const buf = new ArrayBuffer(headerSize + dataSize);
+  const view = new DataView(buf);
 
-  buf.write('RIFF', 0);
-  buf.writeUInt32LE(36 + dataSize, 4);
-  buf.write('WAVE', 8);
-  buf.write('fmt ', 12);
-  buf.writeUInt32LE(16, 16);
-  buf.writeUInt16LE(1, 20); // PCM format
-  buf.writeUInt16LE(numChannels, 22);
-  buf.writeUInt32LE(sampleRate, 24);
-  buf.writeUInt32LE(byteRate, 28);
-  buf.writeUInt16LE(blockAlign, 32);
-  buf.writeUInt16LE(bitsPerSample, 34);
-  buf.write('data', 36);
-  buf.writeUInt32LE(dataSize, 40);
-  pcm.copy(buf, 44);
+  // RIFF header
+  writeAscii(view, 0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeAscii(view, 8, 'WAVE');
 
-  return buf;
+  // fmt chunk
+  writeAscii(view, 12, 'fmt ');
+  view.setUint32(16, 16, true); // chunk size
+  view.setUint16(20, 1, true);  // PCM format
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitsPerSample, true);
+
+  // data chunk
+  writeAscii(view, 36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  new Uint8Array(buf, headerSize).set(pcm);
+  return new Uint8Array(buf);
+}
+
+function writeAscii(view: DataView, offset: number, str: string): void {
+  for (let i = 0; i < str.length; i++) {
+    view.setUint8(offset + i, str.charCodeAt(i));
+  }
 }

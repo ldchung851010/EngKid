@@ -25,19 +25,19 @@ const HOUR_MS = 60 * 60 * 1000;
 const counters = new Map<string, CounterBucket>();
 
 const configs: Record<QuotaResource, QuotaConfig> = {
-  ai: {
-    dailyLimit: readPositiveInt('AI_DAILY_LIMIT', 5000),
-    ipHourlyLimit: readPositiveInt('AI_IP_HOURLY_LIMIT', 300),
-  },
-  tts: {
-    dailyLimit: readPositiveInt('TTS_DAILY_LIMIT', 10000),
-    ipHourlyLimit: readPositiveInt('TTS_IP_HOURLY_LIMIT', 600),
-  },
-  asr: {
-    dailyLimit: readPositiveInt('ASR_DAILY_LIMIT', 5000),
-    ipHourlyLimit: readPositiveInt('ASR_IP_HOURLY_LIMIT', 300),
-  },
+  ai: { dailyLimit: 5000, ipHourlyLimit: 300 },
+  tts: { dailyLimit: 10000, ipHourlyLimit: 600 },
+  asr: { dailyLimit: 5000, ipHourlyLimit: 300 },
 };
+
+export function initQuota(overrides?: Partial<Record<QuotaResource, Partial<QuotaConfig>>>): void {
+  if (!overrides) return;
+  for (const [resource, cfg] of Object.entries(overrides)) {
+    const r = resource as QuotaResource;
+    if (cfg.dailyLimit !== undefined) configs[r].dailyLimit = cfg.dailyLimit;
+    if (cfg.ipHourlyLimit !== undefined) configs[r].ipHourlyLimit = cfg.ipHourlyLimit;
+  }
+}
 
 export function consumeQuota(resource: QuotaResource, clientIp: string, amount = 1): QuotaCheck {
   const status = getQuotaStatus(resource, clientIp);
