@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addBox, addLocalBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
+import { addBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
   sand: new THREE.MeshStandardMaterial({ color: 0xffe0a3, roughness: 0.92, flatShading: true }),

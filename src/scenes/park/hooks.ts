@@ -1,7 +1,6 @@
 import type { SceneHooks } from '../../engine/runtime/SceneModule.js';
+import { createBonusIntentsHook } from '../../engine/runtime/bonus-intent-helper.js';
 
 export const parkHooks: SceneHooks = {
-  onIntentMatched(intentId, defaultScore) {
-    return intentId === 'describe_park_item' ? defaultScore + 2 : defaultScore;
-  },
+  ...createBonusIntentsHook({ describe_park_item: 2 }),
 };

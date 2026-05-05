@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addBox, addLocalBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
+import { addBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
   trunk: new THREE.MeshStandardMaterial({ color: 0x795548, roughness: 0.82, flatShading: true }),
@@ -197,7 +197,7 @@ function addAnimalBox(
   scale: [number, number, number],
   material: THREE.Material,
 ): THREE.Mesh {
-  const mesh = addLocalBox(parent, position, scale, material);
+  const mesh = addBox(parent, position, scale, material);
   mesh.userData.collidable = false;
   mesh.userData.zooAnimalPart = part;
   return mesh;
@@ -279,10 +279,10 @@ function addBenches(group: THREE.Group): void {
   for (const z of [5.2]) {
     const bench = new THREE.Group();
     bench.position.set(11, 0, z);
-    addLocalBox(bench, [0, 1.18, 0], [2.3, 0.2, 0.55], mat.trunk);
-    addLocalBox(bench, [0, 1.55, 0.28], [2.3, 0.55, 0.12], mat.trunk);
-    addLocalBox(bench, [-0.8, 0.98, 0], [0.12, 0.36, 0.12], mat.rope);
-    addLocalBox(bench, [0.8, 0.98, 0], [0.12, 0.36, 0.12], mat.rope);
+    addBox(bench, [0, 1.18, 0], [2.3, 0.2, 0.55], mat.trunk);
+    addBox(bench, [0, 1.55, 0.28], [2.3, 0.55, 0.12], mat.trunk);
+    addBox(bench, [-0.8, 0.98, 0], [0.12, 0.36, 0.12], mat.rope);
+    addBox(bench, [0.8, 0.98, 0], [0.12, 0.36, 0.12], mat.rope);
     group.add(bench);
   }
 }

@@ -1,3 +1,5 @@
+import { normalizeWord } from '../shared/normalizeWord.js';
+
 export const LEARNING_DATA_VERSION = 1;
 export const LEARNING_DATA_STORAGE_KEY = 'hi-kid-fun.learning-data';
 export const LEARNING_DATA_MAX_IMPORT_BYTES = 256 * 1024;
@@ -284,9 +286,6 @@ export function normalizeLearningWord(value: string): string {
   return normalizeWord(value);
 }
 
-function normalizeWord(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, ' ');
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

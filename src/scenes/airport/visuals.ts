@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addBox, addLocalBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
+import { addBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
   counter: new THREE.MeshStandardMaterial({ color: 0x90a4ae, roughness: 0.5, flatShading: true }),
@@ -125,10 +125,10 @@ function addPlaneModel(group: THREE.Group): void {
   const plane = new THREE.Group();
   plane.position.set(3.6, 3.35, 2.4);
   plane.rotation.y = -0.45;
-  addLocalBox(plane, [0, 0, 0], [2.2, 0.28, 0.34], mat.white);
-  addLocalBox(plane, [0.65, 0, 0], [0.75, 0.08, 1.45], mat.white);
-  addLocalBox(plane, [-1.0, 0.18, 0], [0.5, 0.1, 0.8], mat.blue);
-  addLocalBox(plane, [1.25, 0, 0], [0.28, 0.22, 0.22], mat.blue);
+  addBox(plane, [0, 0, 0], [2.2, 0.28, 0.34], mat.white);
+  addBox(plane, [0.65, 0, 0], [0.75, 0.08, 1.45], mat.white);
+  addBox(plane, [-1.0, 0.18, 0], [0.5, 0.1, 0.8], mat.blue);
+  addBox(plane, [1.25, 0, 0], [0.28, 0.22, 0.22], mat.blue);
   group.add(plane);
 }
 

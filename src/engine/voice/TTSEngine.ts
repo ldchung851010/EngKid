@@ -113,5 +113,3 @@ export class TTSEngine {
     this.onStatus?.(this.status);
   }
 }
-
-export const ttsEngine = new TTSEngine();

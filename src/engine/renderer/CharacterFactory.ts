@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { NPCConfig } from '../schema/SceneConfig.js';
-import { addLocalBox } from './ScenePrimitives.js';
+import { addBox } from './ScenePrimitives.js';
 
 /** Create a MeshStandardMaterial with flatShading enabled for low-poly look */
 function mat(color: number, opts?: { roughness?: number; metalness?: number; emissive?: number; emissiveIntensity?: number }): THREE.MeshStandardMaterial {
@@ -215,21 +215,21 @@ function createWaiterModel(npc: NPCConfig): THREE.Group {
   const black = mat(0x111111, { roughness: 0.6 });
   const tray = mat(0xcfd8dc, { roughness: 0.35, metalness: 0.2 });
 
-  addLocalBox(group, [0, 0.34, 0], [0.22, 0.68, 0.22], pants);
-  addLocalBox(group, [-0.16, 0.34, 0], [0.2, 0.68, 0.22], pants);
-  addLocalBox(group, [0.08, 0.03, 0.08], [0.28, 0.12, 0.34], shoes);
-  addLocalBox(group, [-0.2, 0.03, 0.08], [0.28, 0.12, 0.34], shoes);
-  addLocalBox(group, [-0.04, 0.95, 0], [0.66, 0.78, 0.34], shirt);
-  addLocalBox(group, [-0.04, 0.96, 0.18], [0.45, 0.62, 0.05], apron);
-  addLocalBox(group, [-0.04, 1.22, 0.22], [0.12, 0.08, 0.04], black);
-  addLocalBox(group, [-0.48, 0.98, 0], [0.18, 0.68, 0.18], skin);
-  addLocalBox(group, [0.4, 0.98, 0], [0.18, 0.68, 0.18], skin);
-  addLocalBox(group, [0.54, 0.88, 0.22], [0.5, 0.06, 0.32], tray);
-  addLocalBox(group, [0.54, 0.95, 0.22], [0.18, 0.08, 0.18], mat(0xfff176, { roughness: 0.5 }));
+  addBox(group, [0, 0.34, 0], [0.22, 0.68, 0.22], pants);
+  addBox(group, [-0.16, 0.34, 0], [0.2, 0.68, 0.22], pants);
+  addBox(group, [0.08, 0.03, 0.08], [0.28, 0.12, 0.34], shoes);
+  addBox(group, [-0.2, 0.03, 0.08], [0.28, 0.12, 0.34], shoes);
+  addBox(group, [-0.04, 0.95, 0], [0.66, 0.78, 0.34], shirt);
+  addBox(group, [-0.04, 0.96, 0.18], [0.45, 0.62, 0.05], apron);
+  addBox(group, [-0.04, 1.22, 0.22], [0.12, 0.08, 0.04], black);
+  addBox(group, [-0.48, 0.98, 0], [0.18, 0.68, 0.18], skin);
+  addBox(group, [0.4, 0.98, 0], [0.18, 0.68, 0.18], skin);
+  addBox(group, [0.54, 0.88, 0.22], [0.5, 0.06, 0.32], tray);
+  addBox(group, [0.54, 0.95, 0.22], [0.18, 0.08, 0.18], mat(0xfff176, { roughness: 0.5 }));
 
   // Head with face texture
   addFaceHead(group, 1.55, 0.52, 0xffc7a3);
-  addLocalBox(group, [0, 1.84, 0], [0.58, 0.18, 0.58], hair);
+  addBox(group, [0, 1.84, 0], [0.58, 0.18, 0.58], hair);
 
   return group;
 }
@@ -244,17 +244,17 @@ function createDefaultCharacter(npc: NPCConfig): THREE.Group {
   const shoes = mat(0x111111, { roughness: 0.5 });
   const hair = mat(0x4e342e, { roughness: 0.75 });
 
-  addLocalBox(group, [-0.14, 0.34, 0], [0.2, 0.68, 0.22], pants);
-  addLocalBox(group, [0.14, 0.34, 0], [0.2, 0.68, 0.22], pants);
-  addLocalBox(group, [-0.14, 0.03, 0.08], [0.28, 0.12, 0.34], shoes);
-  addLocalBox(group, [0.14, 0.03, 0.08], [0.28, 0.12, 0.34], shoes);
-  addLocalBox(group, [0, 0.95, 0], [0.64, 0.76, 0.34], shirt);
-  addLocalBox(group, [-0.47, 0.98, 0], [0.18, 0.64, 0.18], skin);
-  addLocalBox(group, [0.47, 0.98, 0], [0.18, 0.64, 0.18], skin);
+  addBox(group, [-0.14, 0.34, 0], [0.2, 0.68, 0.22], pants);
+  addBox(group, [0.14, 0.34, 0], [0.2, 0.68, 0.22], pants);
+  addBox(group, [-0.14, 0.03, 0.08], [0.28, 0.12, 0.34], shoes);
+  addBox(group, [0.14, 0.03, 0.08], [0.28, 0.12, 0.34], shoes);
+  addBox(group, [0, 0.95, 0], [0.64, 0.76, 0.34], shirt);
+  addBox(group, [-0.47, 0.98, 0], [0.18, 0.64, 0.18], skin);
+  addBox(group, [0.47, 0.98, 0], [0.18, 0.64, 0.18], skin);
 
   // Head with face texture
   addFaceHead(group, 1.55, 0.52, 0xffc7a3);
-  addLocalBox(group, [0, 1.84, 0], [0.58, 0.18, 0.58], hair);
+  addBox(group, [0, 1.84, 0], [0.58, 0.18, 0.58], hair);
 
   return group;
 }
@@ -275,26 +275,26 @@ function createAirportAgentModel(npc: NPCConfig): THREE.Group {
   const cap = mat(0x1a237e, { roughness: 0.45 });
 
   // Legs + shoes
-  addLocalBox(group, [-0.16, 0.34, 0], [0.2, 0.68, 0.22], pantsN);
-  addLocalBox(group, [0.16, 0.34, 0], [0.2, 0.68, 0.22], pantsN);
-  addLocalBox(group, [-0.16, 0.03, 0.08], [0.28, 0.12, 0.34], shoesN);
-  addLocalBox(group, [0.16, 0.03, 0.08], [0.28, 0.12, 0.34], shoesN);
+  addBox(group, [-0.16, 0.34, 0], [0.2, 0.68, 0.22], pantsN);
+  addBox(group, [0.16, 0.34, 0], [0.2, 0.68, 0.22], pantsN);
+  addBox(group, [-0.16, 0.03, 0.08], [0.28, 0.12, 0.34], shoesN);
+  addBox(group, [0.16, 0.03, 0.08], [0.28, 0.12, 0.34], shoesN);
   // Torso (blazer over white shirt)
-  addLocalBox(group, [0, 0.95, 0], [0.68, 0.78, 0.34], blazer);
-  addLocalBox(group, [0, 0.95, 0.12], [0.36, 0.62, 0.06], shirtW);
+  addBox(group, [0, 0.95, 0], [0.68, 0.78, 0.34], blazer);
+  addBox(group, [0, 0.95, 0.12], [0.36, 0.62, 0.06], shirtW);
   // Tie
-  addLocalBox(group, [0, 1.16, 0.22], [0.1, 0.28, 0.04], tie);
+  addBox(group, [0, 1.16, 0.22], [0.1, 0.28, 0.04], tie);
   // Badge
-  addLocalBox(group, [0.18, 1.28, 0.22], [0.12, 0.1, 0.03], badge);
+  addBox(group, [0.18, 1.28, 0.22], [0.12, 0.1, 0.03], badge);
   // Arms
-  addLocalBox(group, [-0.50, 0.98, 0], [0.18, 0.68, 0.18], blazer);
-  addLocalBox(group, [0.50, 0.98, 0], [0.18, 0.68, 0.18], blazer);
+  addBox(group, [-0.50, 0.98, 0], [0.18, 0.68, 0.18], blazer);
+  addBox(group, [0.50, 0.98, 0], [0.18, 0.68, 0.18], blazer);
 
   // Head with face texture
   addFaceHead(group, 1.55, 0.52, 0xffc7a3);
-  addLocalBox(group, [0, 1.84, 0], [0.58, 0.18, 0.58], hair);
+  addBox(group, [0, 1.84, 0], [0.58, 0.18, 0.58], hair);
   // Cap brim
-  addLocalBox(group, [0, 1.83, 0.27], [0.7, 0.06, 0.16], cap);
+  addBox(group, [0, 1.83, 0.27], [0.7, 0.06, 0.16], cap);
 
   return group;
 }
@@ -313,21 +313,21 @@ function createReceptionistModel(npc: NPCConfig): THREE.Group {
   const nametag = mat(0xffffff, { roughness: 0.4 });
 
   // Legs/skirt + shoes
-  addLocalBox(group, [0, 0.34, 0], [0.42, 0.56, 0.22], skirt);
-  addLocalBox(group, [-0.14, 0.03, 0.08], [0.24, 0.1, 0.3], heels);
-  addLocalBox(group, [0.14, 0.03, 0.08], [0.24, 0.1, 0.3], heels);
+  addBox(group, [0, 0.34, 0], [0.42, 0.56, 0.22], skirt);
+  addBox(group, [-0.14, 0.03, 0.08], [0.24, 0.1, 0.3], heels);
+  addBox(group, [0.14, 0.03, 0.08], [0.24, 0.1, 0.3], heels);
   // Torso
-  addLocalBox(group, [0, 0.95, 0], [0.62, 0.74, 0.32], blazerR);
-  addLocalBox(group, [0, 0.95, 0.1], [0.36, 0.58, 0.06], blouse);
+  addBox(group, [0, 0.95, 0], [0.62, 0.74, 0.32], blazerR);
+  addBox(group, [0, 0.95, 0.1], [0.36, 0.58, 0.06], blouse);
   // Nametag
-  addLocalBox(group, [0.16, 1.30, 0.2], [0.14, 0.08, 0.03], nametag);
+  addBox(group, [0.16, 1.30, 0.2], [0.14, 0.08, 0.03], nametag);
   // Arms
-  addLocalBox(group, [-0.47, 0.98, 0], [0.18, 0.66, 0.18], blazerR);
-  addLocalBox(group, [0.47, 0.98, 0], [0.18, 0.66, 0.18], blazerR);
+  addBox(group, [-0.47, 0.98, 0], [0.18, 0.66, 0.18], blazerR);
+  addBox(group, [0.47, 0.98, 0], [0.18, 0.66, 0.18], blazerR);
 
   // Head with face texture
   addFaceHead(group, 1.53, 0.5, 0xffcc99);
-  addLocalBox(group, [0, 1.78, 0], [0.58, 0.22, 0.58], hair);
+  addBox(group, [0, 1.78, 0], [0.58, 0.22, 0.58], hair);
 
   return group;
 }
@@ -347,23 +347,23 @@ function createTeacherModel(npc: NPCConfig): THREE.Group {
   const bookPage = mat(0xfff8e1, { roughness: 0.55 });
 
   // Legs + shoes
-  addLocalBox(group, [-0.14, 0.34, 0], [0.2, 0.66, 0.22], pantsG);
-  addLocalBox(group, [0.14, 0.34, 0], [0.2, 0.66, 0.22], pantsG);
-  addLocalBox(group, [-0.14, 0.03, 0.08], [0.26, 0.1, 0.3], flats);
-  addLocalBox(group, [0.14, 0.03, 0.08], [0.26, 0.1, 0.3], flats);
+  addBox(group, [-0.14, 0.34, 0], [0.2, 0.66, 0.22], pantsG);
+  addBox(group, [0.14, 0.34, 0], [0.2, 0.66, 0.22], pantsG);
+  addBox(group, [-0.14, 0.03, 0.08], [0.26, 0.1, 0.3], flats);
+  addBox(group, [0.14, 0.03, 0.08], [0.26, 0.1, 0.3], flats);
   // Torso (cardigan over dress)
-  addLocalBox(group, [0, 0.94, 0], [0.64, 0.76, 0.33], cardigan);
-  addLocalBox(group, [0, 0.94, 0.08], [0.38, 0.6, 0.06], dress);
+  addBox(group, [0, 0.94, 0], [0.64, 0.76, 0.33], cardigan);
+  addBox(group, [0, 0.94, 0.08], [0.38, 0.6, 0.06], dress);
   // Arms
-  addLocalBox(group, [-0.48, 0.98, 0], [0.18, 0.64, 0.18], cardigan);
-  addLocalBox(group, [0.48, 0.98, 0], [0.18, 0.64, 0.18], cardigan);
+  addBox(group, [-0.48, 0.98, 0], [0.18, 0.64, 0.18], cardigan);
+  addBox(group, [0.48, 0.98, 0], [0.18, 0.64, 0.18], cardigan);
   // Book in right arm area
-  addLocalBox(group, [0.52, 0.98, -0.22], [0.24, 0.16, 0.18], book);
-  addLocalBox(group, [0.52, 0.98, -0.18], [0.2, 0.12, 0.04], bookPage);
+  addBox(group, [0.52, 0.98, -0.22], [0.24, 0.16, 0.18], book);
+  addBox(group, [0.52, 0.98, -0.18], [0.2, 0.12, 0.04], bookPage);
 
   // Head with face texture
   addFaceHead(group, 1.53, 0.5, 0xffcc99);
-  addLocalBox(group, [0, 1.81, 0], [0.56, 0.2, 0.56], hair);
+  addBox(group, [0, 1.81, 0], [0.56, 0.2, 0.56], hair);
 
   return group;
 }
@@ -383,25 +383,25 @@ function createZookeeperModel(npc: NPCConfig): THREE.Group {
   const khakiGreen = mat(0x9ccc65, { roughness: 0.65 });
 
   // Legs + boots
-  addLocalBox(group, [-0.14, 0.34, 0], [0.2, 0.62, 0.22], shorts);
-  addLocalBox(group, [0.14, 0.34, 0], [0.2, 0.62, 0.22], shorts);
-  addLocalBox(group, [-0.14, 0.03, 0.08], [0.26, 0.16, 0.32], boots);
-  addLocalBox(group, [0.14, 0.03, 0.08], [0.26, 0.16, 0.32], boots);
+  addBox(group, [-0.14, 0.34, 0], [0.2, 0.62, 0.22], shorts);
+  addBox(group, [0.14, 0.34, 0], [0.2, 0.62, 0.22], shorts);
+  addBox(group, [-0.14, 0.03, 0.08], [0.26, 0.16, 0.32], boots);
+  addBox(group, [0.14, 0.03, 0.08], [0.26, 0.16, 0.32], boots);
   // Torso (green t-shirt)
-  addLocalBox(group, [0, 0.93, 0], [0.62, 0.72, 0.32], tee);
-  addLocalBox(group, [0, 0.93, 0.15], [0.3, 0.28, 0.05], khakiGreen);
+  addBox(group, [0, 0.93, 0], [0.62, 0.72, 0.32], tee);
+  addBox(group, [0, 0.93, 0.15], [0.3, 0.28, 0.05], khakiGreen);
   // Arms (short sleeves)
-  addLocalBox(group, [-0.47, 0.96, 0], [0.18, 0.56, 0.18], tee);
-  addLocalBox(group, [0.47, 0.96, 0], [0.18, 0.56, 0.18], tee);
+  addBox(group, [-0.47, 0.96, 0], [0.18, 0.56, 0.18], tee);
+  addBox(group, [0.47, 0.96, 0], [0.18, 0.56, 0.18], tee);
   // Feed bucket
-  addLocalBox(group, [0.46, 0.86, -0.16], [0.2, 0.22, 0.2], mat(0x78909c, { roughness: 0.5, metalness: 0.2 }));
+  addBox(group, [0.46, 0.86, -0.16], [0.2, 0.22, 0.2], mat(0x78909c, { roughness: 0.5, metalness: 0.2 }));
 
   // Head with face texture
   addFaceHead(group, 1.53, 0.5, 0xffcc99);
-  addLocalBox(group, [0, 1.78, 0], [0.54, 0.2, 0.54], hair);
+  addBox(group, [0, 1.78, 0], [0.54, 0.2, 0.54], hair);
   // Safari hat
-  addLocalBox(group, [0, 1.88, 0], [0.66, 0.08, 0.6], hatBand);
-  addLocalBox(group, [0, 1.96, 0], [0.6, 0.12, 0.54], hat);
+  addBox(group, [0, 1.88, 0], [0.66, 0.08, 0.6], hatBand);
+  addBox(group, [0, 1.96, 0], [0.6, 0.12, 0.54], hat);
 
   return group;
 }

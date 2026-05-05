@@ -17,8 +17,8 @@ import { TTSEngine } from './engine/voice/TTSEngine.js';
 import { MicButton } from './engine/voice/MicButton.js';
 import type { NPCConfig, DialogueNode, SceneConfig } from './engine/schema/SceneConfig.js';
 import { emptySceneHooks, type SceneHooks, type SceneModule } from './engine/runtime/SceneModule.js';
-import type { FaceExpression } from './engine/renderer/CharacterFactory.js';
-import { drawFaceExpression } from './engine/renderer/CharacterFactory.js';
+import { createPlayerCharacter, animatePlayerWalk } from './engine/renderer/PlayerCharacter.js';
+import { NPCAnimator } from './engine/renderer/NPCAnimator.js';
 import { CollectibleManager } from './engine/collectibles/index.js';
 import { learningDataStore } from './engine/runtime/LearningDataStore.js';
 
@@ -74,84 +74,7 @@ scene.add(sun);
 scene.add(new THREE.HemisphereLight(0xffffbb, 0x080820, 0.8));
 
 // ── Player Character ───────────────────────────────────────────
-const playerGroup = new THREE.Group();
-const playerSkinMat = new THREE.MeshStandardMaterial({ color: 0xffccbc, roughness: 0.6, flatShading: true });
-const playerShirtMat = new THREE.MeshStandardMaterial({ color: 0x4caf50, roughness: 0.6, flatShading: true });
-const playerPantsMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.7, flatShading: true });
-const playerShoesMat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.5, flatShading: true });
-const playerHairMat = new THREE.MeshStandardMaterial({ color: 0x4e342e, roughness: 0.8, flatShading: true });
-
-// Torso
-const pBody = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.72, 0.36), playerShirtMat);
-pBody.position.y = 1.0;
-pBody.castShadow = true;
-playerGroup.add(pBody);
-
-// Head with face texture (Minecraft-style)
-const SKIN_COLOR = 0xffccbc;
-const playerFaceCanvas = document.createElement('canvas');
-playerFaceCanvas.width = 64;
-playerFaceCanvas.height = 64;
-drawFaceExpression(playerFaceCanvas, 'idle', SKIN_COLOR);
-const playerFaceTex = new THREE.CanvasTexture(playerFaceCanvas);
-playerFaceTex.minFilter = THREE.NearestFilter;
-playerFaceTex.magFilter = THREE.NearestFilter;
-const playerFaceMat = new THREE.MeshStandardMaterial({ map: playerFaceTex, roughness: 0.6, flatShading: true });
-const headSize = 0.5;
-const pHead = new THREE.Mesh(
-  new THREE.BoxGeometry(headSize, headSize, headSize),
-  [playerSkinMat, playerSkinMat, playerSkinMat, playerSkinMat, playerFaceMat, playerSkinMat],
-);
-pHead.position.y = 1.6;
-pHead.castShadow = true;
-playerGroup.add(pHead);
-
-// Hair
-const pHair = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.16, 0.56), playerHairMat);
-pHair.position.y = 1.88;
-pHair.castShadow = true;
-playerGroup.add(pHair);
-
-// Legs (pivot at hip via Group)
-const pLegL = new THREE.Group();
-pLegL.position.set(-0.17, 0.55, 0);
-playerGroup.add(pLegL);
-const pLegLMesh = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.51, 0.22), playerPantsMat);
-pLegLMesh.position.y = -0.255;
-pLegLMesh.castShadow = true;
-pLegL.add(pLegLMesh);
-const pShoeL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.08, 0.28), playerShoesMat);
-pShoeL.position.set(0, -0.51, 0.03);
-pLegL.add(pShoeL);
-
-const pLegR = new THREE.Group();
-pLegR.position.set(0.17, 0.55, 0);
-playerGroup.add(pLegR);
-const pLegRMesh = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.51, 0.22), playerPantsMat);
-pLegRMesh.position.y = -0.255;
-pLegRMesh.castShadow = true;
-pLegR.add(pLegRMesh);
-const pShoeR = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.08, 0.28), playerShoesMat);
-pShoeR.position.set(0, -0.51, 0.03);
-pLegR.add(pShoeR);
-
-// Arms (pivot at shoulder via Group)
-const pArmL = new THREE.Group();
-pArmL.position.set(-0.42, 1.32, 0);
-playerGroup.add(pArmL);
-const pArmLMesh = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.56, 0.2), playerSkinMat);
-pArmLMesh.position.y = -0.28;
-pArmLMesh.castShadow = true;
-pArmL.add(pArmLMesh);
-
-const pArmR = new THREE.Group();
-pArmR.position.set(0.42, 1.32, 0);
-playerGroup.add(pArmR);
-const pArmRMesh = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.56, 0.2), playerSkinMat);
-pArmRMesh.position.y = -0.28;
-pArmRMesh.castShadow = true;
-pArmR.add(pArmRMesh);
-
+const { group: playerGroup, limbs: playerLimbs } = createPlayerCharacter();
 scene.add(playerGroup);
 
 // ── Engine Components ──────────────────────────────────────────
@@ -178,18 +101,7 @@ interface NPCStatusIndicator {
 }
 const npcStatusIndicators = new Map<string, NPCStatusIndicator>();
 
-// NPC animation state
-interface NPCAnimState {
-  baseY: number;
-  bobPhase: number;
-  currentExpression: FaceExpression;
-  /** 0-1 smoothed proximity factor */
-  proximity: number;
-}
-const npcAnimStates = new Map<string, NPCAnimState>();
-const NPC_AWARENESS_RADIUS = 10;
-const NPC_HAPPY_RADIUS = 3;
-const NPC_CURIOUS_RADIUS = 6;
+const npcAnimator = new NPCAnimator();
 let collectibleManager: CollectibleManager | null = null;
 type InteractionTarget =
   | { type: 'npc'; npc: NPCConfig; distance: number }
@@ -203,102 +115,6 @@ function navigateToHome(): void {
 function animateSceneVisuals(delta: number, elapsed: number): void {
   if (!sceneVisualGroup) return;
   activeSceneModule?.animateVisuals?.(sceneVisualGroup, delta, elapsed);
-}
-
-// ── NPC Liveliness ──────────────────────────────────────────
-function initNPCAnimState(npcId: string, baseY: number): void {
-  npcAnimStates.set(npcId, {
-    baseY,
-    bobPhase: Math.random() * Math.PI * 2,
-    currentExpression: 'idle',
-    proximity: 0,
-  });
-}
-
-function getNPCExpression(
-  npcId: string,
-  distance: number,
-): FaceExpression {
-  // During active dialogue, status indicator handles it; use 'talking'/'thinking'
-  if (activeNPC?.id === npcId) {
-    if (activeNodeId) return 'talking';
-    return 'curious';
-  }
-
-  if (distance < NPC_HAPPY_RADIUS) return 'happy';
-  if (distance < NPC_CURIOUS_RADIUS) return 'curious';
-  return 'idle';
-}
-
-function animateNPCs(delta: number): void {
-  const now = performance.now() * 0.001;
-
-  for (const group of npcMeshes) {
-    const npcId = group.userData.npcId as string;
-    if (!npcId) continue;
-
-    let state = npcAnimStates.get(npcId);
-    if (!state) continue;
-
-    const npcPos = group.position;
-    const dx = playerGroup.position.x - npcPos.x;
-    const dz = playerGroup.position.z - npcPos.z;
-    const dist = Math.sqrt(dx * dx + dz * dz);
-    const awarenessFactor = Math.max(0, 1 - dist / NPC_AWARENESS_RADIUS);
-
-    // Smooth proximity (for expression transitions)
-    const targetProx = Math.max(0, 1 - dist / NPC_CURIOUS_RADIUS);
-    state.proximity += (targetProx - state.proximity) * delta * 3;
-
-    // ── Auto-face player ───────────────────────────────
-    if (dist < NPC_AWARENESS_RADIUS && dist > 0.1) {
-      const targetAngle = Math.atan2(dx, dz);
-      // Normalize angle difference
-      let diff = targetAngle - group.rotation.y;
-      while (diff > Math.PI) diff -= Math.PI * 2;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-      group.rotation.y += diff * delta * 3.5;
-    }
-
-    // ── Idle bobbing ──────────────────────────────────
-    const bobIntensity = 0.03 + awarenessFactor * 0.015;
-    const bob = Math.sin(now * 1.8 + state.bobPhase) * bobIntensity;
-    group.position.y = state.baseY + bob;
-
-    // ── Look up/down toward camera ────────────────────
-    if (awarenessFactor > 0.3) {
-      const headTarget = group.children.find(
-        (c) => c instanceof THREE.Sprite && c.userData.isFace,
-      );
-      if (headTarget) {
-        const dy = playerGroup.position.y - (npcPos.y + 1.55);
-        const targetPitch = Math.atan2(dy, dist) * 0.3; // subtle
-        const currentPitch = (headTarget as THREE.Sprite).userData.facePitch ?? 0;
-        const newPitch = currentPitch + (targetPitch - currentPitch) * delta * 2;
-        (headTarget as THREE.Sprite).userData.facePitch = newPitch;
-        (headTarget as THREE.Sprite).position.y = 1.55 + newPitch * 0.3;
-      }
-    }
-
-    // ── Face expression ───────────────────────────────
-    const expression = getNPCExpression(npcId, dist);
-    if (expression !== state.currentExpression) {
-      state.currentExpression = expression;
-      // Find the head mesh with face canvas (Minecraft-style texture)
-      const headMesh = group.children.find(
-        (c): c is THREE.Mesh => c instanceof THREE.Mesh && c.userData.isFace === true,
-      );
-      if (headMesh) {
-        const canvas = headMesh.userData.faceCanvas as HTMLCanvasElement | undefined;
-        const skinColor = headMesh.userData.skinColor as number | undefined;
-        if (canvas && skinColor !== undefined) {
-          drawFaceExpression(canvas, expression, skinColor);
-          const tex = headMesh.userData.faceTexture as THREE.CanvasTexture | undefined;
-          if (tex) tex.needsUpdate = true;
-        }
-      }
-    }
-  }
 }
 
 const interactionPrompt = document.getElementById('interaction-prompt')!;
@@ -328,7 +144,7 @@ function spawnNPCs(npcs: NPCConfig[]): void {
   }
   npcMeshes = [];
   npcStatusIndicators.clear();
-  npcAnimStates.clear();
+  npcAnimator.clear();
 
   for (const npc of npcs) {
     const group = createVoxelCharacter(npc);
@@ -336,7 +152,7 @@ function spawnNPCs(npcs: NPCConfig[]): void {
     scene.add(group);
     npcMeshes.push(group);
 
-    initNPCAnimState(npc.id, group.position.y);
+    npcAnimator.initState(npc.id, group.position.y);
 
     // Simple name label via sprite
     const labelSprite = createTextSprite(npc.name, 128, 40, '#ffffff', 'bold 18px sans-serif');
@@ -1051,22 +867,13 @@ function animate(): void {
   // Player walk animation
   if (controller.isMoving) {
     walkPhase += delta * 10;
-    const legSwing = Math.sin(walkPhase) * 0.45;
-    const armSwing = Math.sin(walkPhase) * 0.35;
-    pLegL.rotation.x = legSwing;
-    pLegR.rotation.x = -legSwing;
-    pArmL.rotation.x = -armSwing;
-    pArmR.rotation.x = armSwing;
   } else {
     walkPhase = 0;
-    pLegL.rotation.x = 0;
-    pLegR.rotation.x = 0;
-    pArmL.rotation.x = 0;
-    pArmR.rotation.x = 0;
   }
+  animatePlayerWalk(playerLimbs, controller.isMoving, walkPhase);
 
   collectibleManager?.update(delta);
-  animateNPCs(delta);
+  npcAnimator.animate(delta, npcMeshes, playerGroup.position, activeNPC?.id ?? null, activeNodeId);
   animateSceneVisuals(delta, clock.elapsedTime);
   updateInteractionIndicators(clock.elapsedTime);
 

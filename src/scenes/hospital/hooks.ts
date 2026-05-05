@@ -1,7 +1,6 @@
 import type { SceneHooks } from '../../engine/runtime/SceneModule.js';
+import { createBonusIntentsHook } from '../../engine/runtime/bonus-intent-helper.js';
 
 export const hospitalHooks: SceneHooks = {
-  onIntentMatched(intentId, defaultScore) {
-    return intentId === 'ask_help' ? defaultScore + 2 : defaultScore;
-  },
+  ...createBonusIntentsHook({ ask_help: 2 }),
 };

@@ -1,15 +1,12 @@
 import type { SceneConfig } from '../../engine/schema/SceneConfig.js';
+import { createGrid } from '../../engine/schema/grid-helpers.js';
 
 const WIDTH = 24;
 const HEIGHT = 6;
 const DEPTH = 20;
 
-function layer(fill: string): string[][] {
-  return Array.from({ length: DEPTH }, () => Array(WIDTH).fill(fill));
-}
-
 function ground(): string[][] {
-  const grid = layer('GRASS');
+  const grid = createGrid(WIDTH, DEPTH, 'GRASS');
   for (let z = 0; z < DEPTH; z++) {
     grid[z][11] = 'ROAD';
     grid[z][12] = 'ROAD';
@@ -24,7 +21,7 @@ function ground(): string[][] {
 }
 
 function fences(): string[][] {
-  const grid = layer('AIR');
+  const grid = createGrid(WIDTH, DEPTH, 'AIR');
   for (let x = 0; x < WIDTH; x++) {
     grid[0][x] = 'WALL';
     if (x < 9 || x > 14) grid[DEPTH - 1][x] = 'WALL';

@@ -1,15 +1,12 @@
 import type { SceneConfig } from '../../engine/schema/SceneConfig.js';
+import { createGrid } from '../../engine/schema/grid-helpers.js';
 
 const WIDTH = 24;
 const HEIGHT = 6;
 const DEPTH = 20;
 
-function layer(fill: string): string[][] {
-  return Array.from({ length: DEPTH }, () => Array(WIDTH).fill(fill));
-}
-
 function ground(): string[][] {
-  const grid = layer('FLOOR');
+  const grid = createGrid(WIDTH, DEPTH, 'FLOOR');
   for (let z = 0; z < 6; z++) {
     for (let x = 0; x < WIDTH; x++) grid[z][x] = 'WATER';
   }
@@ -20,7 +17,7 @@ function ground(): string[][] {
 }
 
 function edges(): string[][] {
-  const grid = layer('AIR');
+  const grid = createGrid(WIDTH, DEPTH, 'AIR');
   for (let x = 0; x < WIDTH; x++) { if (x < 9 || x > 14) grid[DEPTH - 1][x] = 'WALL'; }
   for (let z = 0; z < DEPTH; z++) {
     grid[z][0] = 'WALL';

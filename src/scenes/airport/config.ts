@@ -1,15 +1,12 @@
 import type { SceneConfig } from '../../engine/schema/SceneConfig.js';
+import { createGrid } from '../../engine/schema/grid-helpers.js';
 
 const WIDTH = 24;
 const HEIGHT = 6;
 const DEPTH = 18;
 
-function layer(fill: string): string[][] {
-  return Array.from({ length: DEPTH }, () => Array(WIDTH).fill(fill));
-}
-
 function terminal(): string[][] {
-  const grid = layer('AIR');
+  const grid = createGrid(WIDTH, DEPTH, 'AIR');
   for (let x = 0; x < WIDTH; x++) {
     grid[0][x] = 'GLASS';
     if (x < 9 || x > 14) grid[DEPTH - 1][x] = 'WALL';
@@ -44,7 +41,7 @@ export const airportConfig: SceneConfig = {
     height: HEIGHT,
     depth: DEPTH,
     layers: [
-      { y: 0, grid: layer('FLOOR') },
+      { y: 0, grid: createGrid(WIDTH, DEPTH, 'FLOOR') },
       { y: 1, grid: terminal() },
       { y: 2, grid: terminal() },
       { y: 3, grid: terminal() },

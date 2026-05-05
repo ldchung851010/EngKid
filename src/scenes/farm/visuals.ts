@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addBox, addLocalBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
+import { addBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
   soil: new THREE.MeshStandardMaterial({ color: 0xb9793b, roughness: 0.9, flatShading: true }),
@@ -67,12 +67,12 @@ function addAnimal(group: THREE.Group, x: number, z: number, kind: 'cow' | 'shee
   animal.userData.baseY = 0;
   animal.userData.phase = x;
   const bodyMat = kind === 'cow' ? mat.white : new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.9 });
-  addLocalBox(animal, [0, 1.28, 0], [0.95, 0.55, 0.48], bodyMat);
-  addLocalBox(animal, [0.52, 1.42, 0], [0.34, 0.34, 0.34], bodyMat);
-  addLocalBox(animal, [-0.25, 0.93, -0.16], [0.1, 0.34, 0.1], mat.black);
-  addLocalBox(animal, [0.25, 0.93, -0.16], [0.1, 0.34, 0.1], mat.black);
-  addLocalBox(animal, [-0.25, 0.93, 0.16], [0.1, 0.34, 0.1], mat.black);
-  addLocalBox(animal, [0.25, 0.93, 0.16], [0.1, 0.34, 0.1], mat.black);
+  addBox(animal, [0, 1.28, 0], [0.95, 0.55, 0.48], bodyMat);
+  addBox(animal, [0.52, 1.42, 0], [0.34, 0.34, 0.34], bodyMat);
+  addBox(animal, [-0.25, 0.93, -0.16], [0.1, 0.34, 0.1], mat.black);
+  addBox(animal, [0.25, 0.93, -0.16], [0.1, 0.34, 0.1], mat.black);
+  addBox(animal, [-0.25, 0.93, 0.16], [0.1, 0.34, 0.1], mat.black);
+  addBox(animal, [0.25, 0.93, 0.16], [0.1, 0.34, 0.1], mat.black);
   group.add(animal);
 }
 

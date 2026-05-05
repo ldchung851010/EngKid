@@ -70,15 +70,6 @@ export function addBox(
   return mesh;
 }
 
-export function addLocalBox(
-  parent: THREE.Object3D,
-  position: VectorTuple,
-  scale: VectorTuple,
-  material: THREE.Material
-): THREE.Mesh {
-  return addBox(parent, position, scale, material);
-}
-
 export function disposeObject3D(object: THREE.Object3D): void {
   const geometries = new Set<THREE.BufferGeometry>();
   const materials = new Set<THREE.Material>();

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addBox, addLocalBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
+import { addBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
   marble: new THREE.MeshStandardMaterial({ color: 0xfff8e1, roughness: 0.46, flatShading: true }),
@@ -78,12 +78,12 @@ function addSofa(group: THREE.Group, x: number, z: number, material: THREE.Mater
   const sofa = new THREE.Group();
   sofa.position.set(x, 0, z);
   sofa.rotation.y = rotationY;
-  addLocalBox(sofa, [0, 1.18, 0], [2.45, 0.38, 0.92], material);
-  addLocalBox(sofa, [0, 1.68, 0.38], [2.45, 0.86, 0.18], material);
-  addLocalBox(sofa, [-1.18, 1.45, 0], [0.18, 0.62, 0.92], material);
-  addLocalBox(sofa, [1.18, 1.45, 0], [0.18, 0.62, 0.92], material);
-  addLocalBox(sofa, [-0.55, 1.5, -0.18], [0.54, 0.28, 0.18], mat.marbleAlt);
-  addLocalBox(sofa, [0.55, 1.5, -0.18], [0.54, 0.28, 0.18], mat.gold);
+  addBox(sofa, [0, 1.18, 0], [2.45, 0.38, 0.92], material);
+  addBox(sofa, [0, 1.68, 0.38], [2.45, 0.86, 0.18], material);
+  addBox(sofa, [-1.18, 1.45, 0], [0.18, 0.62, 0.92], material);
+  addBox(sofa, [1.18, 1.45, 0], [0.18, 0.62, 0.92], material);
+  addBox(sofa, [-0.55, 1.5, -0.18], [0.54, 0.28, 0.18], mat.marbleAlt);
+  addBox(sofa, [0.55, 1.5, -0.18], [0.54, 0.28, 0.18], mat.gold);
   group.add(sofa);
 }
 

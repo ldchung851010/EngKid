@@ -128,7 +128,7 @@ function secondsUntilNextHour(): number {
   return Math.max(1, Math.ceil((next - now.getTime()) / 1000));
 }
 
-function readPositiveInt(name: string, fallback: number): number {
+export function readPositiveInt(name: string, fallback: number): number {
   const value = Number.parseInt(process.env[name] ?? '', 10);
   return Number.isInteger(value) && value > 0 ? value : fallback;
 }

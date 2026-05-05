@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { addBox, addLocalBox, createTextSprite, disposeObject3D } from '../renderer/ScenePrimitives.js';
+import { addBox, createTextSprite, disposeObject3D } from '../renderer/ScenePrimitives.js';
+import { normalizeWord } from '../shared/normalizeWord.js';
+import { sceneAnchoredPlacements } from './anchored-placements.js';
 import type { MapConfig, SceneConfig } from '../schema/SceneConfig.js';
 import type { TTSEngine } from '../voice/TTSEngine.js';
 import { SpeechPipeline, type TranscribeFn } from '../voice/SpeechPipeline.js';
@@ -399,127 +401,7 @@ function normalizeSpokenText(text: string): string {
 }
 
 function getSceneAnchoredPlacements(sceneName: string): Record<string, Omit<CollectiblePlacement, 'word'>> {
-  switch (normalizeWord(sceneName)) {
-    case 'restaurant':
-      return {
-        hamburger: { position: { x: 4, y: 1.68, z: 8.5 }, rotationY: 0.2 },
-        pizza: { position: { x: 14, y: 1.68, z: 8.5 }, rotationY: -0.35 },
-        salad: { position: { x: 4.5, y: 1.68, z: 12 }, rotationY: 0.1 },
-        pasta: { position: { x: 13.5, y: 1.68, z: 12 }, rotationY: -0.15 },
-        water: { position: { x: 3.52, y: 1.68, z: 8.18 }, rotationY: 0.05 },
-        juice: { position: { x: 14.45, y: 1.68, z: 8.18 }, rotationY: -0.1 },
-        cola: { position: { x: 13.05, y: 1.68, z: 12.28 }, rotationY: 0.2 },
-      };
-    case 'airport':
-      return {
-        ticket: { position: { x: 7.0, y: 2.1, z: 5.76 }, rotationY: -0.1 },
-        passport: { position: { x: 9.35, y: 2.1, z: 5.76 }, rotationY: 0.25 },
-        'boarding pass': { position: { x: 12.3, y: 2.1, z: 5.76 }, rotationY: -0.25 },
-        gate: { position: { x: 20.18, y: 2.38, z: 9.4 }, rotationY: Math.PI / 2 },
-        flight: { position: { x: 3.7, y: 3.62, z: 2.45 }, rotationY: -0.45 },
-        bag: { position: { x: 14.2, y: 2.05, z: 6.7 }, rotationY: 0.15 },
-        please: { position: { x: 17.2, y: 2.1, z: 5.76 }, rotationY: 0.1 },
-      };
-    case 'school':
-      return {
-        teacher: { position: { x: 11.2, y: 2.22, z: 3.6 }, rotationY: 0.1 },
-        book: { position: { x: 4, y: 1.6, z: 7 }, rotationY: -0.2 },
-        pencil: { position: { x: 7, y: 1.6, z: 7 }, rotationY: 0.55 },
-        desk: { position: { x: 10, y: 1.62, z: 7 }, rotationY: 0 },
-        chair: { position: { x: 13, y: 1.62, z: 7.92 }, rotationY: Math.PI },
-        please: { position: { x: 8.7, y: 2.08, z: 3.52 }, rotationY: -0.1 },
-        classroom: { position: { x: 16, y: 1.6, z: 10 }, rotationY: 0.2 },
-      };
-    case 'hotel':
-      return {
-        room: { position: { x: 8.6, y: 2.02, z: 5.1 }, rotationY: 0.15 },
-        key: { position: { x: 10.2, y: 2.06, z: 5.05 }, rotationY: -0.2 },
-        night: { position: { x: 11.4, y: 2.02, z: 5.12 }, rotationY: 0.15 },
-        reservation: { position: { x: 9.2, y: 2.06, z: 5.64 }, rotationY: -0.15 },
-        passport: { position: { x: 10.8, y: 2.08, z: 5.64 }, rotationY: 0.25 },
-        please: { position: { x: 12.1, y: 2.06, z: 5.64 }, rotationY: 0 },
-        'thank you': { position: { x: 7.8, y: 2.06, z: 5.64 }, rotationY: -0.2 },
-      };
-    case 'zoo':
-      return {
-        lion: { position: { x: 9.4, y: 1.08, z: 4.6 }, rotationY: 0.2 },
-        monkey: { position: { x: 12.5, y: 1.08, z: 5.2 }, rotationY: -0.25 },
-        elephant: { position: { x: 9.2, y: 1.08, z: 8.6 }, rotationY: 0.35 },
-        bird: { position: { x: 12.8, y: 1.55, z: 8.8 }, rotationY: -0.2 },
-        tiger: { position: { x: 9.5, y: 1.08, z: 12 }, rotationY: -0.3 },
-        big: { position: { x: 13.1, y: 1.08, z: 11.8 }, rotationY: 0.15 },
-        small: { position: { x: 10.2, y: 1.08, z: 10.4 }, rotationY: -0.15 },
-        where: { position: { x: 11.8, y: 1.08, z: 10.8 }, rotationY: 0.1 },
-      };
-    case 'park':
-      return {
-        park: { position: { x: 12, y: 1.28, z: 2.25 }, rotationY: 0 },
-        tree: { position: { x: 4, y: 1.68, z: 13 }, rotationY: 0.1 },
-        flower: { position: { x: 5.8, y: 1.42, z: 7.7 }, rotationY: -0.2 },
-        bench: { position: { x: 7.5, y: 1.62, z: 10.6 }, rotationY: 0.15 },
-        ball: { position: { x: 13.8, y: 1.82, z: 8.6 }, rotationY: -0.15 },
-        kite: { position: { x: 9, y: 3.28, z: 5.2 }, rotationY: 0.4 },
-        play: { position: { x: 16.5, y: 1.62, z: 10.6 }, rotationY: -0.1 },
-        run: { position: { x: 12, y: 1.18, z: 12.8 }, rotationY: 0 },
-      };
-    case 'hospital':
-      return {
-        doctor: { position: { x: 11, y: 2.1, z: 5.85 }, rotationY: 0 },
-        nurse: { position: { x: 8.5, y: 2.08, z: 5.82 }, rotationY: -0.12 },
-        headache: { position: { x: 5.4, y: 2.28, z: 3.25 }, rotationY: 0.2 },
-        stomachache: { position: { x: 16.5, y: 1.92, z: 3.4 }, rotationY: -0.2 },
-        medicine: { position: { x: 18.82, y: 2.1, z: 6.4 }, rotationY: Math.PI / 2 },
-        water: { position: { x: 12.5, y: 2.08, z: 5.82 }, rotationY: 0.1 },
-        rest: { position: { x: 16.5, y: 1.92, z: 3.18 }, rotationY: 0.12 },
-        help: { position: { x: 9.2, y: 2.15, z: 5.85 }, rotationY: -0.1 },
-      };
-    case 'shop':
-      return {
-        shop: { position: { x: 11, y: 2.2, z: 5.85 }, rotationY: 0 },
-        apple: { position: { x: 5.45, y: 1.9, z: 10.5 }, rotationY: -0.1 },
-        milk: { position: { x: 20.0, y: 2.35, z: 6.1 }, rotationY: Math.PI / 2 },
-        bread: { position: { x: 2.0, y: 2.35, z: 6.9 }, rotationY: -Math.PI / 2 },
-        toy: { position: { x: 16.0, y: 2.08, z: 10.8 }, rotationY: 0.18 },
-        price: { position: { x: 9.2, y: 2.1, z: 5.85 }, rotationY: -0.1 },
-        money: { position: { x: 13.2, y: 2.18, z: 5.8 }, rotationY: 0.1 },
-        bag: { position: { x: 18.2, y: 1.78, z: 14.6 }, rotationY: -0.2 },
-      };
-    case 'home':
-      return {
-        home: { position: { x: 10, y: 1.22, z: 10.5 }, rotationY: 0 },
-        bed: { position: { x: 15.0, y: 1.85, z: 7.2 }, rotationY: 0.1 },
-        table: { position: { x: 10, y: 1.62, z: 7.2 }, rotationY: -0.1 },
-        sofa: { position: { x: 6.2, y: 1.88, z: 11.65 }, rotationY: 0.15 },
-        lamp: { position: { x: 15.5, y: 2.48, z: 13.2 }, rotationY: 0 },
-        kitchen: { position: { x: 4.8, y: 2.12, z: 4.1 }, rotationY: 0.1 },
-        clean: { position: { x: 3.4, y: 2.2, z: 4.65 }, rotationY: -0.15 },
-        help: { position: { x: 8.2, y: 1.42, z: 7.2 }, rotationY: 0.1 },
-      };
-    case 'beach':
-      return {
-        beach: { position: { x: 12, y: 1.28, z: 6.05 }, rotationY: 0 },
-        sand: { position: { x: 12, y: 1.62, z: 12.2 }, rotationY: -0.1 },
-        sea: { position: { x: 8.5, y: 1.18, z: 4.6 }, rotationY: 0.1 },
-        shell: { position: { x: 9.2, y: 1.38, z: 9.8 }, rotationY: -0.2 },
-        sun: { position: { x: 6.5, y: 2.9, z: 11.4 }, rotationY: 0 },
-        hat: { position: { x: 17.5, y: 2.9, z: 12.1 }, rotationY: 0.25 },
-        swim: { position: { x: 12.85, y: 2.2, z: 7.0 }, rotationY: -0.15 },
-        water: { position: { x: 15.6, y: 1.18, z: 4.4 }, rotationY: 0.1 },
-      };
-    case 'farm':
-      return {
-        farm: { position: { x: 12, y: 2.45, z: 2.9 }, rotationY: 0 },
-        cow: { position: { x: 9.4, y: 1.72, z: 14.5 }, rotationY: 0.15 },
-        chicken: { position: { x: 18.5, y: 2.15, z: 15.2 }, rotationY: -0.2 },
-        sheep: { position: { x: 12.2, y: 1.72, z: 14.6 }, rotationY: 0.1 },
-        egg: { position: { x: 18.5, y: 2.15, z: 14.5 }, rotationY: -0.1 },
-        milk: { position: { x: 9.0, y: 1.55, z: 12.9 }, rotationY: 0.15 },
-        tractor: { position: { x: 6.4, y: 2.25, z: 15.2 }, rotationY: -0.2 },
-        water: { position: { x: 15.9, y: 1.55, z: 12.1 }, rotationY: 0.1 },
-      };
-    default:
-      return {};
-  }
+  return sceneAnchoredPlacements[normalizeWord(sceneName)] ?? {};
 }
 
 function createCollectibleObject(word: string, materials: THREE.MeshStandardMaterial[]): THREE.Group {
@@ -633,10 +515,10 @@ function addPlateBase(group: THREE.Group, materials: THREE.MeshStandardMaterial[
 }
 
 function addBurger(group: THREE.Group, materials: THREE.MeshStandardMaterial[]): void {
-  addLocalBox(group, [0, 0.06, 0], [0.45, 0.08, 0.32], collectibleMaterial(materials, 0xd97706));
-  addLocalBox(group, [0, 0.13, 0], [0.42, 0.07, 0.3], collectibleMaterial(materials, 0x6b3f1d));
-  addLocalBox(group, [0, 0.19, 0], [0.46, 0.05, 0.33], collectibleMaterial(materials, 0x22c55e));
-  addLocalBox(group, [0, 0.25, 0], [0.44, 0.08, 0.31], collectibleMaterial(materials, 0xf59e0b));
+  addBox(group, [0, 0.06, 0], [0.45, 0.08, 0.32], collectibleMaterial(materials, 0xd97706));
+  addBox(group, [0, 0.13, 0], [0.42, 0.07, 0.3], collectibleMaterial(materials, 0x6b3f1d));
+  addBox(group, [0, 0.19, 0], [0.46, 0.05, 0.33], collectibleMaterial(materials, 0x22c55e));
+  addBox(group, [0, 0.25, 0], [0.44, 0.08, 0.31], collectibleMaterial(materials, 0xf59e0b));
 }
 
 function addPizza(group: THREE.Group, materials: THREE.MeshStandardMaterial[]): void {
@@ -654,15 +536,15 @@ function addPizza(group: THREE.Group, materials: THREE.MeshStandardMaterial[]): 
 }
 
 function addSalad(group: THREE.Group, materials: THREE.MeshStandardMaterial[]): void {
-  addLocalBox(group, [0, 0.08, 0], [0.42, 0.1, 0.3], collectibleMaterial(materials, 0x16a34a));
-  addLocalBox(group, [-0.1, 0.16, 0.03], [0.18, 0.08, 0.14], collectibleMaterial(materials, 0x84cc16));
-  addLocalBox(group, [0.12, 0.16, -0.04], [0.15, 0.07, 0.13], collectibleMaterial(materials, 0xfb7185));
+  addBox(group, [0, 0.08, 0], [0.42, 0.1, 0.3], collectibleMaterial(materials, 0x16a34a));
+  addBox(group, [-0.1, 0.16, 0.03], [0.18, 0.08, 0.14], collectibleMaterial(materials, 0x84cc16));
+  addBox(group, [0.12, 0.16, -0.04], [0.15, 0.07, 0.13], collectibleMaterial(materials, 0xfb7185));
 }
 
 function addPasta(group: THREE.Group, materials: THREE.MeshStandardMaterial[]): void {
-  addLocalBox(group, [0, 0.08, 0], [0.46, 0.08, 0.3], collectibleMaterial(materials, 0xfacc15));
-  addLocalBox(group, [-0.08, 0.15, 0.03], [0.28, 0.05, 0.08], collectibleMaterial(materials, 0xfbbf24));
-  addLocalBox(group, [0.1, 0.18, -0.04], [0.22, 0.05, 0.08], collectibleMaterial(materials, 0xef4444));
+  addBox(group, [0, 0.08, 0], [0.46, 0.08, 0.3], collectibleMaterial(materials, 0xfacc15));
+  addBox(group, [-0.08, 0.15, 0.03], [0.28, 0.05, 0.08], collectibleMaterial(materials, 0xfbbf24));
+  addBox(group, [0.1, 0.18, -0.04], [0.22, 0.05, 0.08], collectibleMaterial(materials, 0xef4444));
 }
 
 function addDrink(group: THREE.Group, materials: THREE.MeshStandardMaterial[], kind: string): void {
@@ -674,28 +556,28 @@ function addDrink(group: THREE.Group, materials: THREE.MeshStandardMaterial[], k
   const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.035, 18), collectibleMaterial(materials, 0xf8fafc, 0.4));
   rim.position.set(0, 0.44, 0);
   group.add(rim);
-  addLocalBox(group, [0.12, 0.62, 0], [0.04, 0.28, 0.04], collectibleMaterial(materials, 0xffffff, 0.3));
+  addBox(group, [0.12, 0.62, 0], [0.04, 0.28, 0.04], collectibleMaterial(materials, 0xffffff, 0.3));
 }
 
 function addBookLike(group: THREE.Group, materials: THREE.MeshStandardMaterial[], kind: string): void {
   const color = kind === 'passport' ? 0x1d4ed8 : kind === 'reservation' ? 0x7c3aed : kind === 'classroom' ? 0x16a34a : 0x2563eb;
-  addLocalBox(group, [0, 0.04, 0], [0.5, 0.08, 0.36], collectibleMaterial(materials, color));
-  addLocalBox(group, [-0.03, 0.095, 0], [0.04, 0.025, 0.32], collectibleMaterial(materials, 0xf8fafc));
-  addLocalBox(group, [0.12, 0.11, 0], [0.17, 0.03, 0.22], collectibleMaterial(materials, 0xfacc15));
+  addBox(group, [0, 0.04, 0], [0.5, 0.08, 0.36], collectibleMaterial(materials, color));
+  addBox(group, [-0.03, 0.095, 0], [0.04, 0.025, 0.32], collectibleMaterial(materials, 0xf8fafc));
+  addBox(group, [0.12, 0.11, 0], [0.17, 0.03, 0.22], collectibleMaterial(materials, 0xfacc15));
 }
 
 function addPaperCard(group: THREE.Group, materials: THREE.MeshStandardMaterial[], kind: string): void {
   const color = kind === 'please' || kind === 'thank you' ? 0xfff7ed : 0xf8fafc;
-  addLocalBox(group, [0, 0.035, 0], [0.52, 0.045, 0.32], collectibleMaterial(materials, color, 0.85));
-  addLocalBox(group, [-0.12, 0.07, 0], [0.08, 0.025, 0.25], collectibleMaterial(materials, 0x38bdf8));
-  addLocalBox(group, [0.12, 0.07, -0.06], [0.18, 0.025, 0.045], collectibleMaterial(materials, 0x64748b));
-  addLocalBox(group, [0.12, 0.07, 0.06], [0.18, 0.025, 0.045], collectibleMaterial(materials, 0x64748b));
+  addBox(group, [0, 0.035, 0], [0.52, 0.045, 0.32], collectibleMaterial(materials, color, 0.85));
+  addBox(group, [-0.12, 0.07, 0], [0.08, 0.025, 0.25], collectibleMaterial(materials, 0x38bdf8));
+  addBox(group, [0.12, 0.07, -0.06], [0.18, 0.025, 0.045], collectibleMaterial(materials, 0x64748b));
+  addBox(group, [0.12, 0.07, 0.06], [0.18, 0.025, 0.045], collectibleMaterial(materials, 0x64748b));
 }
 
 function addPencil(group: THREE.Group, materials: THREE.MeshStandardMaterial[]): void {
-  addLocalBox(group, [0, 0.06, 0], [0.64, 0.08, 0.08], collectibleMaterial(materials, 0xfacc15));
-  addLocalBox(group, [0.34, 0.06, 0], [0.12, 0.08, 0.08], collectibleMaterial(materials, 0xfca5a5));
-  addLocalBox(group, [-0.36, 0.06, 0], [0.12, 0.08, 0.08], collectibleMaterial(materials, 0x92400e));
+  addBox(group, [0, 0.06, 0], [0.64, 0.08, 0.08], collectibleMaterial(materials, 0xfacc15));
+  addBox(group, [0.34, 0.06, 0], [0.12, 0.08, 0.08], collectibleMaterial(materials, 0xfca5a5));
+  addBox(group, [-0.36, 0.06, 0], [0.12, 0.08, 0.08], collectibleMaterial(materials, 0x92400e));
 }
 
 function addKey(group: THREE.Group, materials: THREE.MeshStandardMaterial[]): void {
@@ -704,26 +586,26 @@ function addKey(group: THREE.Group, materials: THREE.MeshStandardMaterial[]): vo
   ring.position.set(-0.15, 0.08, 0);
   ring.rotation.x = Math.PI / 2;
   group.add(ring);
-  addLocalBox(group, [0.12, 0.08, 0], [0.38, 0.055, 0.055], gold);
-  addLocalBox(group, [0.3, 0.05, 0.06], [0.08, 0.05, 0.08], gold);
+  addBox(group, [0.12, 0.08, 0], [0.38, 0.055, 0.055], gold);
+  addBox(group, [0.3, 0.05, 0.06], [0.08, 0.05, 0.08], gold);
 }
 
 function addMiniSuitcase(group: THREE.Group, materials: THREE.MeshStandardMaterial[]): void {
-  addLocalBox(group, [0, 0.18, 0], [0.46, 0.34, 0.24], collectibleMaterial(materials, 0x2563eb));
-  addLocalBox(group, [0, 0.38, 0], [0.2, 0.05, 0.08], collectibleMaterial(materials, 0x94a3b8));
-  addLocalBox(group, [-0.14, -0.02, 0.1], [0.08, 0.08, 0.08], collectibleMaterial(materials, 0x111827));
-  addLocalBox(group, [0.14, -0.02, 0.1], [0.08, 0.08, 0.08], collectibleMaterial(materials, 0x111827));
+  addBox(group, [0, 0.18, 0], [0.46, 0.34, 0.24], collectibleMaterial(materials, 0x2563eb));
+  addBox(group, [0, 0.38, 0], [0.2, 0.05, 0.08], collectibleMaterial(materials, 0x94a3b8));
+  addBox(group, [-0.14, -0.02, 0.1], [0.08, 0.08, 0.08], collectibleMaterial(materials, 0x111827));
+  addBox(group, [0.14, -0.02, 0.1], [0.08, 0.08, 0.08], collectibleMaterial(materials, 0x111827));
 }
 
 function addMiniPlane(group: THREE.Group, materials: THREE.MeshStandardMaterial[]): void {
-  addLocalBox(group, [0, 0.08, 0], [0.64, 0.1, 0.14], collectibleMaterial(materials, 0xf8fafc));
-  addLocalBox(group, [0.08, 0.08, 0], [0.28, 0.045, 0.48], collectibleMaterial(materials, 0x60a5fa));
-  addLocalBox(group, [-0.28, 0.18, 0], [0.14, 0.08, 0.28], collectibleMaterial(materials, 0x2563eb));
+  addBox(group, [0, 0.08, 0], [0.64, 0.1, 0.14], collectibleMaterial(materials, 0xf8fafc));
+  addBox(group, [0.08, 0.08, 0], [0.28, 0.045, 0.48], collectibleMaterial(materials, 0x60a5fa));
+  addBox(group, [-0.28, 0.18, 0], [0.14, 0.08, 0.28], collectibleMaterial(materials, 0x2563eb));
 }
 
 function addMiniSign(group: THREE.Group, materials: THREE.MeshStandardMaterial[], label: string): void {
-  addLocalBox(group, [0, 0.32, 0], [0.5, 0.32, 0.06], collectibleMaterial(materials, 0x2563eb));
-  addLocalBox(group, [0, 0.08, 0], [0.06, 0.28, 0.06], collectibleMaterial(materials, 0x64748b));
+  addBox(group, [0, 0.32, 0], [0.5, 0.32, 0.06], collectibleMaterial(materials, 0x2563eb));
+  addBox(group, [0, 0.08, 0], [0.06, 0.28, 0.06], collectibleMaterial(materials, 0x64748b));
   const sprite = createTextSprite(label, 96, 96, '#ffffff', 'bold 48px sans-serif');
   sprite.position.set(0, 0.34, -0.04);
   sprite.scale.set(0.32, 0.32, 1);
@@ -731,36 +613,36 @@ function addMiniSign(group: THREE.Group, materials: THREE.MeshStandardMaterial[]
 }
 
 function addMiniDoor(group: THREE.Group, materials: THREE.MeshStandardMaterial[]): void {
-  addLocalBox(group, [0, 0.26, 0], [0.36, 0.52, 0.08], collectibleMaterial(materials, 0x92400e));
-  addLocalBox(group, [0.1, 0.25, -0.06], [0.045, 0.045, 0.035], collectibleMaterial(materials, 0xfacc15));
+  addBox(group, [0, 0.26, 0], [0.36, 0.52, 0.08], collectibleMaterial(materials, 0x92400e));
+  addBox(group, [0.1, 0.25, -0.06], [0.045, 0.045, 0.035], collectibleMaterial(materials, 0xfacc15));
 }
 
 function addMoon(group: THREE.Group, materials: THREE.MeshStandardMaterial[]): void {
   const moon = new THREE.Mesh(new THREE.SphereGeometry(0.18, 18, 12), collectibleMaterial(materials, 0xfef3c7, 0.42));
   moon.position.set(0, 0.22, 0);
   group.add(moon);
-  addLocalBox(group, [0.16, 0.3, 0], [0.08, 0.08, 0.08], collectibleMaterial(materials, 0x1e293b));
+  addBox(group, [0.16, 0.3, 0], [0.08, 0.08, 0.08], collectibleMaterial(materials, 0x1e293b));
 }
 
 function addMiniDesk(group: THREE.Group, materials: THREE.MeshStandardMaterial[]): void {
-  addLocalBox(group, [0, 0.24, 0], [0.52, 0.08, 0.34], collectibleMaterial(materials, 0x9a6a3a));
+  addBox(group, [0, 0.24, 0], [0.52, 0.08, 0.34], collectibleMaterial(materials, 0x9a6a3a));
   for (const [x, z] of [[-0.2, -0.12], [0.2, -0.12], [-0.2, 0.12], [0.2, 0.12]]) {
-    addLocalBox(group, [x, 0.08, z], [0.05, 0.28, 0.05], collectibleMaterial(materials, 0x6d4c41));
+    addBox(group, [x, 0.08, z], [0.05, 0.28, 0.05], collectibleMaterial(materials, 0x6d4c41));
   }
 }
 
 function addMiniChair(group: THREE.Group, materials: THREE.MeshStandardMaterial[]): void {
-  addLocalBox(group, [0, 0.16, 0], [0.34, 0.08, 0.32], collectibleMaterial(materials, 0x42a5f5));
-  addLocalBox(group, [0, 0.36, 0.16], [0.34, 0.32, 0.06], collectibleMaterial(materials, 0x42a5f5));
-  addLocalBox(group, [-0.12, 0.04, -0.1], [0.04, 0.18, 0.04], collectibleMaterial(materials, 0x1565c0));
-  addLocalBox(group, [0.12, 0.04, -0.1], [0.04, 0.18, 0.04], collectibleMaterial(materials, 0x1565c0));
+  addBox(group, [0, 0.16, 0], [0.34, 0.08, 0.32], collectibleMaterial(materials, 0x42a5f5));
+  addBox(group, [0, 0.36, 0.16], [0.34, 0.32, 0.06], collectibleMaterial(materials, 0x42a5f5));
+  addBox(group, [-0.12, 0.04, -0.1], [0.04, 0.18, 0.04], collectibleMaterial(materials, 0x1565c0));
+  addBox(group, [0.12, 0.04, -0.1], [0.04, 0.18, 0.04], collectibleMaterial(materials, 0x1565c0));
 }
 
 function addMiniPerson(group: THREE.Group, materials: THREE.MeshStandardMaterial[]): void {
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 12), collectibleMaterial(materials, 0xffd7a8));
   head.position.set(0, 0.44, 0);
   group.add(head);
-  addLocalBox(group, [0, 0.22, 0], [0.24, 0.28, 0.16], collectibleMaterial(materials, 0x22c55e));
+  addBox(group, [0, 0.22, 0], [0.24, 0.28, 0.16], collectibleMaterial(materials, 0x22c55e));
 }
 
 function addAnimalToy(group: THREE.Group, materials: THREE.MeshStandardMaterial[], kind: string): void {
@@ -772,22 +654,19 @@ function addAnimalToy(group: THREE.Group, materials: THREE.MeshStandardMaterial[
   head.position.set(0.2, 0.28, 0);
   group.add(head);
   if (kind === 'tiger') {
-    addLocalBox(group, [0.02, 0.36, -0.16], [0.24, 0.04, 0.035], collectibleMaterial(materials, 0x111827));
+    addBox(group, [0.02, 0.36, -0.16], [0.24, 0.04, 0.035], collectibleMaterial(materials, 0x111827));
   }
 }
 
 function addWordBlock(group: THREE.Group, materials: THREE.MeshStandardMaterial[], word: string): void {
   const color = word === 'big' ? 0x22c55e : word === 'small' ? 0x60a5fa : 0xa855f7;
-  addLocalBox(group, [0, 0.12, 0], [word === 'big' ? 0.5 : 0.34, word === 'small' ? 0.2 : 0.28, 0.32], collectibleMaterial(materials, color));
+  addBox(group, [0, 0.12, 0], [word === 'big' ? 0.5 : 0.34, word === 'small' ? 0.2 : 0.28, 0.32], collectibleMaterial(materials, color));
 }
 
 function disableRaycast(obj: THREE.Object3D): void {
   obj.raycast = () => {};
 }
 
-function normalizeWord(word: string): string {
-  return word.trim().toLowerCase();
-}
 
 function horizontalDistance(a: Vector3Like, b: Vector3Like): number {
   return Math.hypot(a.x - b.x, a.z - b.z);

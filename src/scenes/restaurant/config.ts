@@ -1,15 +1,12 @@
 import type { SceneConfig } from '../../engine/schema/SceneConfig.js';
+import { createGrid } from '../../engine/schema/grid-helpers.js';
 
 const RESTAURANT_WIDTH = 18;
 const RESTAURANT_HEIGHT = 3;
 const RESTAURANT_DEPTH = 16;
 
-function createLayer(fill: string): string[][] {
-  return Array.from({ length: RESTAURANT_DEPTH }, () => Array(RESTAURANT_WIDTH).fill(fill));
-}
-
 function createWallLayer(): string[][] {
-  const grid = createLayer('AIR');
+  const grid = createGrid(RESTAURANT_WIDTH, RESTAURANT_DEPTH, 'AIR');
   for (let x = 0; x < RESTAURANT_WIDTH; x++) {
     grid[0][x] = 'WALL';
   }
@@ -51,7 +48,7 @@ export const restaurantConfig: SceneConfig = {
     height: RESTAURANT_HEIGHT,
     depth: RESTAURANT_DEPTH,
     layers: [
-      { y: 0, grid: createLayer('FLOOR') },
+      { y: 0, grid: createGrid(RESTAURANT_WIDTH, RESTAURANT_DEPTH, 'FLOOR') },
       { y: 1, grid: createWallLayer() },
       { y: 2, grid: createWallLayer() },
     ],

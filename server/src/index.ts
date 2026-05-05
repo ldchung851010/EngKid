@@ -10,6 +10,7 @@ import { quotesRoutes } from './routes/quotes.js';
 import { quotaRoutes } from './routes/quota.js';
 import { asrRoutes } from './routes/asr.js';
 import { ensureQuotesGenerated } from './utils/quoteGenerator.js';
+import { readPositiveInt } from './utils/quota.js';
 
 const TTS_PORT = parseInt(process.env.TTS_PORT || '8081');
 const TTS_MODEL_PATH = process.env.TTS_MODEL_PATH ||
@@ -141,9 +142,4 @@ function parseList(value: string | undefined): string[] {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
-}
-
-function readPositiveInt(name: string, fallback: number): number {
-  const value = Number.parseInt(process.env[name] ?? '', 10);
-  return Number.isInteger(value) && value > 0 ? value : fallback;
 }

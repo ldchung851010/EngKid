@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addBox, addLocalBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
+import { addBox, createTextPlane } from '../../engine/renderer/ScenePrimitives.js';
 
 const mat = {
   path: new THREE.MeshStandardMaterial({ color: 0xfff0b3, roughness: 0.86, flatShading: true }),
@@ -75,10 +75,10 @@ function addBench(group: THREE.Group, x: number, z: number, rotationY: number): 
   const bench = new THREE.Group();
   bench.position.set(x, 0, z);
   bench.rotation.y = rotationY;
-  addLocalBox(bench, [0, 1.18, 0], [2.1, 0.18, 0.58], mat.wood);
-  addLocalBox(bench, [0, 1.55, 0.28], [2.1, 0.56, 0.14], mat.wood);
-  addLocalBox(bench, [-0.75, 0.98, 0], [0.12, 0.42, 0.12], mat.metal);
-  addLocalBox(bench, [0.75, 0.98, 0], [0.12, 0.42, 0.12], mat.metal);
+  addBox(bench, [0, 1.18, 0], [2.1, 0.18, 0.58], mat.wood);
+  addBox(bench, [0, 1.55, 0.28], [2.1, 0.56, 0.14], mat.wood);
+  addBox(bench, [-0.75, 0.98, 0], [0.12, 0.42, 0.12], mat.metal);
+  addBox(bench, [0.75, 0.98, 0], [0.12, 0.42, 0.12], mat.metal);
   group.add(bench);
 }
 
@@ -118,8 +118,8 @@ function addKite(group: THREE.Group, x: number, z: number): void {
   kite.userData.parkFloat = true;
   kite.userData.baseY = 3.2;
   kite.userData.phase = 1.4;
-  addLocalBox(kite, [0, 0, 0], [0.08, 0.82, 0.82], mat.blue);
-  addLocalBox(kite, [0, 0, 0], [0.1, 0.1, 1.25], mat.white);
+  addBox(kite, [0, 0, 0], [0.08, 0.82, 0.82], mat.blue);
+  addBox(kite, [0, 0, 0], [0.1, 0.1, 1.25], mat.white);
   kite.rotation.y = 0.6;
   group.add(kite);
   addBox(group, [x - 0.45, 2.35, z + 0.42], [0.04, 1.8, 0.04], mat.white);

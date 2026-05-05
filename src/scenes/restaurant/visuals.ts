@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addBox, addLocalBox, type VectorTuple } from '../../engine/renderer/ScenePrimitives.js';
+import { addBox, type VectorTuple } from '../../engine/renderer/ScenePrimitives.js';
 
 export function createRestaurantDecor(): THREE.Group {
   const group = new THREE.Group();
@@ -75,12 +75,12 @@ function addChair(group: THREE.Group, x: number, z: number, rotationY: number): 
   chairGroup.rotation.y = rotationY;
   const seat = new THREE.MeshStandardMaterial({ color: 0x4fc3f7, roughness: 0.65 });
   const leg = new THREE.MeshStandardMaterial({ color: 0x0277bd, roughness: 0.65 });
-  addLocalBox(chairGroup, [0, 1.23, 0], [0.62, 0.16, 0.62], seat);
-  addLocalBox(chairGroup, [0, 1.55, -0.3], [0.62, 0.58, 0.12], seat);
-  addLocalBox(chairGroup, [-0.22, 1.06, -0.2], [0.1, 0.36, 0.1], leg);
-  addLocalBox(chairGroup, [0.22, 1.06, -0.2], [0.1, 0.36, 0.1], leg);
-  addLocalBox(chairGroup, [-0.22, 1.06, 0.22], [0.1, 0.36, 0.1], leg);
-  addLocalBox(chairGroup, [0.22, 1.06, 0.22], [0.1, 0.36, 0.1], leg);
+  addBox(chairGroup, [0, 1.23, 0], [0.62, 0.16, 0.62], seat);
+  addBox(chairGroup, [0, 1.55, -0.3], [0.62, 0.58, 0.12], seat);
+  addBox(chairGroup, [-0.22, 1.06, -0.2], [0.1, 0.36, 0.1], leg);
+  addBox(chairGroup, [0.22, 1.06, -0.2], [0.1, 0.36, 0.1], leg);
+  addBox(chairGroup, [-0.22, 1.06, 0.22], [0.1, 0.36, 0.1], leg);
+  addBox(chairGroup, [0.22, 1.06, 0.22], [0.1, 0.36, 0.1], leg);
   group.add(chairGroup);
 }
 

@@ -1,7 +1,6 @@
 import type { SceneHooks } from '../../engine/runtime/SceneModule.js';
+import { createBonusIntentsHook } from '../../engine/runtime/bonus-intent-helper.js';
 
 export const farmHooks: SceneHooks = {
-  onIntentMatched(intentId, defaultScore) {
-    return intentId === 'offer_farm_help' ? defaultScore + 2 : defaultScore;
-  },
+  ...createBonusIntentsHook({ offer_farm_help: 2 }),
 };
