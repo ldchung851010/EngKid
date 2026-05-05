@@ -3,15 +3,28 @@ import { pcmToWav } from '../utils/audio.js';
 import { consumeQuota } from '../utils/quota.js';
 import { readCachedTTS, writeCachedTTS } from '../utils/ttsCache.js';
 
-export function ttsRoutes(ttsPort: number) {
+const GLM_TTS_URL = 'https://open.bigmodel.cn/api/paas/v4/audio/speech';
+const GLM_TTS_MODEL = 'glm-tts';
+
+interface TTSOptions {
+  ttsPort?: number;
+  glmApiKey?: string;
+  cloudVoice?: string;
+}
+
+export function ttsRoutes(opts: TTSOptions) {
   return async function (app: FastifyInstance) {
-    const ttsBase = `http://localhost:${ttsPort}`;
+    const isCloud = !!opts.glmApiKey;
+    const cloudVoice = opts.cloudVoice ?? 'tongtong';
+    const ttsBase = opts.ttsPort ? `http://localhost:${opts.ttsPort}` : null;
 
     app.post('/tts', async (request, reply) => {
       const parsed = parseTTSBody(request.body);
       if (!parsed.ok) return reply.status(400).send({ error: parsed.error });
 
-      const { input, voice, speed } = parsed;
+      const { input, voice: clientVoice, speed: clientSpeed } = parsed;
+      const voice = isCloud ? cloudVoice : clientVoice;
+      const speed = isCloud ? 1.0 : clientSpeed;
       const cacheKey = { input, voice, speed };
       const cached = await readCachedTTS(cacheKey);
       if (cached) {
@@ -30,32 +43,17 @@ export function ttsRoutes(ttsPort: number) {
         });
       }
 
-      console.log(`[TTS] ← generate: "${input.substring(0, 40)}..."`);
+      console.log(`[TTS] ← generate: "${input.substring(0, 40)}..." (${isCloud ? 'cloud' : 'local'})`);
 
       try {
-        const res = await fetch(`${ttsBase}/v1/audio/speech`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            input,
-            voice,
-            response_format: 'pcm',
-            stream: false,
-            speed,
-          }),
-        });
+        let wavBuffer: Buffer;
 
-        if (!res.ok) {
-          const errText = await res.text();
-          console.log(`[TTS] ❌ upstream error ${res.status}: ${errText}`);
-          return reply.status(502).send({ error: `TTS upstream error: ${res.status}` });
+        if (isCloud) {
+          wavBuffer = await generateCloudTTS(opts.glmApiKey!, input, voice, speed);
+        } else {
+          wavBuffer = await generateLocalTTS(ttsBase!, input, voice, speed);
         }
 
-        // kitten-tts-server returns raw PCM data
-        const pcmBuffer = Buffer.from(await res.arrayBuffer());
-
-        // Convert PCM to WAV header + PCM data for browser playback
-        const wavBuffer = pcmToWav(pcmBuffer, 24000, 1, 16);
         try {
           await writeCachedTTS(cacheKey, wavBuffer);
         } catch (cacheError) {
@@ -72,6 +70,49 @@ export function ttsRoutes(ttsPort: number) {
       }
     });
   };
+}
+
+async function generateLocalTTS(ttsBase: string, input: string, voice: string, speed: number): Promise<Buffer> {
+  const res = await fetch(`${ttsBase}/v1/audio/speech`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ input, voice, response_format: 'pcm', stream: false, speed }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`local TTS error ${res.status}: ${errText}`);
+  }
+
+  const pcmBuffer = Buffer.from(await res.arrayBuffer());
+  return pcmToWav(pcmBuffer, 24000, 1, 16);
+}
+
+export async function generateCloudTTS(
+  apiKey: string, input: string, voice: string, speed: number,
+): Promise<Buffer> {
+  const res = await fetch(GLM_TTS_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: GLM_TTS_MODEL,
+      input,
+      voice,
+      speed,
+      response_format: 'wav',
+      "watermark_enabled": false
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`GLM-TTS error ${res.status}: ${errText}`);
+  }
+
+  return Buffer.from(await res.arrayBuffer());
 }
 
 type TTSBodyResult =

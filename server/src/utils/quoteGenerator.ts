@@ -3,6 +3,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { pcmToWav } from './audio.js';
 
+const GLM_TTS_URL = 'https://open.bigmodel.cn/api/paas/v4/audio/speech';
+const GLM_TTS_MODEL = 'glm-tts';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** 10 pre-defined kid-friendly English quotes */
@@ -43,7 +46,13 @@ export async function loadManifest(): Promise<QuoteManifest | null> {
   }
 }
 
-export async function ensureQuotesGenerated(ttsPort: number): Promise<QuoteManifest> {
+interface QuoteTTSConfig {
+  ttsPort?: number;
+  glmApiKey?: string;
+  voice?: string;
+}
+
+export async function ensureQuotesGenerated(config: QuoteTTSConfig): Promise<QuoteManifest> {
   await fs.mkdir(DATA_DIR, { recursive: true });
 
   const existing = await loadManifest();
@@ -69,7 +78,7 @@ export async function ensureQuotesGenerated(ttsPort: number): Promise<QuoteManif
     const filePath = path.join(DATA_DIR, fileName);
 
     try {
-      const pcmBuffer = await generateTTS(ttsPort, text);
+      const pcmBuffer = await generateTTS(config, text);
       const wavBuffer = pcmToWav(pcmBuffer, 24000, 1, 16);
       await fs.writeFile(filePath, wavBuffer);
       console.log(`[quotes] ✓ quote-${i}.wav (${wavBuffer.length} bytes)`);
@@ -84,13 +93,38 @@ export async function ensureQuotesGenerated(ttsPort: number): Promise<QuoteManif
   return manifest;
 }
 
-async function generateTTS(ttsPort: number, text: string): Promise<Buffer> {
-  const res = await fetch(`http://localhost:${ttsPort}/v1/audio/speech`, {
+async function generateTTS(config: QuoteTTSConfig, text: string): Promise<Buffer> {
+  const voice = config.voice ?? 'Kiki';
+
+  if (config.glmApiKey) {
+    const res = await fetch(GLM_TTS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.glmApiKey}`,
+      },
+      body: JSON.stringify({
+        model: GLM_TTS_MODEL,
+        input: text,
+        voice,
+        speed: 1.0,
+        response_format: 'wav',
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`GLM-TTS error: ${res.status}`);
+    }
+
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  const res = await fetch(`http://localhost:${config.ttsPort}/v1/audio/speech`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       input: text,
-      voice: 'Kiki',
+      voice,
       response_format: 'pcm',
       stream: false,
       speed: 1.0,

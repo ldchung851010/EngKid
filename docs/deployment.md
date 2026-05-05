@@ -10,7 +10,7 @@
 | `GET` | `/api/scenes` | 从 `src/scenes/*/config.ts` 返回静态场景元数据 | 文件系统 | 无 |
 | `POST` | `/api/intent` | 将儿童语音转写文本匹配到配置里的意图 | DeepSeek 兼容 Chat API | AI 全站每日额度 + 单 IP 小时额度 |
 | `POST` | `/api/example` | 为收集到的单词生成简单英文例句和中文解释 | DeepSeek 兼容 Chat API | 磁盘缓存；缓存未命中时计入 AI 额度 |
-| `POST` | `/api/tts` | 生成或返回已缓存的 WAV 语音 | 本地 Kitten TTS 服务 | 仅缓存未命中时计入 TTS 额度 |
+| `POST` | `/api/tts` | 生成或返回已缓存的 WAV 语音 | 本地 Kitten TTS / 智谱 GLM-TTS（配置 GLM_API_KEY 时） | 仅缓存未命中时计入 TTS 额度 |
 | `POST` | `/api/asr` | 语音识别转发至智谱 GLM-ASR（仅配置 `GLM_API_KEY` 时注册） | 智谱 AI API | ASR 全站每日额度 + 单 IP 小时额度 |
 | `GET` | `/api/quotes` | 返回预生成的鼓励语音 manifest | 文件系统 | 无 |
 | `GET` | `/api/quotes/:id/audio` | 返回预生成的鼓励语音 WAV 文件 | 文件系统 | 无 |
@@ -58,8 +58,9 @@ DEEPSEEK_API_KEY=your-deepseek-key
 ```bash
 DEEPSEEK_MODEL=deepseek-v4-flash
 
-GLM_API_KEY=your-glm-key        # 可选，配置后 ASR 走云端转发
-TTS_PORT=8081
+GLM_API_KEY=your-glm-key        # 可选，配置后 ASR 和 TTS 均走云端（智谱 GLM）
+TTS_VOICE=luodo                 # 云端 TTS 语音，默认 luodo
+TTS_PORT=8081                   # 仅本地 TTS 模式使用
 TTS_MODEL_PATH=/srv/hi-kid-fun/server/model
 TTS_CACHE_DIR=/var/lib/hi-kid-fun/tts-cache
 EXAMPLE_CACHE_DIR=/var/lib/hi-kid-fun/example-cache
@@ -77,6 +78,8 @@ SERVER_BODY_LIMIT=262144
 ```
 
 ASR 默认在浏览器本地运行，不需要服务端 ASR key。如果配置了 `GLM_API_KEY`，ASR 自动走后端转发至智谱云端（`POST /api/asr`），客户端自动检测并切换模式。
+
+TTS 默认使用本地 Kitten TTS（需要二进制和模型文件）。如果配置了 `GLM_API_KEY`，TTS 自动走智谱 GLM-TTS 云端（`POST /api/tts`），无需本地 TTS 二进制和模型。`TTS_VOICE` 控制云端语音，默认 `tongtong`。
 
 ## 构建
 
@@ -235,6 +238,7 @@ Environment=NODE_ENV=production
 Environment=DEEPSEEK_API_KEY=your-deepseek-key
 Environment=DEEPSEEK_MODEL=deepseek-v4-flash
 Environment=GLM_API_KEY=your-glm-key
+Environment=TTS_VOICE=luodo
 Environment=TTS_CACHE_DIR=/var/lib/hi-kid-fun/tts-cache
 Environment=EXAMPLE_CACHE_DIR=/var/lib/hi-kid-fun/example-cache
 Environment=AI_DAILY_LIMIT=5000
@@ -264,7 +268,7 @@ sudo chown -R hi-kid-fun:hi-kid-fun /var/lib/hi-kid-fun
 部署完成后先检查接口：
 
 ```bash
-curl https://learn.example.com/api/health    # 确认 tts: "ready" 和 asr: "cloud" 或 "local"
+curl https://learn.example.com/api/health    # 确认 tts/asr 的 cloud/local 模式
 curl https://learn.example.com/api/scenes
 curl https://learn.example.com/api/quota     # 确认 ai/tts/asr 额度
 ```

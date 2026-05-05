@@ -17,6 +17,9 @@ const TTS_MODEL_PATH = process.env.TTS_MODEL_PATH ||
   new URL('../model', import.meta.url).pathname;
 const SERVER_BODY_LIMIT = readPositiveInt('SERVER_BODY_LIMIT', 256 * 1024);
 const TRUST_PROXY = process.env.TRUST_PROXY === 'true';
+const GLM_API_KEY = process.env.GLM_API_KEY;
+
+const USE_CLOUD_TTS = !!GLM_API_KEY;
 
 const app = Fastify({
   logger: true,
@@ -27,51 +30,63 @@ const app = Fastify({
 await app.register(cors, { origin: createCorsOrigin() });
 await app.register(multipart);
 
-// Start kitten-tts-server
-function startTTSServer(): ChildProcess {
-  const binPath = getTTSBinaryPath();
-  const args = [TTS_MODEL_PATH, '--port', String(TTS_PORT)];
-  console.log(`[TTS] starting: ${binPath} ${args.join(' ')}`);
+let ttsProcess: ChildProcess | null = null;
 
-  const proc = spawn(binPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-  proc.stdout?.on('data', (d: Buffer) => console.log(`[TTS server] ${d.toString().trim()}`));
-  proc.stderr?.on('data', (d: Buffer) => console.log(`[TTS server] ${d.toString().trim()}`));
-  proc.on('exit', (code) => console.log(`[TTS] server exited code=${code}`));
-  return proc;
-}
+if (!USE_CLOUD_TTS) {
+  // Start local kitten-tts-server
+  function startTTSServer(): ChildProcess {
+    const binPath = getTTSBinaryPath();
+    const args = [TTS_MODEL_PATH, '--port', String(TTS_PORT)];
+    console.log(`[TTS] starting: ${binPath} ${args.join(' ')}`);
 
-function getTTSBinaryPath(): string {
-  const binaryName = getTTSBinaryName();
-  return new URL(`../bin/${binaryName}`, import.meta.url).pathname;
-}
-
-function getTTSBinaryName(): string {
-  if (process.platform === 'darwin' && process.arch === 'arm64') {
-    return 'kitten-tts-server-aarch64-macos';
+    const proc = spawn(binPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    proc.stdout?.on('data', (d: Buffer) => console.log(`[TTS server] ${d.toString().trim()}`));
+    proc.stderr?.on('data', (d: Buffer) => console.log(`[TTS server] ${d.toString().trim()}`));
+    proc.on('exit', (code) => console.log(`[TTS] server exited code=${code}`));
+    return proc;
   }
 
-  if (process.platform === 'linux' && process.arch === 'x64') {
-    return 'kitten-tts-server-x86_64-linux';
+  function getTTSBinaryPath(): string {
+    const binaryName = getTTSBinaryName();
+    return new URL(`../bin/${binaryName}`, import.meta.url).pathname;
   }
 
-  throw new Error(`Unsupported TTS platform: ${process.platform}/${process.arch}`);
-}
+  function getTTSBinaryName(): string {
+    if (process.platform === 'darwin' && process.arch === 'arm64') {
+      return 'kitten-tts-server-aarch64-macos';
+    }
 
-// Wait for TTS server to be ready
-async function waitForTTS(timeoutMs = 15000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch(`http://localhost:${TTS_PORT}/health`);
-      if (res.ok) { console.log('[TTS] server ready'); return; }
-    } catch { /* not ready yet */ }
-    await new Promise((r) => setTimeout(r, 500));
+    if (process.platform === 'linux' && process.arch === 'x64') {
+      return 'kitten-tts-server-x86_64-linux';
+    }
+
+    throw new Error(`Unsupported TTS platform: ${process.platform}/${process.arch}`);
   }
-  throw new Error('TTS server failed to start');
-}
 
-const ttsProcess = startTTSServer();
-await waitForTTS();
+  // Wait for TTS server to be ready
+  async function waitForTTS(timeoutMs = 15000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      try {
+        const res = await fetch(`http://localhost:${TTS_PORT}/health`);
+        if (res.ok) {
+          const ct = res.headers.get('content-type') ?? '';
+          if (ct.includes('json') || ct.includes('text/plain')) {
+            console.log('[TTS] server ready');
+            return;
+          }
+        }
+      } catch { /* not ready yet */ }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    throw new Error('TTS server failed to start');
+  }
+
+  ttsProcess = startTTSServer();
+  await waitForTTS();
+} else {
+  console.log('[TTS] cloud mode (GLM-TTS)');
+}
 
 // Routes
 app.addHook('onRequest', async (request) => {
@@ -83,24 +98,32 @@ app.addHook('onResponse', async (request, reply) => {
 });
 
 // Pre-generate quote audio files
-await ensureQuotesGenerated(TTS_PORT);
+await ensureQuotesGenerated({
+  ttsPort: USE_CLOUD_TTS ? undefined : TTS_PORT,
+  glmApiKey: GLM_API_KEY,
+  voice: process.env.TTS_VOICE,
+});
 
 await app.register(intentRoutes, { prefix: '/api' });
-await app.register(ttsRoutes(TTS_PORT), { prefix: '/api' });
+await app.register(ttsRoutes({
+  ttsPort: USE_CLOUD_TTS ? undefined : TTS_PORT,
+  glmApiKey: GLM_API_KEY,
+  cloudVoice: process.env.TTS_VOICE,
+}), { prefix: '/api' });
 await app.register(exampleRoutes, { prefix: '/api' });
 await app.register(scenesRoutes, { prefix: '/api' });
 await app.register(quotesRoutes(), { prefix: '/api' });
 await app.register(quotaRoutes, { prefix: '/api' });
 
-if (process.env.GLM_API_KEY) {
+if (GLM_API_KEY) {
   await app.register(asrRoutes, { prefix: '/api' });
   console.log('[ASR] cloud mode (GLM-ASR-2512)');
 }
 
 app.get('/api/health', async () => ({
   status: 'ok',
-  tts: 'ready',
-  asr: process.env.GLM_API_KEY ? 'cloud' : 'local',
+  tts: USE_CLOUD_TTS ? 'cloud' : 'ready',
+  asr: GLM_API_KEY ? 'cloud' : 'local',
 }));
 
 try {
@@ -108,13 +131,13 @@ try {
   console.log('🚀 Server listening on http://localhost:3001');
 } catch (err) {
   app.log.error(err);
-  ttsProcess.kill();
+  ttsProcess?.kill();
   process.exit(1);
 }
 
 // Cleanup
-process.on('SIGTERM', () => ttsProcess.kill());
-process.on('SIGINT', () => { ttsProcess.kill(); process.exit(0); });
+process.on('SIGTERM', () => ttsProcess?.kill());
+process.on('SIGINT', () => { ttsProcess?.kill(); process.exit(0); });
 
 function createCorsOrigin() {
   const allowedOrigins = parseList(process.env.CORS_ORIGIN);
