@@ -16,8 +16,11 @@ export async function readCachedTTS(keyInput: TTSCacheKeyInput): Promise<Uint8Ar
 
   try {
     const filePath = `${cacheDir}/${await cacheKey(keyInput)}.wav`;
-    return await fs.readFile(filePath);
+    const result = await fs.readFile(filePath);
+    console.log(`[TTS-cache] HIT ${filePath}`);
+    return result;
   } catch {
+    console.log(`[TTS-cache] MISS`);
     return null;
   }
 }

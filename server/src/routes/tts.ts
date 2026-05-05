@@ -38,11 +38,13 @@ export function ttsRoutes(opts: TTSOptions): Hono {
     const cacheKey = { input, voice, speed };
     const cached = await readCachedTTS(cacheKey);
     if (cached) {
+      console.log(`[TTS] cache HIT for "${input.substring(0, 20)}..."`);
       c.header('Content-Type', 'audio/wav');
       c.header('Content-Length', String(cached.length));
       c.header('X-TTS-Cache', 'HIT');
       return c.body(cached.buffer as ArrayBuffer, 200);
     }
+    console.log(`[TTS] cache MISS for "${input.substring(0, 20)}..."`);
 
     const clientIp = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
     const quota = consumeQuota('tts', clientIp);
@@ -67,6 +69,7 @@ export function ttsRoutes(opts: TTSOptions): Hono {
 
       try {
         await writeCachedTTS(cacheKey, wavBuffer);
+        console.log(`[TTS] cache written for "${input.substring(0, 20)}..."`);
       } catch (cacheError) {
         console.warn('[TTS] cache write failed:', cacheError);
       }

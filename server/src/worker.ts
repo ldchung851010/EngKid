@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { initConfig, getConfig } from './config.js';
 import { initQuota } from './utils/quota.js';
+import { initCacheFs } from './utils/cacheFs.js';
+import { createR2CacheFs, type R2Bucket } from './utils/r2CacheFs.js';
 import { intentRoutes } from './routes/intent.js';
 import { ttsRoutes } from './routes/tts.js';
 import { exampleRoutes } from './routes/example.js';
@@ -17,6 +19,7 @@ type Env = {
     GLM_API_KEY: string;
     TTS_VOICE: string;
     CORS_ORIGIN: string;
+    CACHE_BUCKET: R2Bucket;
   };
 };
 
@@ -32,8 +35,17 @@ app.use('*', async (c, next) => {
       deepseekModel: c.env.DEEPSEEK_MODEL ?? 'deepseek-v4-flash',
       glmApiKey: c.env.GLM_API_KEY ?? '',
       ttsVoice: c.env.TTS_VOICE ?? 'tongtong',
+      ttsCacheDir: 'tts-cache',
+      exampleCacheDir: 'example-cache',
     });
     initQuota();
+
+    if (c.env.CACHE_BUCKET) {
+      initCacheFs(createR2CacheFs(c.env.CACHE_BUCKET));
+      console.log('[worker] R2 cache initialized');
+    } else {
+      console.log('[worker] R2 cache NOT available (CACHE_BUCKET binding missing)');
+    }
   }
   await next();
 });

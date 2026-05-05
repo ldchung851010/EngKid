@@ -11,7 +11,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "server:dev": "cd server && npm run dev",
-    "server:worker": "cd server && npx wrangler dev --port 3001"
+    "server:worker": "cd server && npx wrangler dev --remote --port 3001"
   },
   "keywords": [],
   "author": "",
