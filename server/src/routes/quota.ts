@@ -1,6 +1,13 @@
-import type { FastifyInstance } from 'fastify';
+import { Hono } from 'hono';
 import { getAllQuotaStatus } from '../utils/quota.js';
 
-export async function quotaRoutes(app: FastifyInstance) {
-  app.get('/quota', async (request) => getAllQuotaStatus(request));
+export function quotaRoutes(): Hono {
+  const app = new Hono();
+
+  app.get('/quota', async (c) => {
+    const clientIp = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    return c.json(getAllQuotaStatus(clientIp));
+  });
+
+  return app;
 }

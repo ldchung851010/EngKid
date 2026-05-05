@@ -1,43 +1,44 @@
-import type { FastifyInstance } from 'fastify';
+import { Hono } from 'hono';
 import fs from 'fs/promises';
 import path from 'path';
 import {
   getQuotesDir,
   loadManifest,
-  type QuoteManifest,
 } from '../utils/quoteGenerator.js';
 
-export function quotesRoutes() {
-  return async function (app: FastifyInstance) {
-    app.get('/quotes', async (_request, reply) => {
-      const manifest = await loadManifest();
-      if (!manifest) {
-        return reply.status(503).send({ error: 'Quotes not generated yet' });
-      }
-      return manifest;
-    });
+export function quotesRoutes(): Hono {
+  const app = new Hono();
 
-    app.get('/quotes/:id/audio', async (request, reply) => {
-      const { id } = request.params as { id: string };
-      const manifest = await loadManifest();
-      if (!manifest) {
-        return reply.status(503).send({ error: 'Quotes not generated yet' });
-      }
+  app.get('/quotes', async (c) => {
+    const manifest = await loadManifest();
+    if (!manifest) {
+      return c.json({ error: 'Quotes not generated yet' }, 503);
+    }
+    return c.json(manifest);
+  });
 
-      const quote = manifest.quotes.find((q) => String(q.id) === id);
-      if (!quote) {
-        return reply.status(404).send({ error: 'Quote not found' });
-      }
+  app.get('/quotes/:id/audio', async (c) => {
+    const id = c.req.param('id');
+    const manifest = await loadManifest();
+    if (!manifest) {
+      return c.json({ error: 'Quotes not generated yet' }, 503);
+    }
 
-      const filePath = path.join(getQuotesDir(), quote.audioFile);
-      try {
-        const buffer = await fs.readFile(filePath);
-        reply.header('Content-Type', 'audio/wav');
-        reply.header('Content-Length', buffer.length);
-        return reply.send(buffer);
-      } catch {
-        return reply.status(404).send({ error: 'Audio file not found' });
-      }
-    });
-  };
+    const quote = manifest.quotes.find((q) => String(q.id) === id);
+    if (!quote) {
+      return c.json({ error: 'Quote not found' }, 404);
+    }
+
+    const filePath = path.join(getQuotesDir(), quote.audioFile);
+    try {
+      const buffer = await fs.readFile(filePath);
+      c.header('Content-Type', 'audio/wav');
+      c.header('Content-Length', String(buffer.length));
+      return c.body(new Uint8Array(buffer));
+    } catch {
+      return c.json({ error: 'Audio file not found' }, 404);
+    }
+  });
+
+  return app;
 }

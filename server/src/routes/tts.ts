@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import { Hono } from 'hono';
 import { pcmToWav } from '../utils/audio.js';
 import { consumeQuota } from '../utils/quota.js';
 import { readCachedTTS, writeCachedTTS } from '../utils/ttsCache.js';
@@ -12,64 +12,67 @@ interface TTSOptions {
   cloudVoice?: string;
 }
 
-export function ttsRoutes(opts: TTSOptions) {
-  return async function (app: FastifyInstance) {
-    const isCloud = !!opts.glmApiKey;
-    const cloudVoice = opts.cloudVoice ?? 'tongtong';
-    const ttsBase = opts.ttsPort ? `http://localhost:${opts.ttsPort}` : null;
+export function ttsRoutes(opts: TTSOptions): Hono {
+  const app = new Hono();
+  const isCloud = !!opts.glmApiKey;
+  const cloudVoice = opts.cloudVoice ?? 'tongtong';
+  const ttsBase = opts.ttsPort ? `http://localhost:${opts.ttsPort}` : null;
 
-    app.post('/tts', async (request, reply) => {
-      const parsed = parseTTSBody(request.body);
-      if (!parsed.ok) return reply.status(400).send({ error: parsed.error });
+  app.post('/tts', async (c) => {
+    const body = await c.req.json();
+    const parsed = parseTTSBody(body);
+    if (!parsed.ok) return c.json({ error: parsed.error }, 400);
 
-      const { input, voice: clientVoice, speed: clientSpeed } = parsed;
-      const voice = isCloud ? cloudVoice : clientVoice;
-      const speed = isCloud ? 1.0 : clientSpeed;
-      const cacheKey = { input, voice, speed };
-      const cached = await readCachedTTS(cacheKey);
-      if (cached) {
-        reply.header('Content-Type', 'audio/wav');
-        reply.header('Content-Length', cached.length);
-        reply.header('X-TTS-Cache', 'HIT');
-        return reply.send(cached);
+    const { input, voice: clientVoice, speed: clientSpeed } = parsed;
+    const voice = isCloud ? cloudVoice : clientVoice;
+    const speed = isCloud ? 1.0 : clientSpeed;
+    const cacheKey = { input, voice, speed };
+    const cached = await readCachedTTS(cacheKey);
+    if (cached) {
+      c.header('Content-Type', 'audio/wav');
+      c.header('Content-Length', String(cached.length));
+      c.header('X-TTS-Cache', 'HIT');
+      return c.body(new Uint8Array(cached));
+    }
+
+    const clientIp = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const quota = consumeQuota('tts', clientIp);
+    if (!quota.ok) {
+      if (quota.retryAfterSeconds) c.header('Retry-After', String(quota.retryAfterSeconds));
+      return c.json({
+        error: quota.error ?? 'TTS quota exceeded',
+        retryAfterSeconds: quota.retryAfterSeconds,
+      }, (quota.statusCode ?? 429) as 429);
+    }
+
+    console.log(`[TTS] ← generate: "${input.substring(0, 40)}..." (${isCloud ? 'cloud' : 'local'})`);
+
+    try {
+      let wavBuffer: Buffer;
+
+      if (isCloud) {
+        wavBuffer = await generateCloudTTS(opts.glmApiKey!, input, voice, speed);
+      } else {
+        wavBuffer = await generateLocalTTS(ttsBase!, input, voice, speed);
       }
-
-      const quota = consumeQuota('tts', request);
-      if (!quota.ok) {
-        if (quota.retryAfterSeconds) reply.header('Retry-After', quota.retryAfterSeconds);
-        return reply.status(quota.statusCode ?? 429).send({
-          error: quota.error ?? 'TTS quota exceeded',
-          retryAfterSeconds: quota.retryAfterSeconds,
-        });
-      }
-
-      console.log(`[TTS] ← generate: "${input.substring(0, 40)}..." (${isCloud ? 'cloud' : 'local'})`);
 
       try {
-        let wavBuffer: Buffer;
-
-        if (isCloud) {
-          wavBuffer = await generateCloudTTS(opts.glmApiKey!, input, voice, speed);
-        } else {
-          wavBuffer = await generateLocalTTS(ttsBase!, input, voice, speed);
-        }
-
-        try {
-          await writeCachedTTS(cacheKey, wavBuffer);
-        } catch (cacheError) {
-          console.warn('[TTS] cache write failed:', cacheError);
-        }
-
-        reply.header('Content-Type', 'audio/wav');
-        reply.header('Content-Length', wavBuffer.length);
-        reply.header('X-TTS-Cache', 'MISS');
-        return reply.send(wavBuffer);
-      } catch (err) {
-        console.log('[TTS] ❌ error:', err);
-        return reply.status(502).send({ error: 'TTS upstream unavailable' });
+        await writeCachedTTS(cacheKey, wavBuffer);
+      } catch (cacheError) {
+        console.warn('[TTS] cache write failed:', cacheError);
       }
-    });
-  };
+
+      c.header('Content-Type', 'audio/wav');
+      c.header('Content-Length', String(wavBuffer.length));
+      c.header('X-TTS-Cache', 'MISS');
+      return c.body(new Uint8Array(wavBuffer));
+    } catch (err) {
+      console.log('[TTS] ❌ error:', err);
+      return c.json({ error: 'TTS upstream unavailable' }, 502);
+    }
+  });
+
+  return app;
 }
 
 async function generateLocalTTS(ttsBase: string, input: string, voice: string, speed: number): Promise<Buffer> {

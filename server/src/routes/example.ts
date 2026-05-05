@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import { Hono } from 'hono';
 import { callTextAIJson } from '../utils/aiGateway.js';
 import {
   EXAMPLE_PROMPT_VERSION,
@@ -12,36 +12,40 @@ interface ExampleResponse {
   explanation: string;
 }
 
-export async function exampleRoutes(app: FastifyInstance) {
-  app.post('/example', async (request, reply) => {
-    const parsed = parseExampleBody(request.body);
-    if (!parsed.ok) return reply.status(400).send({ error: parsed.error });
+export function exampleRoutes(): Hono {
+  const app = new Hono();
+
+  app.post('/example', async (c) => {
+    const body = await c.req.json();
+    const parsed = parseExampleBody(body);
+    if (!parsed.ok) return c.json({ error: parsed.error }, 400);
 
     const { word, level } = parsed;
     const model = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
     const cacheKey = { word, cefrLevel: level, model, promptVersion: EXAMPLE_PROMPT_VERSION };
     const cached = await readCachedExample(cacheKey);
     if (cached) {
-      reply.header('X-Example-Cache', 'HIT');
-      return cached;
+      c.header('X-Example-Cache', 'HIT');
+      return c.json(cached);
     }
 
     const prompt = `You are helping a young child (ages 6-12) learn English. For the word "${word}" (CEFR ${level}), provide: 1) one very simple English sentence using the word (maximum 8 words, use vocabulary a 6-year-old would know), 2) a short Chinese explanation suitable for a child. Return valid JSON: {"sentence": string, "explanation": string}.`;
 
-    const result = await callTextAIJson(request, {
+    const clientIp = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const result = await callTextAIJson(clientIp, {
       logName: 'Example',
       prompt,
       temperature: 0.3,
       maxTokens: 150,
     });
     if (!result.ok) {
-      if (result.body.retryAfterSeconds) reply.header('Retry-After', result.body.retryAfterSeconds);
-      return reply.status(result.statusCode).send(result.body);
+      if (result.body.retryAfterSeconds) c.header('Retry-After', String(result.body.retryAfterSeconds));
+      return c.json(result.body, result.statusCode as 429 | 500 | 502);
     }
 
     const content = result.content as Partial<ExampleResponse>;
     if (typeof content.sentence !== 'string' || typeof content.explanation !== 'string') {
-      return reply.status(502).send({ error: 'Example upstream returned invalid JSON' });
+      return c.json({ error: 'Example upstream returned invalid JSON' }, 502);
     }
 
     const example: CachedExample = {
@@ -53,9 +57,11 @@ export async function exampleRoutes(app: FastifyInstance) {
     } catch (cacheError) {
       console.warn('[Example] cache write failed:', cacheError);
     }
-    reply.header('X-Example-Cache', 'MISS');
-    return example;
+    c.header('X-Example-Cache', 'MISS');
+    return c.json(example);
   });
+
+  return app;
 }
 
 type ExampleBodyResult =

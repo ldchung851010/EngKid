@@ -1,6 +1,6 @@
-import Fastify from 'fastify';
-import cors from '@fastify/cors';
-import multipart from '@fastify/multipart';
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import { serve } from '@hono/node-server';
 import { spawn, type ChildProcess } from 'child_process';
 import { intentRoutes } from './routes/intent.js';
 import { ttsRoutes } from './routes/tts.js';
@@ -16,24 +16,13 @@ const TTS_PORT = parseInt(process.env.TTS_PORT || '8081');
 const TTS_MODEL_PATH = process.env.TTS_MODEL_PATH ||
   new URL('../model', import.meta.url).pathname;
 const SERVER_BODY_LIMIT = readPositiveInt('SERVER_BODY_LIMIT', 256 * 1024);
-const TRUST_PROXY = process.env.TRUST_PROXY === 'true';
 const GLM_API_KEY = process.env.GLM_API_KEY;
 
 const USE_CLOUD_TTS = !!GLM_API_KEY;
 
-const app = Fastify({
-  logger: true,
-  bodyLimit: SERVER_BODY_LIMIT,
-  trustProxy: TRUST_PROXY,
-});
-
-await app.register(cors, { origin: createCorsOrigin() });
-await app.register(multipart);
-
 let ttsProcess: ChildProcess | null = null;
 
 if (!USE_CLOUD_TTS) {
-  // Start local kitten-tts-server
   function startTTSServer(): ChildProcess {
     const binPath = getTTSBinaryPath();
     const args = [TTS_MODEL_PATH, '--port', String(TTS_PORT)];
@@ -63,7 +52,6 @@ if (!USE_CLOUD_TTS) {
     throw new Error(`Unsupported TTS platform: ${process.platform}/${process.arch}`);
   }
 
-  // Wait for TTS server to be ready
   async function waitForTTS(timeoutMs = 15000): Promise<void> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
@@ -88,15 +76,6 @@ if (!USE_CLOUD_TTS) {
   console.log('[TTS] cloud mode (GLM-TTS)');
 }
 
-// Routes
-app.addHook('onRequest', async (request) => {
-  console.log(`[server] ← ${request.method} ${request.url}`);
-});
-
-app.addHook('onResponse', async (request, reply) => {
-  console.log(`[server] → ${reply.statusCode} ${request.method} ${request.url} (${Math.round(reply.elapsedTime)}ms)`);
-});
-
 // Pre-generate quote audio files
 await ensureQuotesGenerated({
   ttsPort: USE_CLOUD_TTS ? undefined : TTS_PORT,
@@ -104,65 +83,76 @@ await ensureQuotesGenerated({
   voice: process.env.TTS_VOICE,
 });
 
-await app.register(intentRoutes, { prefix: '/api' });
-await app.register(ttsRoutes({
+// CORS origins
+function getAllowedOrigins(): string[] {
+  const raw = process.env.CORS_ORIGIN ?? '';
+  const list = raw.split(',').map(s => s.trim()).filter(Boolean);
+  if (list.length === 0 && process.env.NODE_ENV !== 'production') {
+    list.push('http://localhost:5173', 'http://127.0.0.1:5173');
+  }
+  return list;
+}
+
+// Hono app
+const app = new Hono();
+
+// Logging middleware
+app.use('*', async (c, next) => {
+  console.log(`[server] ← ${c.req.method} ${c.req.path}`);
+  const start = Date.now();
+  await next();
+  console.log(`[server] → ${c.res.status} ${c.req.method} ${c.req.path} (${Date.now() - start}ms)`);
+});
+
+// Body size limit middleware
+app.use('*', async (c, next) => {
+  const contentLength = c.req.header('content-length');
+  if (contentLength && parseInt(contentLength) > SERVER_BODY_LIMIT) {
+    return c.json({ error: 'Request body too large' }, 413);
+  }
+  await next();
+});
+
+// CORS middleware
+app.use('*', cors({
+  origin: (origin) => {
+    const allowed = getAllowedOrigins();
+    if (!origin || allowed.includes(origin)) return origin ?? '*';
+    return null;
+  },
+}));
+
+// API routes
+app.route('/api', intentRoutes());
+app.route('/api', ttsRoutes({
   ttsPort: USE_CLOUD_TTS ? undefined : TTS_PORT,
   glmApiKey: GLM_API_KEY,
   cloudVoice: process.env.TTS_VOICE,
-}), { prefix: '/api' });
-await app.register(exampleRoutes, { prefix: '/api' });
-await app.register(scenesRoutes, { prefix: '/api' });
-await app.register(quotesRoutes(), { prefix: '/api' });
-await app.register(quotaRoutes, { prefix: '/api' });
+}));
+app.route('/api', exampleRoutes());
+app.route('/api', scenesRoutes());
+app.route('/api', quotesRoutes());
+app.route('/api', quotaRoutes());
 
 if (GLM_API_KEY) {
-  await app.register(asrRoutes, { prefix: '/api' });
+  app.route('/api', asrRoutes());
   console.log('[ASR] cloud mode (GLM-ASR-2512)');
 }
 
-app.get('/api/health', async () => ({
+app.get('/api/health', (c) => c.json({
   status: 'ok',
   tts: USE_CLOUD_TTS ? 'cloud' : 'ready',
   asr: GLM_API_KEY ? 'cloud' : 'local',
 }));
 
-try {
-  await app.listen({ port: 3001 });
-  console.log('🚀 Server listening on http://localhost:3001');
-} catch (err) {
-  app.log.error(err);
-  ttsProcess?.kill();
-  process.exit(1);
-}
+// Start server
+serve({
+  fetch: app.fetch,
+  port: 3001,
+}, (info) => {
+  console.log(`🚀 Server listening on http://localhost:${info.port}`);
+});
 
 // Cleanup
 process.on('SIGTERM', () => ttsProcess?.kill());
 process.on('SIGINT', () => { ttsProcess?.kill(); process.exit(0); });
-
-function createCorsOrigin() {
-  const allowedOrigins = parseList(process.env.CORS_ORIGIN);
-  if (allowedOrigins.length === 0 && process.env.NODE_ENV !== 'production') {
-    allowedOrigins.push('http://localhost:5173', 'http://127.0.0.1:5173');
-  }
-
-  return (origin: string | undefined, callback: (error: Error | null, allow: boolean) => void) => {
-    if (!origin) {
-      callback(null, true);
-      return;
-    }
-
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-      return;
-    }
-
-    callback(null, false);
-  };
-}
-
-function parseList(value: string | undefined): string[] {
-  return (value ?? '')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-}

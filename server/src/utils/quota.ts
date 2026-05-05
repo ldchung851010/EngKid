@@ -1,5 +1,3 @@
-import type { FastifyRequest } from 'fastify';
-
 export type QuotaResource = 'ai' | 'tts' | 'asr';
 
 export interface QuotaConfig {
@@ -41,8 +39,8 @@ const configs: Record<QuotaResource, QuotaConfig> = {
   },
 };
 
-export function consumeQuota(resource: QuotaResource, request: FastifyRequest, amount = 1): QuotaCheck {
-  const status = getQuotaStatus(resource, request);
+export function consumeQuota(resource: QuotaResource, clientIp: string, amount = 1): QuotaCheck {
+  const status = getQuotaStatus(resource, clientIp);
   if (amount <= 0) return status;
 
   if (status.dailyRemaining < amount) {
@@ -66,14 +64,14 @@ export function consumeQuota(resource: QuotaResource, request: FastifyRequest, a
   }
 
   getBucket(dailyKey(resource), DAY_MS).count += amount;
-  getBucket(hourlyKey(resource, getClientIp(request)), HOUR_MS).count += amount;
-  return getQuotaStatus(resource, request);
+  getBucket(hourlyKey(resource, clientIp), HOUR_MS).count += amount;
+  return getQuotaStatus(resource, clientIp);
 }
 
-export function getQuotaStatus(resource: QuotaResource, request: FastifyRequest): QuotaCheck {
+export function getQuotaStatus(resource: QuotaResource, clientIp: string): QuotaCheck {
   const config = configs[resource];
   const daily = getBucket(dailyKey(resource), DAY_MS);
-  const hourly = getBucket(hourlyKey(resource, getClientIp(request)), HOUR_MS);
+  const hourly = getBucket(hourlyKey(resource, clientIp), HOUR_MS);
   return {
     ok: true,
     dailyRemaining: Math.max(0, config.dailyLimit - daily.count),
@@ -81,11 +79,11 @@ export function getQuotaStatus(resource: QuotaResource, request: FastifyRequest)
   };
 }
 
-export function getAllQuotaStatus(request: FastifyRequest): Record<QuotaResource, QuotaCheck> {
+export function getAllQuotaStatus(clientIp: string): Record<QuotaResource, QuotaCheck> {
   return {
-    ai: getQuotaStatus('ai', request),
-    tts: getQuotaStatus('tts', request),
-    asr: getQuotaStatus('asr', request),
+    ai: getQuotaStatus('ai', clientIp),
+    tts: getQuotaStatus('tts', clientIp),
+    asr: getQuotaStatus('asr', clientIp),
   };
 }
 
@@ -105,10 +103,6 @@ function dailyKey(resource: QuotaResource): string {
 
 function hourlyKey(resource: QuotaResource, ip: string): string {
   return `${resource}:hour:${ip}:${new Date().toISOString().slice(0, 13)}`;
-}
-
-function getClientIp(request: FastifyRequest): string {
-  return request.ip;
 }
 
 function secondsUntilNextUtcDay(): number {

@@ -1,4 +1,3 @@
-import type { FastifyRequest } from 'fastify';
 import { consumeQuota } from './quota.js';
 
 export interface TextAIOptions {
@@ -12,14 +11,14 @@ export type TextAIResult =
   | { ok: true; content: Record<string, unknown>; elapsedMs: number }
   | { ok: false; statusCode: number; body: { error: string; retryAfterSeconds?: number } };
 
-export async function callTextAIJson(request: FastifyRequest, options: TextAIOptions): Promise<TextAIResult> {
+export async function callTextAIJson(clientIp: string, options: TextAIOptions): Promise<TextAIResult> {
   const apiKey = process.env.DEEPSEEK_API_KEY;
   if (!apiKey) {
     console.log(`[${options.logName}] DEEPSEEK_API_KEY not configured`);
     return { ok: false, statusCode: 500, body: { error: 'DEEPSEEK_API_KEY not configured' } };
   }
 
-  const quota = consumeQuota('ai', request);
+  const quota = consumeQuota('ai', clientIp);
   if (!quota.ok) {
     return {
       ok: false,

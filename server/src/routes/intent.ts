@@ -1,30 +1,33 @@
-import type { FastifyInstance } from 'fastify';
+import { Hono } from 'hono';
 import { callTextAIJson } from '../utils/aiGateway.js';
 
-export async function intentRoutes(app: FastifyInstance) {
-  app.post('/intent', async (request, reply) => {
-    const parsed = parseIntentBody(request.body);
-    if (!parsed.ok) return reply.status(400).send({ error: parsed.error });
+export function intentRoutes(): Hono {
+  const app = new Hono();
 
-    const body = parsed.value;
-    console.log(`[Intent] ← candidates=[${body.candidateIntents.map(c => c.intentId).join(',')}]`);
+  app.post('/intent', async (c) => {
+    const body = await c.req.json();
+    const parsed = parseIntentBody(body);
+    if (!parsed.ok) return c.json({ error: parsed.error }, 400);
 
-    const npcText = body.npcContext.npcText ? `\nNPC just said: "${body.npcContext.npcText}"` : '';
-    const hints = body.npcContext.hintExamples?.length
-      ? `\nExpected response examples:\n${body.npcContext.hintExamples.map((h: string) => `- "${h}"`).join('\n')}`
+    const value = parsed.value;
+    console.log(`[Intent] ← candidates=[${value.candidateIntents.map(c => c.intentId).join(',')}]`);
+
+    const npcText = value.npcContext.npcText ? `\nNPC just said: "${value.npcContext.npcText}"` : '';
+    const hints = value.npcContext.hintExamples?.length
+      ? `\nExpected response examples:\n${value.npcContext.hintExamples.map((h: string) => `- "${h}"`).join('\n')}`
       : '';
 
     const prompt = `You are an intent router for a children's English learning game.
 
-NPC: ${body.npcContext.name} (${body.npcContext.role})${npcText}
+NPC: ${value.npcContext.name} (${value.npcContext.role})${npcText}
 
-The child said: "${body.transcript}"${hints}
+The child said: "${value.transcript}"${hints}
 
 Candidate intents:
-${body.candidateIntents.map((i) => `- ${i.intentId}: ${i.description}`).join('\n')}
+${value.candidateIntents.map((i) => `- ${i.intentId}: ${i.description}`).join('\n')}
 
 Conversation history:
-${body.conversationHistory.map((m) => `- ${m.role}: ${m.text}`).join('\n')}
+${value.conversationHistory.map((m) => `- ${m.role}: ${m.text}`).join('\n')}
 
 Rules:
 1. Match the child's utterance to the BEST matching intent
@@ -36,21 +39,24 @@ Rules:
 
 Return ONLY a JSON object: {"intentId": "<id or 'none'>", "confidence": <0.0-1.0>}`;
 
-    const result = await callTextAIJson(request, {
+    const clientIp = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const result = await callTextAIJson(clientIp, {
       logName: 'Intent',
       prompt,
       temperature: 0.1,
       maxTokens: 100,
     });
     if (!result.ok) {
-      if (result.body.retryAfterSeconds) reply.header('Retry-After', result.body.retryAfterSeconds);
-      return reply.status(result.statusCode).send(result.body);
+      if (result.body.retryAfterSeconds) c.header('Retry-After', String(result.body.retryAfterSeconds));
+      return c.json(result.body, result.statusCode as 429 | 500 | 502);
     }
-    return reply.send({
+    return c.json({
       intentId: typeof result.content.intentId === 'string' ? result.content.intentId : 'none',
       confidence: typeof result.content.confidence === 'number' ? result.content.confidence : 0,
     });
   });
+
+  return app;
 }
 
 interface IntentBody {
@@ -84,7 +90,6 @@ function parseIntentBody(body: unknown): IntentBodyResult {
   if (!role.ok) return role;
   npcContext.role = role.value;
 
-  // Optional: NPC dialogue text and hint examples for better LLM matching
   if (typeof body.npcContext.npcText === 'string' && body.npcContext.npcText.trim()) {
     npcContext.npcText = body.npcContext.npcText.trim().slice(0, 500);
   }
