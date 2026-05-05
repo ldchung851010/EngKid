@@ -509,17 +509,21 @@ async function speakNPC(node: DialogueNode): Promise<void> {
 // ── ASR ────────────────────────────────────────────────────────
 const whisperASR = new WhisperASR();
 const transcribe = (audioData: Float32Array) => whisperASR.transcribe(audioData);
+let cloudAsrUrl: string | undefined;
+
+// Detect cloud ASR mode from server health endpoint
+async function detectAsrMode(): Promise<string | undefined> {
+  try {
+    const health = await fetch('/api/health').then(r => r.json());
+    if (health.asr === 'cloud') return '/api/asr';
+  } catch { /* server unreachable, use local ASR */ }
+  return undefined;
+}
 
 // ── Mic & Speech Pipeline ──────────────────────────────────────
 const micContainer = document.getElementById('mic-container')!;
-const pipeline = new SpeechPipeline({
-  onStateChange: (state) => console.log(`[pipeline] ${state}`),
-  onTranscript: (text) => console.log(`[ASR] "${text}"`),
-}, transcribe);
-
-const micButton = new MicButton(micContainer, pipeline, async (transcript) => {
-  await handleChildSpeech(transcript);
-});
+let pipeline: SpeechPipeline;
+let micButton: MicButton;
 
 function showMicWithHints(node: DialogueNode): void {
   if (activeNPC) {
@@ -823,7 +827,7 @@ async function loadScene(): Promise<void> {
   // Spawn NPCs
   currentNPCs = activeSceneConfig.npcs;
   spawnNPCs(currentNPCs);
-  collectibleManager = new CollectibleManager(scene, camera, tts, activeSceneId, activeSceneConfig, transcribe);
+  collectibleManager = new CollectibleManager(scene, camera, tts, activeSceneId, activeSceneConfig, transcribe, learningDataStore, cloudAsrUrl);
   await collectibleManager.init();
 
   // Register clickable objects for interaction
@@ -910,17 +914,35 @@ tts.onStatusChange((s) => {
 
 (async () => {
   try {
+    // Detect cloud ASR mode before building scene (needed for pipeline construction)
+    cloudAsrUrl = await detectAsrMode();
+
     await tts.init();
     await loadSceneModule();
     statusEl.textContent = 'Building scene...';
     await loadScene();
     isSceneReady = true;
 
-    statusEl.textContent = 'Loading ASR model... 0%';
-    await whisperASR.loadModel(undefined, (pct) => {
-      statusEl.textContent = `Loading ASR model... ${pct}%`;
+    // Create speech pipeline now that we know the ASR mode
+    pipeline = new SpeechPipeline({
+      onStateChange: (state) => console.log(`[pipeline] ${state}`),
+      onTranscript: (text) => console.log(`[ASR] "${text}"`),
+    }, transcribe, cloudAsrUrl);
+    micButton = new MicButton(micContainer, pipeline, async (transcript) => {
+      await handleChildSpeech(transcript);
     });
-    statusEl.textContent = 'ASR model ready ✓';
+
+    if (cloudAsrUrl) {
+      console.log('[ASR] using cloud ASR (server-side GLM-ASR)');
+      statusEl.textContent = 'Cloud ASR ready ✓';
+    } else {
+      statusEl.textContent = 'Loading ASR model... 0%';
+      await whisperASR.loadModel(undefined, (pct) => {
+        statusEl.textContent = `Loading ASR model... ${pct}%`;
+      });
+      statusEl.textContent = 'ASR model ready ✓';
+    }
+
     isASRReady = true;
     hideLoadingOverlay();
   } catch (err) {

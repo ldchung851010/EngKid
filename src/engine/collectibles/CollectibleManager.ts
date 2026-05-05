@@ -173,12 +173,13 @@ export class CollectibleManager {
     private sceneId: string,
     private config: SceneConfig,
     transcribeFn: TranscribeFn,
-    private dataStore: LearningDataStore = learningDataStore
+    private dataStore: LearningDataStore = learningDataStore,
+    cloudAsrUrl?: string
   ) {
     this.pronunciationPipeline = new SpeechPipeline({
       onStateChange: (state) => console.log(`[collectibles:pipeline] ${state}`),
       onTranscript: (text) => console.log(`[collectibles:asr] "${text}"`),
-    }, transcribeFn);
+    }, transcribeFn, cloudAsrUrl);
   }
 
   async init(): Promise<void> {
@@ -305,6 +306,7 @@ export class CollectibleManager {
             'Do not translate the speech into Chinese.',
             'Do not guess or autocorrect unclear speech.',
           ].join(' '),
+          hotwords: [marker.word],
         });
         return {
           transcript,

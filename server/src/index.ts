@@ -8,6 +8,7 @@ import { exampleRoutes } from './routes/example.js';
 import { scenesRoutes } from './routes/scenes.js';
 import { quotesRoutes } from './routes/quotes.js';
 import { quotaRoutes } from './routes/quota.js';
+import { asrRoutes } from './routes/asr.js';
 import { ensureQuotesGenerated } from './utils/quoteGenerator.js';
 
 const TTS_PORT = parseInt(process.env.TTS_PORT || '8081');
@@ -90,7 +91,16 @@ await app.register(scenesRoutes, { prefix: '/api' });
 await app.register(quotesRoutes(), { prefix: '/api' });
 await app.register(quotaRoutes, { prefix: '/api' });
 
-app.get('/api/health', async () => ({ status: 'ok', tts: 'ready' }));
+if (process.env.GLM_API_KEY) {
+  await app.register(asrRoutes, { prefix: '/api' });
+  console.log('[ASR] cloud mode (GLM-ASR-2512)');
+}
+
+app.get('/api/health', async () => ({
+  status: 'ok',
+  tts: 'ready',
+  asr: process.env.GLM_API_KEY ? 'cloud' : 'local',
+}));
 
 try {
   await app.listen({ port: 3001 });
