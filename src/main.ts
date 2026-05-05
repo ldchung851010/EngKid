@@ -1110,6 +1110,7 @@ const statusEl = document.getElementById('loading-status')!;
 const errorEl = document.getElementById('loading-error')!;
 const controlsHint = document.getElementById('controls-hint');
 const controlsHintClose = document.getElementById('controls-hint-close');
+document.getElementById('home-btn')?.addEventListener('click', navigateToHome);
 let isSceneReady = false;
 let isASRReady = false;
 let hasShownControlsHint = false;

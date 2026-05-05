@@ -33,6 +33,39 @@
       line-height: 1.6;
     }
 
+    /* Back to home button */
+    #home-btn {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      width: 48px;
+      height: 48px;
+      border: none;
+      border-radius: 14px;
+      background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(6px);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      transition: background 0.15s, transform 0.15s;
+    }
+    #home-btn:hover,
+    #home-btn:focus-visible {
+      background: rgba(0,0,0,0.8);
+      transform: scale(1.08);
+    }
+    #home-btn:focus-visible {
+      outline: 2px solid rgba(255,224,130,0.8);
+      outline-offset: 2px;
+    }
+    #home-btn svg {
+      width: 24px;
+      height: 24px;
+      color: #fff;
+    }
+
     /* Score HUD */
     #score-hud {
       position: fixed;
@@ -281,6 +314,12 @@
     <div id="loading-error"></div>
   </div>
   <div id="app">
+    <button id="home-btn" type="button" aria-label="返回主页">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5Z"/>
+        <path d="M9 21V12h6v9"/>
+      </svg>
+    </button>
     <div id="score-hud">⭐ 0</div>
     <div id="mic-container" style="display:none;">
       <div id="hint-bubbles"></div>
