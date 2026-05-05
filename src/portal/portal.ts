@@ -74,7 +74,7 @@ const exampleCache = new Map<string, ExampleItem>();
 
 async function loadQuotes(): Promise<void> {
   try {
-    const res = await fetch('/api/quotes');
+    const res = await fetch('/quotes/manifest.json');
     if (res.ok) {
       const manifest = await res.json() as { quotes: QuoteItem[] };
       quoteList = manifest.quotes;
@@ -99,7 +99,7 @@ function playRandomQuote(kittenEl: HTMLElement, bubble: HTMLElement): void {
   }
 
   const quote = quoteList[Math.floor(Math.random() * quoteList.length)];
-  const audio = new Audio(`/api/quotes/${quote.id}/audio`);
+  const audio = new Audio(`/quotes/${quote.audioFile}`);
   currentAudio = audio;
 
   // Show quote text in bubble

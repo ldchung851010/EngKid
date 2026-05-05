@@ -26,11 +26,12 @@ export interface QuoteManifest {
   quotes: { id: number; text: string; audioFile: string }[];
 }
 
-const DATA_DIR = path.resolve(__dirname, '../../data/quotes');
-const MANIFEST_PATH = path.join(DATA_DIR, 'manifest.json');
+// Output to public/quotes/ so both Node.js and Worker can serve as static files
+const PUBLIC_QUOTES_DIR = path.resolve(__dirname, '../../../public/quotes');
+const MANIFEST_PATH = path.join(PUBLIC_QUOTES_DIR, 'manifest.json');
 
 export function getQuotesDir(): string {
-  return DATA_DIR;
+  return PUBLIC_QUOTES_DIR;
 }
 
 export function getManifestPath(): string {
@@ -53,14 +54,14 @@ interface QuoteTTSConfig {
 }
 
 export async function ensureQuotesGenerated(config: QuoteTTSConfig): Promise<QuoteManifest> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
+  await fs.mkdir(PUBLIC_QUOTES_DIR, { recursive: true });
 
   const existing = await loadManifest();
   if (existing && existing.quotes.length === QUOTES.length) {
     // Verify all audio files exist
     const allExist = await Promise.all(
       existing.quotes.map((q) =>
-        fs.access(path.join(DATA_DIR, q.audioFile)).then(() => true).catch(() => false)
+        fs.access(path.join(PUBLIC_QUOTES_DIR, q.audioFile)).then(() => true).catch(() => false)
       )
     );
     if (allExist.every(Boolean)) {
@@ -75,7 +76,7 @@ export async function ensureQuotesGenerated(config: QuoteTTSConfig): Promise<Quo
   for (let i = 0; i < QUOTES.length; i++) {
     const text = QUOTES[i];
     const fileName = `quote-${i}.wav`;
-    const filePath = path.join(DATA_DIR, fileName);
+    const filePath = path.join(PUBLIC_QUOTES_DIR, fileName);
 
     try {
       const pcmBuffer = await generateTTS(config, text);

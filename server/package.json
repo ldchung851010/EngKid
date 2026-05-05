@@ -12,6 +12,7 @@
     "prebuild": "node scripts/check-node-version.cjs",
     "build": "tsc",
     "postbuild": "tsx src/scripts/generate-scenes-metadata.ts",
+    "generate:quotes": "tsx src/scripts/generate-quotes.ts",
     "start": "node dist/index.js",
     "dev:worker": "npx wrangler dev --port 3001",
     "deploy": "npx wrangler deploy"
