@@ -10,7 +10,7 @@ Three.js 体素场景引擎，为 6-12 岁儿童提供沉浸式英语口语学�
 |---|---|
 | 渲染 | Three.js 0.184.0 + InstancedMesh |
 | TTS | 服务端 Kitten TTS 代理 + WAV 磁盘缓存 |
-| ASR | 浏览器本地 Whisper |
+| ASR | 浏览器本地 Whisper；可选云端 GLM-ASR（配置 `GLM_API_KEY` 后自动启用） |
 | 意图路由 | DeepSeek Chat（后端统一 AI 网关） |
 | 状态机 | XState v5 |
 | 构建 | Vite + TypeScript strict |
@@ -86,6 +86,7 @@ npm run server:dev  # 后端代理 (:3001)
 DEEPSEEK_API_KEY=xxx       # 文本 AI Key，用于意图路由和例句生成
 DEEPSEEK_MODEL=deepseek-v4-flash
 
+GLM_API_KEY=xxx            # 可选，智谱 AI Key，配置后 ASR 走云端转发
 TTS_PORT=8081              # kitten-tts-server 本地端口
 TTS_MODEL_PATH=server/model
 TTS_CACHE_DIR=server/data/tts-cache
@@ -95,6 +96,8 @@ AI_DAILY_LIMIT=5000        # 全站每日文本 AI 请求上限
 AI_IP_HOURLY_LIMIT=300     # 单 IP 每小时文本 AI 请求上限
 TTS_DAILY_LIMIT=10000      # 全站每日 TTS 生成上限（缓存命中不计入）
 TTS_IP_HOURLY_LIMIT=600    # 单 IP 每小时 TTS 生成上限（缓存命中不计入）
+ASR_DAILY_LIMIT=5000       # 全站每日 ASR 请求上限（仅云端模式生效）
+ASR_IP_HOURLY_LIMIT=300    # 单 IP 每小时 ASR 请求上限（仅云端模式生效）
 
 CORS_ORIGIN=https://learn.example.com
 TRUST_PROXY=true           # 仅在可信反向代理后开启

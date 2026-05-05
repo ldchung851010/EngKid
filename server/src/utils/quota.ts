@@ -1,6 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 
-export type QuotaResource = 'ai' | 'tts';
+export type QuotaResource = 'ai' | 'tts' | 'asr';
 
 export interface QuotaConfig {
   dailyLimit: number;
@@ -34,6 +34,10 @@ const configs: Record<QuotaResource, QuotaConfig> = {
   tts: {
     dailyLimit: readPositiveInt('TTS_DAILY_LIMIT', 10000),
     ipHourlyLimit: readPositiveInt('TTS_IP_HOURLY_LIMIT', 600),
+  },
+  asr: {
+    dailyLimit: readPositiveInt('ASR_DAILY_LIMIT', 5000),
+    ipHourlyLimit: readPositiveInt('ASR_IP_HOURLY_LIMIT', 300),
   },
 };
 
@@ -81,6 +85,7 @@ export function getAllQuotaStatus(request: FastifyRequest): Record<QuotaResource
   return {
     ai: getQuotaStatus('ai', request),
     tts: getQuotaStatus('tts', request),
+    asr: getQuotaStatus('asr', request),
   };
 }
 

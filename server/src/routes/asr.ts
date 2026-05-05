@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { consumeQuota } from '../utils/quota.js';
 
 export async function asrRoutes(app: FastifyInstance) {
   app.post('/asr', async (request, reply) => {
@@ -7,6 +8,15 @@ export async function asrRoutes(app: FastifyInstance) {
     if (!GLM_API_KEY) {
       console.log('[ASR] ❌ GLM_API_KEY not configured');
       return reply.status(500).send({ error: 'GLM_API_KEY not configured' });
+    }
+
+    const quota = consumeQuota('asr', request);
+    if (!quota.ok) {
+      if (quota.retryAfterSeconds) reply.header('Retry-After', quota.retryAfterSeconds);
+      return reply.status(quota.statusCode ?? 429).send({
+        error: quota.error ?? 'ASR quota exceeded',
+        retryAfterSeconds: quota.retryAfterSeconds,
+      });
     }
 
     let audioBuffer: Buffer | null = null;

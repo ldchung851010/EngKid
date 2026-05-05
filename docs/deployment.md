@@ -6,14 +6,15 @@
 
 | 方法 | 路径 | 用途 | 外部依赖 | 成本控制 |
 |---|---|---|---|---|
-| `GET` | `/api/health` | 检查 Fastify 服务和本地 TTS 是否就绪 | 本地 Kitten TTS 服务 | 无 |
+| `GET` | `/api/health` | 检查 Fastify 服务、本地 TTS 是否就绪、ASR 模式 | 本地 Kitten TTS 服务 | 无 |
 | `GET` | `/api/scenes` | 从 `src/scenes/*/config.ts` 返回静态场景元数据 | 文件系统 | 无 |
 | `POST` | `/api/intent` | 将儿童语音转写文本匹配到配置里的意图 | DeepSeek 兼容 Chat API | AI 全站每日额度 + 单 IP 小时额度 |
 | `POST` | `/api/example` | 为收集到的单词生成简单英文例句和中文解释 | DeepSeek 兼容 Chat API | 磁盘缓存；缓存未命中时计入 AI 额度 |
 | `POST` | `/api/tts` | 生成或返回已缓存的 WAV 语音 | 本地 Kitten TTS 服务 | 仅缓存未命中时计入 TTS 额度 |
+| `POST` | `/api/asr` | 语音识别转发至智谱 GLM-ASR（仅配置 `GLM_API_KEY` 时注册） | 智谱 AI API | ASR 全站每日额度 + 单 IP 小时额度 |
 | `GET` | `/api/quotes` | 返回预生成的鼓励语音 manifest | 文件系统 | 无 |
 | `GET` | `/api/quotes/:id/audio` | 返回预生成的鼓励语音 WAV 文件 | 文件系统 | 无 |
-| `GET` | `/api/quota` | 返回当前请求 IP 对应的 AI/TTS 剩余额度 | 进程内额度账本 | 无 |
+| `GET` | `/api/quota` | 返回当前请求 IP 对应的 AI/TTS/ASR 剩余额度 | 进程内额度账本 | 无 |
 
 学习进度、积分和单词收集记录保存在浏览器本地 `LearningDataStore` 中。服务端不需要用户学习数据数据库。
 
@@ -40,7 +41,7 @@
 3. 只有在可信反向代理后才设置 `TRUST_PROXY=true`，反向代理必须覆盖 `X-Forwarded-For`。
 4. 首次上线使用偏保守的 `AI_*` 和 `TTS_*` 额度，观察流量后再提高。
 5. 增加或配置请求体大小和字段长度限制。
-6. `DEEPSEEK_API_KEY` 只放在服务端环境变量中。
+6. `DEEPSEEK_API_KEY` 和 `GLM_API_KEY` 只放在服务端环境变量中。
 7. 生产日志不要记录 transcript 或 prompt。
 8. 监控 `server/data/tts-cache` 和 `server/data/quotes` 的磁盘占用。
 
@@ -57,6 +58,7 @@ DEEPSEEK_API_KEY=your-deepseek-key
 ```bash
 DEEPSEEK_MODEL=deepseek-v4-flash
 
+GLM_API_KEY=your-glm-key        # 可选，配置后 ASR 走云端转发
 TTS_PORT=8081
 TTS_MODEL_PATH=/srv/hi-kid-fun/server/model
 TTS_CACHE_DIR=/var/lib/hi-kid-fun/tts-cache
@@ -66,13 +68,15 @@ AI_DAILY_LIMIT=5000
 AI_IP_HOURLY_LIMIT=300
 TTS_DAILY_LIMIT=10000
 TTS_IP_HOURLY_LIMIT=600
+ASR_DAILY_LIMIT=5000            # 仅云端 ASR 模式生效
+ASR_IP_HOURLY_LIMIT=300         # 仅云端 ASR 模式生效
 
 CORS_ORIGIN=https://learn.example.com
 TRUST_PROXY=true
 SERVER_BODY_LIMIT=262144
 ```
 
-ASR 在浏览器本地运行，不需要服务端 ASR key。
+ASR 默认在浏览器本地运行，不需要服务端 ASR key。如果配置了 `GLM_API_KEY`，ASR 自动走后端转发至智谱云端（`POST /api/asr`），客户端自动检测并切换模式。
 
 ## 构建
 
@@ -230,12 +234,15 @@ Restart=always
 Environment=NODE_ENV=production
 Environment=DEEPSEEK_API_KEY=your-deepseek-key
 Environment=DEEPSEEK_MODEL=deepseek-v4-flash
+Environment=GLM_API_KEY=your-glm-key
 Environment=TTS_CACHE_DIR=/var/lib/hi-kid-fun/tts-cache
 Environment=EXAMPLE_CACHE_DIR=/var/lib/hi-kid-fun/example-cache
 Environment=AI_DAILY_LIMIT=5000
 Environment=AI_IP_HOURLY_LIMIT=300
 Environment=TTS_DAILY_LIMIT=10000
 Environment=TTS_IP_HOURLY_LIMIT=600
+Environment=ASR_DAILY_LIMIT=5000
+Environment=ASR_IP_HOURLY_LIMIT=300
 Environment=CORS_ORIGIN=https://learn.example.com
 Environment=TRUST_PROXY=true
 Environment=SERVER_BODY_LIMIT=262144
@@ -257,9 +264,9 @@ sudo chown -R hi-kid-fun:hi-kid-fun /var/lib/hi-kid-fun
 部署完成后先检查接口：
 
 ```bash
-curl https://learn.example.com/api/health
+curl https://learn.example.com/api/health    # 确认 tts: "ready" 和 asr: "cloud" 或 "local"
 curl https://learn.example.com/api/scenes
-curl https://learn.example.com/api/quota
+curl https://learn.example.com/api/quota     # 确认 ai/tts/asr 额度
 ```
 
 然后打开前端，进入一个场景，确认：

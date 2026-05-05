@@ -49,7 +49,9 @@ npm run dev
 
 ## 成本控制
 
-语音识别在浏览器本地运行，不需要配置云端 ASR key。文本 AI 调用统一经过后端网关，默认使用 `DEEPSEEK_API_KEY`；`DEEPSEEK_MODEL` 可选。
+语音识别默认在浏览器本地运行，不需要配置云端 ASR key。如果配置了 `GLM_API_KEY`，ASR 自动走后端转发至智谱云端，识别效果更好（尤其对儿童语音），服务端有频率限制保护。
+
+文本 AI 调用统一经过后端网关，默认使用 `DEEPSEEK_API_KEY`；`DEEPSEEK_MODEL` 可选。
 
 TTS 由后端代理本地 Kitten TTS 服务完成。相同文本、声音和语速会缓存为 WAV 文件；缓存命中时直接返回音频，缓存未命中时才生成新音频并计入 TTS 额度。
 
@@ -60,6 +62,8 @@ AI_DAILY_LIMIT=5000          # 全站每天文本 AI 请求数
 AI_IP_HOURLY_LIMIT=300       # 单 IP 每小时文本 AI 请求数
 TTS_DAILY_LIMIT=10000        # 全站每天 TTS cache-miss 生成数
 TTS_IP_HOURLY_LIMIT=600      # 单 IP 每小时 TTS cache-miss 生成数
+ASR_DAILY_LIMIT=5000         # 全站每天 ASR 请求数（仅云端模式）
+ASR_IP_HOURLY_LIMIT=300      # 单 IP 每小时 ASR 请求数（仅云端模式）
 TTS_CACHE_DIR=server/data/tts-cache
 EXAMPLE_CACHE_DIR=server/data/example-cache
 CORS_ORIGIN=https://learn.example.com
@@ -67,7 +71,7 @@ TRUST_PROXY=true
 SERVER_BODY_LIMIT=262144
 ```
 
-后端还提供 `GET /api/quota` 查看当前请求 IP 对应的 AI/TTS 剩余额度。
+后端还提供 `GET /api/quota` 查看当前请求 IP 对应的 AI/TTS/ASR 剩余额度。
 
 ## 技术架构
 
@@ -84,11 +88,11 @@ SERVER_BODY_LIMIT=262144
                     │  │ Voxel 渲染器 │◄─────────│ Three.js │
                     │  └─────────────┘ │         └──────────┘
                     │                  │
-                    │  ┌─────────────┐ │  audio  ┌──────────┐
-   🎤 按住说话       │  │ 语音流水线    │◄────────│ Local    │
-──────► 松开发送 ────│──│ ASR→Intent │ │  text   │ Whisper  │
-                    │  │ TTS ◄ NPC  │─┼────────►│          │
-                    │  └─────────────┘ │         └──────────┘
+                    │  ┌─────────────┐ │  audio  ┌──────────────┐
+   🎤 按住说话       │  │ 语音流水线    │◄────────│ Local Whisper │
+──────► 松开发送 ────│──│ ASR→Intent │ │  text   │ 或云端 GLM   │
+                    │  │ TTS ◄ NPC  │─┼────────►│              │
+                    │  └─────────────┘ │         └──────────────┘
                     │                  │
                     │  ┌─────────────┐ │         ┌──────────┐
                     │  │ 意图路由器    │◄────────│ AI 网关   │
@@ -191,7 +195,7 @@ export const clinicConfig: SceneConfig = {
 |---|---|
 | 渲染 | Three.js 0.184.0 + InstancedMesh |
 | TTS | Kitten TTS server + 磁盘缓存 |
-| ASR | 浏览器本地 Whisper |
+| ASR | 浏览器本地 Whisper；可选云端 GLM-ASR |
 | 意图路由 | DeepSeek Chat（后端统一网关） |
 | 学习数据 | 浏览器本地 LearningDataStore |
 | 状态机 | XState v5 |
