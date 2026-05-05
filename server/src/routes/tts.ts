@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { getConfig } from '../config.js';
 import { pcmToWav } from '../utils/audio.js';
 import { consumeQuota } from '../utils/quota.js';
 import { readCachedTTS, writeCachedTTS } from '../utils/ttsCache.js';
@@ -14,9 +15,6 @@ interface TTSOptions {
 
 export function ttsRoutes(opts: TTSOptions): Hono {
   const app = new Hono();
-  const isCloud = !!opts.glmApiKey;
-  const cloudVoice = opts.cloudVoice ?? 'tongtong';
-  const ttsBase = opts.ttsPort ? `http://localhost:${opts.ttsPort}` : null;
 
   app.post('/tts', async (c) => {
     const body = await c.req.json();
@@ -24,15 +22,26 @@ export function ttsRoutes(opts: TTSOptions): Hono {
     if (!parsed.ok) return c.json({ error: parsed.error }, 400);
 
     const { input, voice: clientVoice, speed: clientSpeed } = parsed;
-    const voice = isCloud ? cloudVoice : clientVoice;
+
+    // Resolve cloud/local from opts or config (config is used in Workers where opts are empty)
+    const config = getConfig();
+    const glmApiKey = opts.glmApiKey || config.glmApiKey;
+    const isCloud = !!glmApiKey;
+    const voice = isCloud ? (opts.cloudVoice || config.ttsVoice || 'tongtong') : clientVoice;
     const speed = isCloud ? 1.0 : clientSpeed;
+    const ttsBase = opts.ttsPort ? `http://localhost:${opts.ttsPort}` : null;
+
+    if (!isCloud && !ttsBase) {
+      return c.json({ error: 'TTS not available' }, 503);
+    }
+
     const cacheKey = { input, voice, speed };
     const cached = await readCachedTTS(cacheKey);
     if (cached) {
       c.header('Content-Type', 'audio/wav');
       c.header('Content-Length', String(cached.length));
       c.header('X-TTS-Cache', 'HIT');
-      return c.body(new Uint8Array(cached));
+      return c.body(cached.buffer as ArrayBuffer, 200);
     }
 
     const clientIp = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
@@ -48,10 +57,10 @@ export function ttsRoutes(opts: TTSOptions): Hono {
     console.log(`[TTS] ← generate: "${input.substring(0, 40)}..." (${isCloud ? 'cloud' : 'local'})`);
 
     try {
-      let wavBuffer: Buffer;
+      let wavBuffer: Uint8Array;
 
       if (isCloud) {
-        wavBuffer = await generateCloudTTS(opts.glmApiKey!, input, voice, speed);
+        wavBuffer = await generateCloudTTS(glmApiKey, input, voice, speed);
       } else {
         wavBuffer = await generateLocalTTS(ttsBase!, input, voice, speed);
       }
@@ -65,7 +74,7 @@ export function ttsRoutes(opts: TTSOptions): Hono {
       c.header('Content-Type', 'audio/wav');
       c.header('Content-Length', String(wavBuffer.length));
       c.header('X-TTS-Cache', 'MISS');
-      return c.body(new Uint8Array(wavBuffer));
+      return c.body(wavBuffer.buffer as ArrayBuffer, 200);
     } catch (err) {
       console.log('[TTS] ❌ error:', err);
       return c.json({ error: 'TTS upstream unavailable' }, 502);
@@ -75,7 +84,7 @@ export function ttsRoutes(opts: TTSOptions): Hono {
   return app;
 }
 
-async function generateLocalTTS(ttsBase: string, input: string, voice: string, speed: number): Promise<Buffer> {
+async function generateLocalTTS(ttsBase: string, input: string, voice: string, speed: number): Promise<Uint8Array> {
   const res = await fetch(`${ttsBase}/v1/audio/speech`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -87,13 +96,13 @@ async function generateLocalTTS(ttsBase: string, input: string, voice: string, s
     throw new Error(`local TTS error ${res.status}: ${errText}`);
   }
 
-  const pcmBuffer = Buffer.from(await res.arrayBuffer());
+  const pcmBuffer = new Uint8Array(await res.arrayBuffer());
   return pcmToWav(pcmBuffer, 24000, 1, 16);
 }
 
 export async function generateCloudTTS(
   apiKey: string, input: string, voice: string, speed: number,
-): Promise<Buffer> {
+): Promise<Uint8Array> {
   const res = await fetch(GLM_TTS_URL, {
     method: 'POST',
     headers: {
@@ -115,7 +124,7 @@ export async function generateCloudTTS(
     throw new Error(`GLM-TTS error ${res.status}: ${errText}`);
   }
 
-  return Buffer.from(await res.arrayBuffer());
+  return new Uint8Array(await res.arrayBuffer());
 }
 
 type TTSBodyResult =

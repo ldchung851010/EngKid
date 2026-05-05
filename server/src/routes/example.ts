@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { getConfig } from '../config.js';
 import { callTextAIJson } from '../utils/aiGateway.js';
 import {
   EXAMPLE_PROMPT_VERSION,
@@ -21,7 +22,7 @@ export function exampleRoutes(): Hono {
     if (!parsed.ok) return c.json({ error: parsed.error }, 400);
 
     const { word, level } = parsed;
-    const model = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
+    const model = getConfig().deepseekModel;
     const cacheKey = { word, cefrLevel: level, model, promptVersion: EXAMPLE_PROMPT_VERSION };
     const cached = await readCachedExample(cacheKey);
     if (cached) {

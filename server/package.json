@@ -12,7 +12,9 @@
     "prebuild": "node scripts/check-node-version.cjs",
     "build": "tsc",
     "postbuild": "tsx src/scripts/generate-scenes-metadata.ts",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "dev:worker": "npx wrangler dev --port 3001",
+    "deploy": "npx wrangler deploy"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.0",
@@ -21,6 +23,7 @@
   "devDependencies": {
     "@types/node": "^25.6.0",
     "tsx": "^4.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "wrangler": "^4.87.0"
   }
 }

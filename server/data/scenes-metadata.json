@@ -1,0 +1,176 @@
+{
+  "scenes": [
+    {
+      "id": "beach",
+      "name": "Beach",
+      "description": "Explore the beach, talk about weather, and ask a lifeguard for safe fun.",
+      "cefrLevel": "A1",
+      "targetVocabulary": [
+        "beach",
+        "sand",
+        "sea",
+        "shell",
+        "sun",
+        "hat",
+        "swim",
+        "water"
+      ]
+    },
+    {
+      "id": "farm",
+      "name": "Farm",
+      "description": "Meet a farmer, name animals and foods, and talk about simple farm jobs.",
+      "cefrLevel": "A1",
+      "targetVocabulary": [
+        "farm",
+        "cow",
+        "chicken",
+        "sheep",
+        "egg",
+        "milk",
+        "tractor",
+        "water"
+      ]
+    },
+    {
+      "id": "home",
+      "name": "Home",
+      "description": "Practice warm family English at home: rooms, chores, and polite help.",
+      "cefrLevel": "A1",
+      "targetVocabulary": [
+        "home",
+        "bed",
+        "table",
+        "sofa",
+        "lamp",
+        "kitchen",
+        "clean",
+        "help"
+      ]
+    },
+    {
+      "id": "park",
+      "name": "Park",
+      "description": "Play in a sunny park, invite a friend, and talk about outdoor activities.",
+      "cefrLevel": "A1",
+      "targetVocabulary": [
+        "park",
+        "tree",
+        "flower",
+        "bench",
+        "ball",
+        "kite",
+        "play",
+        "run"
+      ]
+    },
+    {
+      "id": "restaurant",
+      "name": "Restaurant",
+      "description": "A cozy restaurant where you can order food from a friendly waiter.",
+      "cefrLevel": "A1",
+      "targetVocabulary": [
+        "hamburger",
+        "pizza",
+        "salad",
+        "pasta",
+        "water",
+        "juice",
+        "cola"
+      ]
+    },
+    {
+      "id": "school",
+      "name": "School",
+      "description": "Practice classroom English with a teacher and ask about school supplies.",
+      "cefrLevel": "A1",
+      "targetVocabulary": [
+        "teacher",
+        "book",
+        "pencil",
+        "desk",
+        "chair",
+        "please",
+        "classroom"
+      ]
+    },
+    {
+      "id": "shop",
+      "name": "Shop",
+      "description": "Buy snacks and toys from a cheerful shopkeeper using polite money English.",
+      "cefrLevel": "A1",
+      "targetVocabulary": [
+        "shop",
+        "apple",
+        "milk",
+        "bread",
+        "toy",
+        "price",
+        "money",
+        "bag"
+      ]
+    },
+    {
+      "id": "zoo",
+      "name": "Zoo",
+      "description": "Meet a zookeeper and talk about animals, colors, and simple directions.",
+      "cefrLevel": "A1",
+      "targetVocabulary": [
+        "lion",
+        "monkey",
+        "elephant",
+        "bird",
+        "tiger",
+        "big",
+        "small",
+        "where"
+      ]
+    },
+    {
+      "id": "airport",
+      "name": "Airport",
+      "description": "Check in for a flight, ask for a boarding pass, and find the gate.",
+      "cefrLevel": "A2",
+      "targetVocabulary": [
+        "ticket",
+        "passport",
+        "boarding pass",
+        "gate",
+        "flight",
+        "bag",
+        "please"
+      ]
+    },
+    {
+      "id": "hospital",
+      "name": "Hospital",
+      "description": "Visit a friendly clinic, explain how you feel, and learn caring health English.",
+      "cefrLevel": "A2",
+      "targetVocabulary": [
+        "doctor",
+        "nurse",
+        "headache",
+        "stomachache",
+        "medicine",
+        "water",
+        "rest",
+        "help"
+      ]
+    },
+    {
+      "id": "hotel",
+      "name": "Hotel",
+      "description": "Check in at a hotel, ask for a room, and practice polite travel English.",
+      "cefrLevel": "A2",
+      "targetVocabulary": [
+        "room",
+        "key",
+        "night",
+        "reservation",
+        "passport",
+        "please",
+        "thank you"
+      ]
+    }
+  ]
+}

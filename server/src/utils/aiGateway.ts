@@ -1,3 +1,4 @@
+import { getConfig } from '../config.js';
 import { consumeQuota } from './quota.js';
 
 export interface TextAIOptions {
@@ -12,8 +13,8 @@ export type TextAIResult =
   | { ok: false; statusCode: number; body: { error: string; retryAfterSeconds?: number } };
 
 export async function callTextAIJson(clientIp: string, options: TextAIOptions): Promise<TextAIResult> {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  if (!apiKey) {
+  const { deepseekApiKey, deepseekModel } = getConfig();
+  if (!deepseekApiKey) {
     console.log(`[${options.logName}] DEEPSEEK_API_KEY not configured`);
     return { ok: false, statusCode: 500, body: { error: 'DEEPSEEK_API_KEY not configured' } };
   }
@@ -27,37 +28,75 @@ export async function callTextAIJson(clientIp: string, options: TextAIOptions): 
     };
   }
 
+  const body = JSON.stringify({
+    model: deepseekModel,
+    messages: [{ role: 'user', content: options.prompt }],
+    response_format: { type: 'json_object' },
+    temperature: options.temperature,
+    max_tokens: options.maxTokens,
+  });
+
+  const headers = {
+    Authorization: `Bearer ${deepseekApiKey}`,
+    'Content-Type': 'application/json',
+  };
+
+  // Retry once on transient failure
+  let lastError: string | undefined;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0) {
+      console.log(`[${options.logName}] retrying (attempt ${attempt + 1})...`);
+    }
+    const result = await doFetch(options.logName, headers, body);
+    if (result.ok || result.statusCode !== 502) return result;
+    lastError = result.body.error;
+  }
+
+  return { ok: false, statusCode: 502, body: { error: lastError ?? `${options.logName} upstream unavailable` } };
+}
+
+async function doFetch(
+  logName: string,
+  headers: Record<string, string>,
+  body: string,
+): Promise<TextAIResult> {
   const start = Date.now();
   try {
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash',
-        messages: [{ role: 'user', content: options.prompt }],
-        response_format: { type: 'json_object' },
-        temperature: options.temperature,
-        max_tokens: options.maxTokens,
-      }),
+      headers,
+      body,
     });
 
     const elapsedMs = Date.now() - start;
-    const result = await response.json() as { choices?: Array<{ message?: { content?: string } }>; error?: unknown };
+    const rawText = await response.text();
+    if (!rawText) {
+      console.log(`[${logName}] empty response body (${response.status}) in ${elapsedMs}ms`);
+      return { ok: false, statusCode: 502, body: { error: `${logName} upstream unavailable` } };
+    }
+    let result: { choices?: Array<{ message?: { content?: string } }>; error?: unknown };
+    try {
+      result = JSON.parse(rawText);
+    } catch {
+      console.log(`[${logName}] non-JSON response (${response.status}) in ${elapsedMs}ms:`, rawText.substring(0, 200));
+      return { ok: false, statusCode: 502, body: { error: `${logName} upstream unavailable` } };
+    }
     if (!response.ok) {
-      console.log(`[${options.logName}] upstream error (${response.status}) in ${elapsedMs}ms:`, JSON.stringify(result));
-      return { ok: false, statusCode: 502, body: { error: `${options.logName} upstream unavailable` } };
+      console.log(`[${logName}] upstream error (${response.status}) in ${elapsedMs}ms:`, JSON.stringify(result));
+      return { ok: false, statusCode: 502, body: { error: `${logName} upstream unavailable` } };
     }
 
-    const contentText = result.choices?.[0]?.message?.content ?? '{}';
+    const contentText = result.choices?.[0]?.message?.content;
+    if (!contentText) {
+      console.log(`[${logName}] empty content in ${elapsedMs}ms:`, JSON.stringify(result));
+      return { ok: false, statusCode: 502, body: { error: `${logName} upstream unavailable` } };
+    }
     const content = JSON.parse(contentText) as Record<string, unknown>;
-    console.log(`[${options.logName}] upstream ok in ${elapsedMs}ms`);
+    console.log(`[${logName}] upstream ok in ${elapsedMs}ms`);
     return { ok: true, content, elapsedMs };
   } catch (error) {
     const elapsedMs = Date.now() - start;
-    console.log(`[${options.logName}] fetch failed after ${elapsedMs}ms:`, error);
-    return { ok: false, statusCode: 502, body: { error: `${options.logName} upstream unavailable` } };
+    console.log(`[${logName}] fetch failed after ${elapsedMs}ms:`, error);
+    return { ok: false, statusCode: 502, body: { error: `${logName} upstream unavailable` } };
   }
 }

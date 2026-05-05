@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { getConfig } from '../config.js';
 import { consumeQuota } from '../utils/quota.js';
 
 export function asrRoutes(): Hono {
@@ -6,8 +7,8 @@ export function asrRoutes(): Hono {
 
   app.post('/asr', async (c) => {
     const start = Date.now();
-    const GLM_API_KEY = process.env.GLM_API_KEY;
-    if (!GLM_API_KEY) {
+    const { glmApiKey } = getConfig();
+    if (!glmApiKey) {
       console.log('[ASR] ❌ GLM_API_KEY not configured');
       return c.json({ error: 'GLM_API_KEY not configured' }, 500);
     }
@@ -52,7 +53,7 @@ export function asrRoutes(): Hono {
         'https://open.bigmodel.cn/api/paas/v4/audio/transcriptions',
         {
           method: 'POST',
-          headers: { Authorization: `Bearer ${GLM_API_KEY}` },
+          headers: { Authorization: `Bearer ${glmApiKey}` },
           body: upstreamForm,
         }
       );
