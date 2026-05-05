@@ -12,3 +12,4 @@ server/model/
 server/data/*.db*
 /server/data/tts-cache/
 /server/data/example-cache/
+/server/data/scenes-metadata.json
