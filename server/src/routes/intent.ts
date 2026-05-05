@@ -9,11 +9,16 @@ export async function intentRoutes(app: FastifyInstance) {
     const body = parsed.value;
     console.log(`[Intent] ← candidates=[${body.candidateIntents.map(c => c.intentId).join(',')}]`);
 
+    const npcText = body.npcContext.npcText ? `\nNPC just said: "${body.npcContext.npcText}"` : '';
+    const hints = body.npcContext.hintExamples?.length
+      ? `\nExpected response examples:\n${body.npcContext.hintExamples.map((h: string) => `- "${h}"`).join('\n')}`
+      : '';
+
     const prompt = `You are an intent router for a children's English learning game.
 
-NPC: ${body.npcContext.name} (${body.npcContext.role})
+NPC: ${body.npcContext.name} (${body.npcContext.role})${npcText}
 
-The child said: "${body.transcript}"
+The child said: "${body.transcript}"${hints}
 
 Candidate intents:
 ${body.candidateIntents.map((i) => `- ${i.intentId}: ${i.description}`).join('\n')}
@@ -23,9 +28,11 @@ ${body.conversationHistory.map((m) => `- ${m.role}: ${m.text}`).join('\n')}
 
 Rules:
 1. Match the child's utterance to the BEST matching intent
-2. If no intent matches, return "none"
-3. Consider: children may mispronounce words, use ungrammatical sentences
-4. The INTENT matters, not perfect phrasing
+2. If no intent matches at all, return "none"
+3. Children may mispronounce words, use ungrammatical sentences, or say things very differently from the examples — focus on INTENT, not exact wording
+4. When the child's response clearly aligns with one of the expected response examples, match the corresponding intent — do NOT return "none"
+5. "No", "no thanks", "no thank you", "that's all" are decline/done responses, not "no match"
+6. Short one-word answers ("yes", "no", "sure", "okay") should be matched if they fit any candidate intent
 
 Return ONLY a JSON object: {"intentId": "<id or 'none'>", "confidence": <0.0-1.0>}`;
 
@@ -48,7 +55,7 @@ Return ONLY a JSON object: {"intentId": "<id or 'none'>", "confidence": <0.0-1.0
 
 interface IntentBody {
   transcript: string;
-  npcContext: { name: string; role: string };
+  npcContext: { name: string; role: string; npcText?: string; hintExamples?: string[] };
   candidateIntents: Array<{ intentId: string; description: string }>;
   conversationHistory: Array<{ role: string; text: string }>;
 }
@@ -66,12 +73,27 @@ function parseIntentBody(body: unknown): IntentBodyResult {
   if (transcript.length > 500) return { ok: false, error: 'transcript is too long' };
 
   if (!isRecord(body.npcContext)) return { ok: false, error: 'npcContext is required' };
-  const npcContext = {
-    name: readBoundedString(body.npcContext.name, 80, 'npcContext.name'),
-    role: readBoundedString(body.npcContext.role, 160, 'npcContext.role'),
+  const npcContext: IntentBody['npcContext'] = {
+    name: '',
+    role: '',
   };
-  if (!npcContext.name.ok) return npcContext.name;
-  if (!npcContext.role.ok) return npcContext.role;
+  const name = readBoundedString(body.npcContext.name, 80, 'npcContext.name');
+  if (!name.ok) return name;
+  npcContext.name = name.value;
+  const role = readBoundedString(body.npcContext.role, 160, 'npcContext.role');
+  if (!role.ok) return role;
+  npcContext.role = role.value;
+
+  // Optional: NPC dialogue text and hint examples for better LLM matching
+  if (typeof body.npcContext.npcText === 'string' && body.npcContext.npcText.trim()) {
+    npcContext.npcText = body.npcContext.npcText.trim().slice(0, 500);
+  }
+  if (Array.isArray(body.npcContext.hintExamples)) {
+    npcContext.hintExamples = body.npcContext.hintExamples
+      .filter((h: unknown): h is string => typeof h === 'string' && h.trim().length > 0)
+      .slice(0, 10)
+      .map((h: string) => h.trim());
+  }
 
   if (!Array.isArray(body.candidateIntents)) {
     return { ok: false, error: 'candidateIntents must be an array' };
@@ -112,7 +134,7 @@ function parseIntentBody(body: unknown): IntentBodyResult {
     ok: true,
     value: {
       transcript,
-      npcContext: { name: npcContext.name.value, role: npcContext.role.value },
+      npcContext,
       candidateIntents,
       conversationHistory,
     },

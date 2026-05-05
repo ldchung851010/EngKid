@@ -565,7 +565,9 @@ async function handleChildSpeech(transcript: string): Promise<void> {
   const result = await intentRouter.route(transcript, {
     name: activeNPC.name,
     role: activeNPC.role,
-  }, node.candidateIntents, ctx.conversationHistory, node.hintExamples);
+    npcText: node.npcText,
+    hintExamples: node.hintExamples,
+  }, node.candidateIntents, ctx.conversationHistory);
 
   if (!isCurrentDialogue(npcId, nodeId, revision)) return;
 

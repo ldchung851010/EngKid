@@ -16,6 +16,8 @@ export interface IntentResult {
 export interface NPCContext {
   name: string;
   role: string;
+  npcText?: string;
+  hintExamples?: string[];
 }
 
 export class IntentRouter {
@@ -33,18 +35,11 @@ export class IntentRouter {
     transcript: string,
     npcContext: NPCContext,
     candidates: CandidateIntent[],
-    conversationHistory: Array<{ role: string; text: string }>,
-    hintExamples?: string[]
+    conversationHistory: Array<{ role: string; text: string }>
   ): Promise<IntentResult> {
     // If no candidates, return none immediately
     if (candidates.length === 0) {
       return { intentId: 'none', confidence: 0 };
-    }
-
-    // Fast path: exact match against hint examples — skip LLM
-    if (hintExamples?.length) {
-      const fast = this.matchHintExamples(transcript, hintExamples, candidates);
-      if (fast) return fast;
     }
 
     try {
@@ -83,44 +78,6 @@ export class IntentRouter {
   ): Promise<string> {
     const hints = candidates.map((c) => `"${c.description}"`).join(', ');
     return `Sorry, I didn't quite catch that — what would you like? You can say things like ${hints}.`;
-  }
-
-  /**
-   * Fast path: match transcript against known hint examples.
-   * Returns a match if the transcript closely matches a hint,
-   * mapped to the first candidate intent.
-   */
-  private matchHintExamples(
-    transcript: string,
-    hintExamples: string[],
-    candidates: CandidateIntent[]
-  ): IntentResult | null {
-    const normalized = transcript.toLowerCase().replace(/[^\w\s]/g, '').trim();
-
-    for (const hint of hintExamples) {
-      const hintNorm = hint.toLowerCase().replace(/[^\w\s]/g, '').trim();
-      if (normalized === hintNorm) {
-        return { intentId: candidates[0].intentId, confidence: 0.95 };
-      }
-      // Fuzzy: allow small ASR differences (edit distance <= 2 for short phrases)
-      if (normalized.length > 4 && hintNorm.length > 4 && this.levenshtein(normalized, hintNorm) <= 2) {
-        return { intentId: candidates[0].intentId, confidence: 0.85 };
-      }
-    }
-    return null;
-  }
-
-  private levenshtein(a: string, b: string): number {
-    if (a.length > b.length) [a, b] = [b, a];
-    let prev = Array.from({ length: a.length + 1 }, (_, i) => i);
-    for (let j = 1; j <= b.length; j++) {
-      const curr = [j];
-      for (let i = 1; i <= a.length; i++) {
-        curr[i] = a[i - 1] === b[j - 1] ? prev[i - 1] : 1 + Math.min(prev[i], curr[i - 1], prev[i - 1]);
-      }
-      prev = curr;
-    }
-    return prev[a.length];
   }
 
   /**
