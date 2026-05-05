@@ -10,30 +10,24 @@ const scenes: SceneInfo[] = [
   createScene('hotel', 'Hotel', 'A2'),
 ];
 
-test('unlocks every A1 scene before progress exists', () => {
+test('unlocks all scenes regardless of level', () => {
   const portalScenes = applyLocalProgress(scenes, createProgressReader({}));
 
-  assert.deepEqual(portalScenes.filter((scene) => scene.cefrLevel === 'A1').map((scene) => scene.unlocked), [true, true, true]);
-  assert.deepEqual(portalScenes.filter((scene) => scene.cefrLevel === 'A2').map((scene) => scene.unlocked), [false, false]);
+  assert.deepEqual(portalScenes.map((scene) => scene.unlocked), [true, true, true, true, true]);
 });
 
-test('keeps A2 locked until all A1 scenes are complete', () => {
+test('tracks completed state and score per scene', () => {
   const portalScenes = applyLocalProgress(scenes, createProgressReader({
     restaurant: { completed: true, score: 10 },
     school: { completed: true, score: 8 },
   }));
 
-  assert.deepEqual(portalScenes.filter((scene) => scene.cefrLevel === 'A2').map((scene) => scene.unlocked), [false, false]);
-});
-
-test('unlocks A2 scenes after every A1 scene is complete', () => {
-  const portalScenes = applyLocalProgress(scenes, createProgressReader({
-    restaurant: { completed: true, score: 10 },
-    school: { completed: true, score: 8 },
-    zoo: { completed: true, score: 12 },
-  }));
-
-  assert.deepEqual(portalScenes.filter((scene) => scene.cefrLevel === 'A2').map((scene) => scene.unlocked), [true, true]);
+  assert.equal(portalScenes[0].completed, true);
+  assert.equal(portalScenes[0].score, 10);
+  assert.equal(portalScenes[1].completed, true);
+  assert.equal(portalScenes[1].score, 8);
+  assert.equal(portalScenes[2].completed, false);
+  assert.equal(portalScenes[2].score, 0);
 });
 
 function createScene(id: string, name: string, cefrLevel: string): SceneInfo {
