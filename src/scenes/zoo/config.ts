@@ -23,7 +23,7 @@ function fences(): string[][] {
   const grid = layer('AIR');
   for (let x = 0; x < WIDTH; x++) {
     grid[0][x] = 'WALL';
-    grid[DEPTH - 1][x] = 'WALL';
+    if (x < 8 || x > 13) grid[DEPTH - 1][x] = 'WALL';
   }
   for (let z = 0; z < DEPTH; z++) {
     grid[z][0] = 'WALL';

@@ -13,6 +13,7 @@ const sceneEmoji: Record<string, string> = {
   home: '🏠',
   beach: '🏖️',
   farm: '🚜',
+  hotel: '🏨',
 };
 
 function getSceneEmoji(scene: SceneInfo): string {

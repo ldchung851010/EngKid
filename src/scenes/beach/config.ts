@@ -21,7 +21,7 @@ function ground(): string[][] {
 
 function edges(): string[][] {
   const grid = layer('AIR');
-  for (let x = 0; x < WIDTH; x++) grid[DEPTH - 1][x] = 'WALL';
+  for (let x = 0; x < WIDTH; x++) { if (x < 9 || x > 14) grid[DEPTH - 1][x] = 'WALL'; }
   for (let z = 0; z < DEPTH; z++) {
     grid[z][0] = 'WALL';
     grid[z][WIDTH - 1] = 'WALL';
