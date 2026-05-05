@@ -193,234 +193,16 @@ const NPC_CURIOUS_RADIUS = 6;
 let collectibleManager: CollectibleManager | null = null;
 type InteractionTarget =
   | { type: 'npc'; npc: NPCConfig; distance: number }
-  | { type: 'collectible'; word: string; distance: number }
-  | { type: 'portal'; distance: number };
+  | { type: 'collectible'; word: string; distance: number };
 let activeInteractionTarget: InteractionTarget | null = null;
-// ── Portal ────────────────────────────────────────────────────
-let portalGroup: THREE.Group | null = null;
-const PORTAL_INTERACTION_RADIUS = 2;
 
-function createPortal(config: SceneConfig): THREE.Group {
-  const group = new THREE.Group();
-  group.userData.isPortal = true;
-  const start = config.start ?? { position: { x: 0, y: 2.6, z: 0 }, lookAt: { x: 0, y: 2.3, z: 0 } };
-
-  const portalPos = {
-    x: start.position.x,
-    y: 1,
-    z: start.position.z + 1.5,
-  };
-  group.position.set(portalPos.x, portalPos.y, portalPos.z);
-  group.userData.portalPulse = 0;
-
-  const frameMat = new THREE.MeshStandardMaterial({
-    color: 0x5e4b8c,
-    roughness: 0.35,
-    metalness: 0.55,
-  });
-  const trimMat = new THREE.MeshStandardMaterial({
-    color: 0xffc048,
-    roughness: 0.2,
-    metalness: 0.65,
-    emissive: 0xff9f43,
-    emissiveIntensity: 0.3,
-  });
-
-  const portalW = 1.05;
-  const portalH = 1.65;
-  const pillarW = 0.2;
-  const pillarD = 0.15;
-  const lintelH = 0.18;
-  const baseTop = 0.22; // top of the two-step foundation
-
-  // ── Left pillar ──
-  const leftPillar = new THREE.Mesh(
-    new THREE.BoxGeometry(pillarW, portalH, pillarD),
-    frameMat
-  );
-  leftPillar.position.set(-(portalW + pillarW) / 2, baseTop + portalH / 2, 0);
-  leftPillar.castShadow = true;
-  group.add(leftPillar);
-
-  // ── Right pillar ──
-  const rightPillar = new THREE.Mesh(
-    new THREE.BoxGeometry(pillarW, portalH, pillarD),
-    frameMat
-  );
-  rightPillar.position.set((portalW + pillarW) / 2, baseTop + portalH / 2, 0);
-  rightPillar.castShadow = true;
-  group.add(rightPillar);
-
-  // ── Top lintel (横梁) ──
-  const lintel = new THREE.Mesh(
-    new THREE.BoxGeometry(portalW + pillarW * 2 + 0.06, lintelH, pillarD + 0.04),
-    frameMat
-  );
-  lintel.position.set(0, baseTop + portalH + lintelH / 2, 0);
-  lintel.castShadow = true;
-  group.add(lintel);
-
-  // ── Trim: thin glowing edges on pillars ──
-  const trimGeo = new THREE.BoxGeometry(pillarW + 0.04, portalH + 0.02, 0.02);
-  const leftTrim = new THREE.Mesh(trimGeo, trimMat);
-  leftTrim.position.set(-(portalW + pillarW) / 2, baseTop + portalH / 2, pillarD / 2 + 0.01);
-  group.add(leftTrim);
-  const rightTrim = new THREE.Mesh(trimGeo, trimMat);
-  rightTrim.position.set((portalW + pillarW) / 2, baseTop + portalH / 2, pillarD / 2 + 0.01);
-  group.add(rightTrim);
-
-  // Top trim
-  const topTrimGeo = new THREE.BoxGeometry(portalW + pillarW * 2 + 0.12, 0.02, pillarD + 0.06);
-  const topTrim = new THREE.Mesh(topTrimGeo, trimMat);
-  topTrim.position.set(0, baseTop + portalH + lintelH + 0.01, 0);
-  group.add(topTrim);
-
-  // ── Keystone (top-center gem) ──
-  const gemGeo = new THREE.IcosahedronGeometry(0.12, 1);
-  const gemMat = new THREE.MeshStandardMaterial({
-    color: 0xff6b6b,
-    roughness: 0.05,
-    metalness: 0.2,
-    emissive: 0xff6b6b,
-    emissiveIntensity: 0.7,
-  });
-  const gem = new THREE.Mesh(gemGeo, gemMat);
-  gem.position.set(0, baseTop + portalH + lintelH + 0.08, 0);
-  gem.userData.portalPart = 'gem';
-  group.add(gem);
-
-  // ── Doorway curtain (energy surface) ──
-  const curtainGeo = new THREE.PlaneGeometry(portalW, portalH);
-  const curtainMat = new THREE.MeshStandardMaterial({
-    color: 0x8e44ad,
-    roughness: 0.25,
-    metalness: 0.4,
-    emissive: 0x6c5ce7,
-    emissiveIntensity: 0.5,
-    transparent: true,
-    opacity: 0.65,
-    side: THREE.DoubleSide,
-  });
-  const curtain = new THREE.Mesh(curtainGeo, curtainMat);
-  curtain.position.set(0, baseTop + portalH / 2, 0);
-  curtain.userData.portalPart = 'curtain';
-  group.add(curtain);
-
-  // ── Back glow (softer disc behind curtain) ──
-  const glowGeo = new THREE.PlaneGeometry(portalW + 0.15, portalH + 0.15);
-  const glowMat = new THREE.MeshBasicMaterial({
-    color: 0xd6a2e8,
-    transparent: true,
-    opacity: 0.18,
-    side: THREE.DoubleSide,
-  });
-  const glow = new THREE.Mesh(glowGeo, glowMat);
-  glow.position.set(0, baseTop + portalH / 2, -0.08);
-  group.add(glow);
-
-  // ── Base platform (two-step foundation) ──
-  const baseMat = new THREE.MeshStandardMaterial({ color: 0x7d6a9e, roughness: 0.5, metalness: 0.3 });
-
-  const step1Geo = new THREE.CylinderGeometry(portalW / 2 + pillarW + 0.22, portalW / 2 + pillarW + 0.28, 0.12, 32);
-  const step1 = new THREE.Mesh(step1Geo, baseMat);
-  step1.position.set(0, 0.06, 0);
-  step1.castShadow = true;
-  step1.receiveShadow = true;
-  group.add(step1);
-
-  const step2Geo = new THREE.CylinderGeometry(portalW / 2 + pillarW + 0.10, portalW / 2 + pillarW + 0.15, 0.10, 32);
-  const step2 = new THREE.Mesh(step2Geo, baseMat);
-  step2.position.set(0, 0.17, 0);
-  step2.castShadow = true;
-  step2.receiveShadow = true;
-  group.add(step2);
-
-  // ── Label ──
-  const label = createTextSprite('🏠 Home', 256, 64, '#ffffff', 'bold 28px sans-serif');
-  label.position.set(0, baseTop + portalH + lintelH + 0.42, 0);
-  label.scale.set(2.0, 0.5, 1);
-  label.material.depthTest = false;
-  label.material.depthWrite = false;
-  group.add(label);
-
-  // ── Floating particles ──
-  const particleSpecs = [
-    { x: -0.55, y: baseTop + 1.0, z: 0.15, size: 0.05, speed: 1.8, amp: 0.2, phase: 0 },
-    { x: 0.55, y: baseTop + 1.2, z: 0.12, size: 0.04, speed: 1.4, amp: 0.15, phase: 1 },
-    { x: 0.0, y: baseTop + 1.7, z: 0.18, size: 0.06, speed: 2.0, amp: 0.1, phase: 2 },
-    { x: -0.3, y: baseTop + 0.5, z: 0.1, size: 0.035, speed: 1.2, amp: 0.12, phase: 3 },
-    { x: 0.3, y: baseTop + 0.6, z: 0.14, size: 0.045, speed: 1.6, amp: 0.18, phase: 1.5 },
-  ];
-
-  for (const spec of particleSpecs) {
-    const geo = new THREE.SphereGeometry(spec.size, 10, 10);
-    const mat = new THREE.MeshStandardMaterial({
-      color: 0xffeaa7,
-      roughness: 0.1,
-      emissive: 0xff9f43,
-      emissiveIntensity: 1.0,
-    });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.userData.portalParticle = {
-      baseX: spec.x,
-      baseY: spec.y,
-      baseZ: spec.z,
-      speed: spec.speed,
-      amp: spec.amp,
-      phase: spec.phase,
-    };
-    group.add(mesh);
-  }
-
-  return group;
-}
-
-function animatePortal(delta: number, elapsed: number): void {
-  if (!portalGroup) return;
-
-  portalGroup.children.forEach((child) => {
-    // Rotate keystone gem
-    if (child.userData.portalPart === 'gem') {
-      child.rotation.y += delta * 1.2;
-      child.rotation.x = Math.sin(elapsed * 1.5) * 0.15;
-    }
-
-    // Slowly sway curtain
-    if (child.userData.portalPart === 'curtain' && child instanceof THREE.Mesh) {
-      const mat = child.material as THREE.MeshStandardMaterial;
-      mat.emissiveIntensity = 0.4 + Math.sin(elapsed * 2.5) * 0.15;
-    }
-
-    // Float particles gently up and down
-    const p = child.userData.portalParticle;
-    if (!p) return;
-    p.phase += delta * p.speed;
-    child.position.x = p.baseX + Math.sin(p.phase) * p.amp;
-    child.position.y = p.baseY + Math.cos(p.phase * 0.7) * p.amp * 0.5;
-    child.position.z = p.baseZ + Math.sin(p.phase * 1.3) * p.amp * 0.3;
-  });
-
-  // Breathing pulse
-  portalGroup.userData.portalPulse = (portalGroup.userData.portalPulse ?? 0) + delta * 2.0;
-  const pulse = 1 + Math.sin(portalGroup.userData.portalPulse) * 0.025;
-  portalGroup.scale.setScalar(pulse);
+function navigateToHome(): void {
+  location.href = '/';
 }
 
 function animateSceneVisuals(delta: number, elapsed: number): void {
   if (!sceneVisualGroup) return;
   activeSceneModule?.animateVisuals?.(sceneVisualGroup, delta, elapsed);
-}
-
-function getPortalDistance(): number {
-  if (!portalGroup) return Infinity;
-  const pp = portalGroup.position;
-  const dx = playerGroup.position.x - pp.x;
-  const dz = playerGroup.position.z - pp.z;
-  return Math.sqrt(dx * dx + dz * dz);
-}
-
-function navigateToHome(): void {
-  location.href = '/';
 }
 
 // ── NPC Liveliness ──────────────────────────────────────────
@@ -863,9 +645,7 @@ function showInteractionPrompt(target: InteractionTarget | null): void {
     return;
   }
 
-  if (target.type === 'portal') {
-    interactionLabel.textContent = 'Go home 🚪';
-  } else if (target.type === 'npc') {
+  if (target.type === 'npc') {
     interactionLabel.textContent = `Talk to ${target.npc.name}`;
   } else {
     interactionLabel.textContent = `Collect ${target.word}`;
@@ -923,18 +703,13 @@ function updateInteractionTarget(): void {
     return;
   }
 
-  const portalDist = getPortalDistance();
-  const portalTarget: InteractionTarget | null =
-    portalDist <= PORTAL_INTERACTION_RADIUS ? { type: 'portal', distance: portalDist } : null;
-
   const npcTarget = getNearestNPCTarget();
   const collectibleTarget = collectibleManager?.getNearestCollectible(playerGroup.position, COLLECTIBLE_INTERACTION_RADIUS) ?? null;
 
-  // Closest target wins (portal competes on distance)
+  // Closest target wins
   const candidates: InteractionTarget[] = [];
   if (npcTarget) candidates.push(npcTarget);
   if (collectibleTarget) candidates.push({ type: 'collectible', word: collectibleTarget.word, distance: collectibleTarget.distance });
-  if (portalTarget) candidates.push(portalTarget);
 
   candidates.sort((a, b) => a.distance - b.distance);
   activeInteractionTarget = candidates[0] ?? null;
@@ -952,11 +727,6 @@ function updateInteractionTarget(): void {
 async function activateInteractionTarget(): Promise<void> {
   updateInteractionTarget();
   if (!activeInteractionTarget || activeNPC) return;
-
-  if (activeInteractionTarget.type === 'portal') {
-    navigateToHome();
-    return;
-  }
 
   if (activeInteractionTarget.type === 'collectible') {
     await collectibleManager?.openActiveCollectible();
@@ -981,13 +751,6 @@ function getCollectibleDistance(obj: THREE.Object3D): number {
 
 controller.setOnObjectClick((hitObject) => {
   // Determine what was clicked
-  if (hitObject.userData.isPortal) {
-    if (getPortalDistance() <= PORTAL_INTERACTION_RADIUS) {
-      navigateToHome();
-    }
-    return;
-  }
-
   const npcId = hitObject.userData.npcId as string | undefined;
   if (npcId) {
     const npc = currentNPCs.find((n) => n.id === npcId);
@@ -1057,14 +820,6 @@ async function loadScene(): Promise<void> {
   );
   controller.setPathfinder((start, end) => pathGrid.findPath(start, end));
 
-  // Spawn portal at entrance
-  if (portalGroup) {
-    scene.remove(portalGroup);
-    disposeObject3D(portalGroup);
-  }
-  portalGroup = createPortal(activeSceneConfig);
-  scene.add(portalGroup);
-
   // Spawn NPCs
   currentNPCs = activeSceneConfig.npcs;
   spawnNPCs(currentNPCs);
@@ -1075,9 +830,6 @@ async function loadScene(): Promise<void> {
   const clickables: THREE.Object3D[] = [];
   for (const npcGroup of npcMeshes) {
     clickables.push(npcGroup);
-  }
-  if (portalGroup) {
-    clickables.push(portalGroup);
   }
   // Collectible groups
   if (collectibleManager) {
@@ -1184,7 +936,6 @@ tts.onStatusChange((s) => {
 const glowingObjects = new Set<THREE.Object3D>();
 
 function isObjectInRange(obj: THREE.Object3D): boolean {
-  if (obj.userData.isPortal) return getPortalDistance() <= PORTAL_INTERACTION_RADIUS;
   if (obj.userData.npcId) {
     const npc = currentNPCs.find((n) => n.id === obj.userData.npcId);
     return npc ? getNPCDistance(npc) <= getNPCInteractionRadius(npc) : false;
@@ -1291,7 +1042,6 @@ function animate(): void {
   }
 
   collectibleManager?.update(delta);
-  animatePortal(delta, clock.elapsedTime);
   animateNPCs(delta);
   animateSceneVisuals(delta, clock.elapsedTime);
   updateInteractionIndicators(clock.elapsedTime);
