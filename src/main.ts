@@ -10,8 +10,8 @@ import type { SessionContext } from './engine/runtime/SessionMachine.js';
 import { CollisionWorld } from './engine/runtime/CollisionWorld.js';
 import { PathGrid } from './engine/runtime/PathGrid.js';
 import { ScoreTracker } from './engine/scoring/ScoreTracker.js';
-import { IntentRouter } from './engine/voice/IntentRouter.js';
-import { SpeechPipeline } from './engine/voice/SpeechPipeline.js';
+import { IntentRouter, type IntentResult } from './engine/voice/IntentRouter.js';
+import { SpeechPipeline, type PipelineState } from './engine/voice/SpeechPipeline.js';
 import { WhisperASR } from './engine/voice/WhisperASR.js';
 import { TTSEngine } from './engine/voice/TTSEngine.js';
 import { MicButton } from './engine/voice/MicButton.js';
@@ -92,14 +92,15 @@ const scoreTracker = new ScoreTracker();
 let currentNPCs: NPCConfig[] = [];
 let npcMeshes: THREE.Group[] = [];
 let sceneVisualGroup: THREE.Group | null = null;
-type NPCStatus = 'alert' | 'thinking' | 'question' | null;
-interface NPCStatusIndicator {
+type NPCStatus = 'alert' | 'thinking' | 'listening' | 'question' | null;
+interface StatusIndicator {
   sprite: THREE.Sprite;
   texture: THREE.CanvasTexture;
   material: THREE.SpriteMaterial;
   canvas: HTMLCanvasElement;
 }
-const npcStatusIndicators = new Map<string, NPCStatusIndicator>();
+const npcStatusIndicators = new Map<string, StatusIndicator>();
+let playerStatusIndicator: StatusIndicator | null = null;
 
 const npcAnimator = new NPCAnimator();
 let collectibleManager: CollectibleManager | null = null;
@@ -163,11 +164,11 @@ function spawnNPCs(npcs: NPCConfig[]): void {
     labelSprite.material.depthWrite = false;
     group.add(labelSprite);
 
-    createNPCStatusIndicator(npc.id, group);
+    npcStatusIndicators.set(npc.id, createStatusIndicator(group));
   }
 }
 
-function createNPCStatusIndicator(npcId: string, parent: THREE.Object3D): void {
+function createStatusIndicator(parent: THREE.Object3D): StatusIndicator {
   const canvas = document.createElement('canvas');
   canvas.width = 96;
   canvas.height = 96;
@@ -182,13 +183,21 @@ function createNPCStatusIndicator(npcId: string, parent: THREE.Object3D): void {
   sprite.renderOrder = 1000;
   sprite.visible = false;
   parent.add(sprite);
-  npcStatusIndicators.set(npcId, { sprite, texture, material, canvas });
+  return { sprite, texture, material, canvas };
 }
 
 function setNPCStatus(npcId: string, status: NPCStatus): void {
   const indicator = npcStatusIndicators.get(npcId);
   if (!indicator) return;
+  setStatusIndicator(indicator, status);
+}
 
+function setPlayerStatus(status: NPCStatus): void {
+  if (!playerStatusIndicator) return;
+  setStatusIndicator(playerStatusIndicator, status);
+}
+
+function setStatusIndicator(indicator: StatusIndicator, status: NPCStatus): void {
   indicator.sprite.visible = status !== null;
   if (status === null) return;
 
@@ -198,6 +207,7 @@ function setNPCStatus(npcId: string, status: NPCStatus): void {
   const styles: Record<Exclude<NPCStatus, null>, { text: string; fill: string; textColor: string; font: string }> = {
     alert: { text: '!', fill: '#ffd54f', textColor: '#332400', font: 'bold 58px sans-serif' },
     thinking: { text: '...', fill: '#ffffff', textColor: '#263238', font: 'bold 38px sans-serif' },
+    listening: { text: '', fill: '#fff3bf', textColor: '#5d4037', font: 'bold 46px sans-serif' },
     question: { text: '?', fill: '#64b5f6', textColor: '#ffffff', font: 'bold 54px sans-serif' },
   };
   const style = styles[status];
@@ -212,17 +222,52 @@ function setNPCStatus(npcId: string, status: NPCStatus): void {
   ctx.restore();
 
   ctx.fillStyle = style.textColor;
-  ctx.font = style.font;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(style.text, 48, status === 'thinking' ? 42 : 50);
+  if (status === 'listening') {
+    drawListeningIcon(ctx);
+  } else {
+    ctx.font = style.font;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(style.text, 48, status === 'thinking' ? 42 : 50);
+  }
   indicator.texture.needsUpdate = true;
 }
+
+function drawListeningIcon(ctx: CanvasRenderingContext2D): void {
+  ctx.save();
+  ctx.strokeStyle = '#5d4037';
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(51, 29);
+  ctx.bezierCurveTo(35, 29, 31, 43, 36, 53);
+  ctx.bezierCurveTo(39, 59, 47, 60, 45, 69);
+  ctx.bezierCurveTo(44, 75, 56, 77, 61, 68);
+  ctx.stroke();
+
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(51, 41);
+  ctx.bezierCurveTo(45, 41, 43, 47, 45, 51);
+  ctx.bezierCurveTo(47, 55, 53, 54, 52, 61);
+  ctx.stroke();
+
+  ctx.strokeStyle = '#8d6e63';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(60, 48, 14, -0.85, 0.85);
+  ctx.stroke();
+  ctx.restore();
+}
+
+playerStatusIndicator = createStatusIndicator(playerGroup);
 
 // ── Dialogue Flow ──────────────────────────────────────────────
 let activeNodeId: string | null = null;
 let activeNPC: NPCConfig | null = null;
 let startingDialogue = false;
+let dialogueInputReady = false;
 let dialogueRetries = 0;
 let dialogueRevision = 0;
 const npcsAwaitingExit = new Set<string>();
@@ -231,18 +276,19 @@ const MAX_RETRIES = 3;
 async function startDialogue(npcId: string, nodeId: string): Promise<void> {
   if (activeNPC || startingDialogue) return;
   startingDialogue = true;
+  dialogueInputReady = false;
   controller.setMovementLock(true);
 
   const npc = currentNPCs.find((n) => n.id === npcId);
-  if (!npc) { startingDialogue = false; return; }
+  if (!npc) { cancelDialogueStart(); return; }
 
   const node = findNode(npc, nodeId);
-  if (!node) { console.log(`[Dialogue] ⚠️ node ${nodeId} not found`); startingDialogue = false; return; }
+  if (!node) { console.log(`[Dialogue] ⚠️ node ${nodeId} not found`); cancelDialogueStart(); return; }
 
   console.log(`[Dialogue] NPC ${npcId} → "${node.npcText.substring(0, 50)}..."`);
   // Hook gate check
   const ctx = actor.getSnapshot().context;
-  if (!activeSceneHooks.onBeforeDialogue(npcId, nodeId, ctx)) { startingDialogue = false; return; }
+  if (!activeSceneHooks.onBeforeDialogue(npcId, nodeId, ctx)) { cancelDialogueStart(); return; }
 
   activeNPC = npc;
   activeNodeId = nodeId;
@@ -255,7 +301,8 @@ async function startDialogue(npcId: string, nodeId: string): Promise<void> {
   const npcPos = new THREE.Vector3(npc.position.x + 0.5, 0, npc.position.z + 0.5);
   controller.faceToward(npcPos);
 
-  setNPCStatus(npcId, 'thinking');
+  setNPCStatus(npcId, null);
+  setPlayerStatus('listening');
   try {
     await speakNPC(node);
   } catch (error) {
@@ -281,14 +328,22 @@ async function startDialogue(npcId: string, nodeId: string): Promise<void> {
   startingDialogue = false;
 }
 
+function cancelDialogueStart(): void {
+  startingDialogue = false;
+  dialogueInputReady = false;
+  controller.setMovementLock(false);
+}
+
 function endDialogue(npcId: string, waitForExit: boolean): void {
   dialogueRevision++;
   micButton.hide();
   setNPCStatus(npcId, null);
+  setPlayerStatus(null);
   activeNodeId = null;
   activeNPC = null;
   activeInteractionTarget = null;
   startingDialogue = false;
+  dialogueInputReady = false;
   controller.setMovementLock(false);
 
   if (waitForExit) {
@@ -360,8 +415,25 @@ function showMicWithHints(node: DialogueNode): void {
   if (activeNPC) {
     setNPCStatus(activeNPC.id, 'question');
   }
+  setPlayerStatus(null);
   micButton.setHints(node.hintExamples);
   micButton.show();
+  dialogueInputReady = true;
+  startingDialogue = false;
+  controller.setMovementLock(false);
+}
+
+function updateListeningStatusFromPipeline(state: PipelineState): void {
+  if (!activeNPC || !dialogueInputReady) return;
+
+  if (state === 'listening' || state === 'transcribing') {
+    setNPCStatus(activeNPC.id, 'listening');
+    return;
+  }
+
+  if (state === 'idle' || state === 'error') {
+    setNPCStatus(activeNPC.id, 'question');
+  }
 }
 
 // ── Intent Routing & Dialogue Progression ──────────────────────
@@ -373,6 +445,9 @@ async function handleChildSpeech(transcript: string): Promise<void> {
   const revision = dialogueRevision;
   const node = findNode(activeNPC, activeNodeId);
   if (!node) return;
+  dialogueInputReady = false;
+  setPlayerStatus(null);
+  controller.setMovementLock(true);
 
   // If terminal or no candidates, end dialogue
   if (node.isTerminal || node.candidateIntents.length === 0) {
@@ -393,12 +468,20 @@ async function handleChildSpeech(transcript: string): Promise<void> {
 
   const ctx = actor.getSnapshot().context;
   console.log(`[Dialogue] → IntentRouter with ${node.candidateIntents.length} candidates: [${node.candidateIntents.map(c => c.intentId).join(',')}]`);
-  const result = await intentRouter.route(transcript, {
-    name: activeNPC.name,
-    role: activeNPC.role,
-    npcText: node.npcText,
-    hintExamples: node.hintExamples,
-  }, node.candidateIntents, ctx.conversationHistory);
+  let result: IntentResult;
+  try {
+    result = await intentRouter.route(transcript, {
+      name: activeNPC.name,
+      role: activeNPC.role,
+      npcText: node.npcText,
+      hintExamples: node.hintExamples,
+    }, node.candidateIntents, ctx.conversationHistory);
+  } catch (error) {
+    console.warn('[Dialogue] intent routing failed', error);
+    showServiceNotice('Dialogue helper is unavailable right now. Please try again.');
+    if (isCurrentDialogue(npcId, nodeId, revision)) showMicWithHints(node);
+    return;
+  }
 
   if (!isCurrentDialogue(npcId, nodeId, revision)) return;
 
@@ -457,15 +540,24 @@ async function handleChildSpeech(transcript: string): Promise<void> {
       }
     } else {
       // Generate nudge
-      const nudgeText = await intentRouter.generateNudge(
-        transcript,
-        { name: activeNPC.name, role: activeNPC.role },
-        node.candidateIntents,
-        ctx.conversationHistory
-      );
+      let nudgeText: string;
+      try {
+        nudgeText = await intentRouter.generateNudge(
+          transcript,
+          { name: activeNPC.name, role: activeNPC.role },
+          node.candidateIntents,
+          ctx.conversationHistory
+        );
+      } catch (error) {
+        console.warn('[Dialogue] nudge generation failed', error);
+        showServiceNotice('Dialogue helper is unavailable right now. Please try again.');
+        if (isCurrentDialogue(npcId, nodeId, revision)) showMicWithHints(node);
+        return;
+      }
       if (!isCurrentDialogue(npcId, nodeId, revision) || !activeNPC) return;
 
-      setNPCStatus(npcId, 'thinking');
+      setNPCStatus(npcId, null);
+      setPlayerStatus('listening');
       try {
         await tts.speak(nudgeText, activeNPC.voice, activeNPC.speechSpeed);
       } catch {
@@ -556,6 +648,7 @@ function updateInteractionTarget(): void {
   for (const npc of currentNPCs) {
     setNPCStatus(npc.id, null);
   }
+  setPlayerStatus(null);
 
   collectibleManager?.setActiveCollectible(
     activeInteractionTarget?.type === 'collectible' ? activeInteractionTarget.word : null
@@ -623,14 +716,10 @@ controller.setOnObjectClick((hitObject) => {
 });
 
 controller.setOnGroundClick((_worldPos) => {
-  // During dialogue or initiation: cancel dialogue and prevent any movement
+  // While the NPC is speaking or dialogue is starting, keep the child in place.
+  // Once the mic is visible, walking is allowed; leaving range ends dialogue.
   if (activeNPC || startingDialogue) {
-    if (activeNPC) endDialogue(activeNPC.id, false);
-    else {
-      startingDialogue = false;
-      controller.setMovementLock(false);
-    }
-    return false;
+    return dialogueInputReady;
   }
   return true;
 });
@@ -710,7 +799,7 @@ async function loadScene(): Promise<void> {
 // ── Startup: Load TTS → Then Scene ───────────────────────────
 const overlay = document.getElementById('loading-overlay')!;
 const spinner = document.getElementById('loading-spinner')!;
-const statusEl = document.getElementById('loading-status')!;
+  const statusEl = document.getElementById('loading-status')!;
 const errorEl = document.getElementById('loading-error')!;
 const controlsHint = document.getElementById('controls-hint');
 const controlsHintClose = document.getElementById('controls-hint-close');
@@ -773,7 +862,10 @@ tts.onStatusChange((s) => {
 
     // Create speech pipeline now that we know the ASR mode
     pipeline = new SpeechPipeline({
-      onStateChange: (state) => console.log(`[pipeline] ${state}`),
+      onStateChange: (state) => {
+        console.log(`[pipeline] ${state}`);
+        updateListeningStatusFromPipeline(state);
+      },
       onTranscript: (text) => console.log(`[ASR] "${text}"`),
     }, transcribe, cloudAsrUrl);
     micButton = new MicButton(micContainer, pipeline, async (transcript) => {
@@ -893,6 +985,7 @@ function animate(): void {
 
   const delta = Math.min(clock.getDelta(), 0.1); // Cap delta
   controller.update(delta);
+  updateActiveDialogueRange();
 
   // Player walk animation
   if (controller.isMoving) {
