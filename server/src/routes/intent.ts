@@ -44,7 +44,7 @@ Return ONLY a JSON object: {"intentId": "<id or 'none'>", "confidence": <0.0-1.0
       logName: 'Intent',
       prompt,
       temperature: 0.1,
-      maxTokens: 100,
+      maxTokens: 1024,
     });
     if (!result.ok) {
       if (result.body.retryAfterSeconds) c.header('Retry-After', String(result.body.retryAfterSeconds));

@@ -37,7 +37,7 @@ export function exampleRoutes(): Hono {
       logName: 'Example',
       prompt,
       temperature: 0.3,
-      maxTokens: 150,
+      maxTokens: 512,
     });
     if (!result.ok) {
       if (result.body.retryAfterSeconds) c.header('Retry-After', String(result.body.retryAfterSeconds));

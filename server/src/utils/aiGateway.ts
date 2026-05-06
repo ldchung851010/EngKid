@@ -74,7 +74,7 @@ async function doFetch(
       console.log(`[${logName}] empty response body (${response.status}) in ${elapsedMs}ms`);
       return { ok: false, statusCode: 502, body: { error: `${logName} upstream unavailable` } };
     }
-    let result: { choices?: Array<{ message?: { content?: string } }>; error?: unknown };
+    let result: { choices?: Array<{ message?: { content?: string; reasoning_content?: string } }>; error?: unknown };
     try {
       result = JSON.parse(rawText);
     } catch {
@@ -86,7 +86,18 @@ async function doFetch(
       return { ok: false, statusCode: 502, body: { error: `${logName} upstream unavailable` } };
     }
 
-    const contentText = result.choices?.[0]?.message?.content;
+    let contentText = result.choices?.[0]?.message?.content;
+    // DeepSeek reasoning models: when content is empty due to token limit,
+    // the answer may be embedded in reasoning_content
+    if (!contentText && result.choices?.[0]?.message?.reasoning_content) {
+      const reasoning = result.choices[0].message.reasoning_content;
+      // Try to extract a JSON object from the end of reasoning_content
+      const jsonMatch = reasoning.match(/\{[^}]+\}\s*$/);
+      if (jsonMatch) {
+        contentText = jsonMatch[0];
+        console.log(`[${logName}] extracted JSON from reasoning_content`);
+      }
+    }
     if (!contentText) {
       console.log(`[${logName}] empty content in ${elapsedMs}ms:`, JSON.stringify(result));
       return { ok: false, statusCode: 502, body: { error: `${logName} upstream unavailable` } };
