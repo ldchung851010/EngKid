@@ -222,22 +222,27 @@ function setNPCStatus(npcId: string, status: NPCStatus): void {
 // ── Dialogue Flow ──────────────────────────────────────────────
 let activeNodeId: string | null = null;
 let activeNPC: NPCConfig | null = null;
+let startingDialogue = false;
 let dialogueRetries = 0;
 let dialogueRevision = 0;
 const npcsAwaitingExit = new Set<string>();
 const MAX_RETRIES = 3;
 
 async function startDialogue(npcId: string, nodeId: string): Promise<void> {
+  if (activeNPC || startingDialogue) return;
+  startingDialogue = true;
+  controller.setMovementLock(true);
+
   const npc = currentNPCs.find((n) => n.id === npcId);
-  if (!npc) return;
+  if (!npc) { startingDialogue = false; return; }
 
   const node = findNode(npc, nodeId);
-  if (!node) { console.log(`[Dialogue] ⚠️ node ${nodeId} not found`); return; }
+  if (!node) { console.log(`[Dialogue] ⚠️ node ${nodeId} not found`); startingDialogue = false; return; }
 
   console.log(`[Dialogue] NPC ${npcId} → "${node.npcText.substring(0, 50)}..."`);
   // Hook gate check
   const ctx = actor.getSnapshot().context;
-  if (!activeSceneHooks.onBeforeDialogue(npcId, nodeId, ctx)) return;
+  if (!activeSceneHooks.onBeforeDialogue(npcId, nodeId, ctx)) { startingDialogue = false; return; }
 
   activeNPC = npc;
   activeNodeId = nodeId;
@@ -245,6 +250,10 @@ async function startDialogue(npcId: string, nodeId: string): Promise<void> {
   collectibleManager?.setActiveCollectible(null);
   dialogueRetries = 0;
   const revision = ++dialogueRevision;
+
+  // Face the player toward the NPC
+  const npcPos = new THREE.Vector3(npc.position.x + 0.5, 0, npc.position.z + 0.5);
+  controller.faceToward(npcPos);
 
   setNPCStatus(npcId, 'thinking');
   try {
@@ -254,7 +263,10 @@ async function startDialogue(npcId: string, nodeId: string): Promise<void> {
     showServiceNotice('Voice is unavailable right now. You can keep practicing.');
   }
 
-  if (!isCurrentDialogue(npcId, nodeId, revision)) return;
+  if (!isCurrentDialogue(npcId, nodeId, revision)) {
+    startingDialogue = false;
+    return;
+  }
   if (!isNPCInRange(npc)) {
     endDialogue(npcId, false);
     return;
@@ -266,6 +278,7 @@ async function startDialogue(npcId: string, nodeId: string): Promise<void> {
   }
 
   showMicWithHints(node);
+  startingDialogue = false;
 }
 
 function endDialogue(npcId: string, waitForExit: boolean): void {
@@ -275,6 +288,8 @@ function endDialogue(npcId: string, waitForExit: boolean): void {
   activeNodeId = null;
   activeNPC = null;
   activeInteractionTarget = null;
+  startingDialogue = false;
+  controller.setMovementLock(false);
 
   if (waitForExit) {
     npcsAwaitingExit.add(npcId);
@@ -421,6 +436,7 @@ async function handleChildSpeech(transcript: string): Promise<void> {
 
     if (nextNodeId) {
       console.log(`[Dialogue] advancing to node: ${nextNodeId}`);
+      endDialogue(npcId, false);
       await startDialogue(npcId, nextNodeId);
     } else {
       endDialogue(npcId, true);
@@ -436,6 +452,7 @@ async function handleChildSpeech(transcript: string): Promise<void> {
       // Fallback: advance to fallback node or demonstrate
       const fallbackId = node.fallbackNodeId;
       if (fallbackId) {
+        endDialogue(npcId, false);
         await startDialogue(npcId, fallbackId);
       }
     } else {
@@ -572,9 +589,13 @@ function getCollectibleDistance(obj: THREE.Object3D): number {
 }
 
 controller.setOnObjectClick((hitObject) => {
+  // Block all interactions during dialogue initiation
+  if (startingDialogue) return;
+
   // Determine what was clicked
   const npcId = hitObject.userData.npcId as string | undefined;
   if (npcId) {
+    if (activeNPC) return; // Already in dialogue
     const npc = currentNPCs.find((n) => n.id === npcId);
     if (npc) {
       const dist = getNPCDistance(npc);
@@ -589,6 +610,9 @@ controller.setOnObjectClick((hitObject) => {
     return;
   }
 
+  // Block collectible clicks during active dialogue
+  if (activeNPC) return;
+
   const collectibleWord = hitObject.userData.collectibleWord as string | undefined;
   if (collectibleWord && collectibleManager) {
     if (getCollectibleDistance(hitObject) <= COLLECTIBLE_INTERACTION_RADIUS) {
@@ -599,10 +623,16 @@ controller.setOnObjectClick((hitObject) => {
 });
 
 controller.setOnGroundClick((_worldPos) => {
-  // Cancel any active dialogue when clicking ground
-  if (activeNPC) {
-    endDialogue(activeNPC.id, false);
+  // During dialogue or initiation: cancel dialogue and prevent any movement
+  if (activeNPC || startingDialogue) {
+    if (activeNPC) endDialogue(activeNPC.id, false);
+    else {
+      startingDialogue = false;
+      controller.setMovementLock(false);
+    }
+    return false;
   }
+  return true;
 });
 
 // ── Scene Loading ──────────────────────────────────────────────

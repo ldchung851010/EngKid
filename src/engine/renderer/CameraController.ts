@@ -15,6 +15,7 @@ export class CameraController {
   // Movement
   private moveTarget: THREE.Vector3 | null = null;
   private moveSpeed = 5;
+  private movementLock = false;
   private canOccupy: ((position: THREE.Vector3) => boolean) | null = null;
 
   // Pathfinding
@@ -31,7 +32,7 @@ export class CameraController {
   // Clickable objects for interaction
   private clickableObjects: THREE.Object3D[] = [];
   private onClickCallback: ((hitObject: THREE.Object3D) => void) | null = null;
-  private onGroundClickCallback: ((worldPos: THREE.Vector3) => void) | null = null;
+  private onGroundClickCallback: ((worldPos: THREE.Vector3) => boolean) | null = null;
 
   // Bound handlers
   private onPointerDown: (e: PointerEvent) => void;
@@ -60,8 +61,8 @@ export class CameraController {
   }
 
   update(delta: number): void {
-    // Move player toward target
-    if (this.moveTarget) {
+    // Move player toward target (blocked when movement is locked)
+    if (this.moveTarget && !this.movementLock) {
       const pos = this.playerGroup.position;
       const dx = this.moveTarget.x - pos.x;
       const dz = this.moveTarget.z - pos.z;
@@ -158,6 +159,21 @@ export class CameraController {
     this.waypointIndex = 0;
   }
 
+  /** Lock/unlock all player movement. When locked, update() skips movement entirely. */
+  setMovementLock(locked: boolean): void {
+    this.movementLock = locked;
+    if (locked) this.stopMoving();
+  }
+
+  /** Immediately face the player toward a world position (no movement) */
+  faceToward(target: THREE.Vector3): void {
+    const dx = target.x - this.playerGroup.position.x;
+    const dz = target.z - this.playerGroup.position.z;
+    if (dx !== 0 || dz !== 0) {
+      this.playerGroup.rotation.y = Math.atan2(dx, dz);
+    }
+  }
+
   /** Register objects that can be clicked for interaction */
   setClickableObjects(objects: THREE.Object3D[]): void {
     this.clickableObjects = objects;
@@ -182,7 +198,7 @@ export class CameraController {
     this.onClickCallback = callback;
   }
 
-  setOnGroundClick(callback: (worldPos: THREE.Vector3) => void): void {
+  setOnGroundClick(callback: (worldPos: THREE.Vector3) => boolean): void {
     this.onGroundClickCallback = callback;
   }
 
@@ -268,9 +284,11 @@ export class CameraController {
     // Fallback: click on ground to move
     const groundPos = this.hitTestGround(e.clientX, e.clientY);
     if (groundPos) {
+      let allowMove = true;
       if (this.onGroundClickCallback) {
-        this.onGroundClickCallback(groundPos);
+        allowMove = this.onGroundClickCallback(groundPos);
       }
+      if (!allowMove) return;
       if (this.pathfinder) {
         const path = this.pathfinder(this.playerGroup.position, groundPos);
         if (path) {
