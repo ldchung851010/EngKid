@@ -46,5 +46,6 @@ test('returns SVG for all current scene target vocabulary', () => {
     const svg = getSvgForWord(word);
     assert.match(svg, /^<svg[\s\S]*<\/svg>$/);
     assert.match(svg, /viewBox="0 0 64 64"/);
+    assert.doesNotMatch(svg, /font-family="Arial/);
   }
 });
