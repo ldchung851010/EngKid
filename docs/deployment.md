@@ -245,7 +245,7 @@ compatibility_date = "2024-12-01"
 ```bash
 npm ci
 npm run build
-npx wrangler pages deploy
+npm run deploy
 ```
 
 如果 Pages 项目还不存在，Wrangler 会引导创建；如果已经在 Cloudflare 上创建过，`wrangler.toml` 里的 `name` 必须和 Pages 项目名一致。需要区分的是：`wrangler pages deploy` 只发布前端静态产物，不会部署 `server` Worker；API 仍要按上一节执行 `cd server && npm run deploy`。
@@ -253,7 +253,7 @@ npx wrangler pages deploy
 也可以用 preview 分支名发布一次性预览：
 
 ```bash
-npx wrangler pages deploy --branch preview
+npm run deploy -- --branch preview
 ```
 
 ### 2. 路由 API
