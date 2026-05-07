@@ -1,8 +1,9 @@
 name = "hi-kid-fun-api"
 main = "dist/worker.js"
-compatibility_date = "2024-12-01"
+compatibility_date = "2026-05-07"
 
 [vars]
+CORS_ORIGIN = "https://hikid.fun,https://hi-kid-fun.pages.dev,https://hi-kid-fun-api.groovyquan.workers.dev"
 DEEPSEEK_MODEL = "deepseek-v4-flash"
 TTS_VOICE = "tongtong"
 
