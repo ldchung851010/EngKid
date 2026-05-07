@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { getConfig } from '../config.js';
 import { pcmToWav } from '../utils/audio.js';
 import { consumeQuota } from '../utils/quota.js';
+import { readJsonBody } from '../utils/requestBody.js';
 import { readCachedTTS, writeCachedTTS } from '../utils/ttsCache.js';
 
 const GLM_TTS_URL = 'https://open.bigmodel.cn/api/paas/v4/audio/speech';
@@ -17,8 +18,10 @@ export function ttsRoutes(opts: TTSOptions): Hono {
   const app = new Hono();
 
   app.post('/tts', async (c) => {
-    const body = await c.req.json();
-    const parsed = parseTTSBody(body);
+    const bodyResult = await readJsonBody(c);
+    if (!bodyResult.ok) return bodyResult.response;
+
+    const parsed = parseTTSBody(bodyResult.body);
     if (!parsed.ok) return c.json({ error: parsed.error }, 400);
 
     const { input, voice: clientVoice, speed: clientSpeed } = parsed;

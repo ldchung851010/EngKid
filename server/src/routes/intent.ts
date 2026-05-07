@@ -1,12 +1,15 @@
 import { Hono } from 'hono';
 import { callTextAIJson } from '../utils/aiGateway.js';
+import { readJsonBody } from '../utils/requestBody.js';
 
 export function intentRoutes(): Hono {
   const app = new Hono();
 
   app.post('/intent', async (c) => {
-    const body = await c.req.json();
-    const parsed = parseIntentBody(body);
+    const bodyResult = await readJsonBody(c);
+    if (!bodyResult.ok) return bodyResult.response;
+
+    const parsed = parseIntentBody(bodyResult.body);
     if (!parsed.ok) return c.json({ error: parsed.error }, 400);
 
     const value = parsed.value;

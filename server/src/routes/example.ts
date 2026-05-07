@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { getConfig } from '../config.js';
 import { callTextAIJson } from '../utils/aiGateway.js';
+import { readJsonBody } from '../utils/requestBody.js';
 import {
   EXAMPLE_PROMPT_VERSION,
   readCachedExample,
@@ -17,8 +18,10 @@ export function exampleRoutes(): Hono {
   const app = new Hono();
 
   app.post('/example', async (c) => {
-    const body = await c.req.json();
-    const parsed = parseExampleBody(body);
+    const bodyResult = await readJsonBody(c);
+    if (!bodyResult.ok) return bodyResult.response;
+
+    const parsed = parseExampleBody(bodyResult.body);
     if (!parsed.ok) return c.json({ error: parsed.error }, 400);
 
     const { word, level } = parsed;
