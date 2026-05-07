@@ -4,7 +4,7 @@ import { consumeQuota } from '../utils/quota.js';
 
 const MAX_ASR_REQUEST_BYTES = 2_500_000;
 const MAX_ASR_AUDIO_BYTES = 2_000_000;
-const MAX_ASR_PROMPT_LENGTH = 200;
+const MAX_ASR_PROMPT_LENGTH = 500;
 const MAX_ASR_HOTWORDS = 12;
 const MAX_ASR_HOTWORD_LENGTH = 40;
 const ALLOWED_AUDIO_MIME_TYPES = new Set([
