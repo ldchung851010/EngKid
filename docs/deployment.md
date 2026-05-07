@@ -200,6 +200,33 @@ https://hikid.fun/api/*  -> Cloudflare Worker
 - `AI_DAILY_LIMIT`、`TTS_DAILY_LIMIT` 等额度环境变量目前只在 Node 入口读取；Workers 入口使用代码默认值。
 - Worker 入口没有 `SERVER_BODY_LIMIT` 中间件；仍应依赖路由字段校验、Cloudflare 平台请求限制和上游 API 限制。
 
+### 6. 配置 Cloudflare WAF Rate Limiting
+
+应用内 quota 用于返回友好的额度信息，但 Worker isolate 内存不是全局强一致存储，不能作为生产级强限流。公网部署必须在 Cloudflare WAF 上再加一层 Rate Limiting，挡住明显滥用和成本攻击。
+
+在 Cloudflare Dashboard 中：
+
+1. 进入 `hikid.fun` zone。
+2. 打开 `Security` -> `WAF` -> `Rate limiting rules`。
+3. 新建规则，匹配 `http.host eq "hikid.fun"`，并按下面建议分别保护高成本接口。
+
+建议规则：
+
+| 规则名 | 匹配表达式 | 建议阈值 | 动作 |
+|---|---|---|---|
+| `limit-asr` | `(http.host eq "hikid.fun" and http.request.uri.path eq "/api/asr")` | 每 IP 10 次 / 1 分钟 | Block 10 分钟 |
+| `limit-tts` | `(http.host eq "hikid.fun" and http.request.uri.path eq "/api/tts")` | 每 IP 60 次 / 1 分钟 | Block 10 分钟 |
+| `limit-ai-text` | `(http.host eq "hikid.fun" and http.request.uri.path in {"/api/intent" "/api/example"})` | 每 IP 60 次 / 1 分钟 | Block 10 分钟 |
+| `limit-api-global` | `(http.host eq "hikid.fun" and starts_with(http.request.uri.path, "/api/"))` | 每 IP 300 次 / 5 分钟 | Managed Challenge 或 Block 10 分钟 |
+
+配置要点：
+
+- 计数特征选择客户端 IP。
+- 先用 `Log` 或 `Managed Challenge` 观察 1-2 天也可以；确认不会误伤课堂使用后改为 `Block`。
+- ASR 成本和请求体都更重，阈值应明显低于 TTS 和文本 AI。
+- 如果开放 `*.workers.dev` 直连 Worker，WAF 规则不会覆盖 `workers.dev` 域名；生产建议关闭或避免公开使用 `workers.dev`，只通过 `hikid.fun/api/*` 访问。
+- 仍保留应用内 quota，因为它能给前端返回明确的 `429` 和 `Retry-After`，但不要把它视为唯一防线。
+
 ## Cloudflare Pages 部署 web
 
 ### 1. 创建 Pages 项目
@@ -250,12 +277,7 @@ npm run deploy -- --branch preview
 
 ### 2. 路由 API
 
-Pages 发布后，浏览器会从当前域名请求 `/api/health`、`/api/scenes`、`/api/tts`、`/api/intent`、`/api/example` 和可选的 `/api/asr`。因此必须完成下面二选一：
-
-| 方式 | 适用场景 | 操作 |
-|---|---|---|
-| Worker route | 正式域名 | 给 Worker 配置 `hikid.fun/api/*`，Pages 使用同一个 `hikid.fun` |
-| `_redirects` 代理 | Pages 预览或临时域名 | 在 `public/_redirects` 添加 `/api/*  https://<worker-domain>/api/:splat  200` |
+Pages 发布后，浏览器会从当前域名请求 `/api/health`、`/api/scenes`、`/api/tts`、`/api/intent`、`/api/example` 和可选的 `/api/asr`。因此正式域名需要给 Worker 配置 route：`hikid.fun/api/*`，Pages 和 Worker 共用同一个 `hikid.fun`。
 
 没有 API 路由时，前端页面可以打开，但场景列表、NPC 语音、意图匹配和例句生成都会失败。
 
