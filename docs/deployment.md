@@ -179,7 +179,7 @@ curl https://hi-kid-fun-api.<your-subdomain>.workers.dev/api/quota
 
 ### 4. 绑定正式域名或路由
 
-前端代码目前写死请求相对路径 `/api/*`，所以最省心的生产拓扑是同一个正式域名承载 Pages 静态资源和 Worker API：
+前端默认请求相对路径 `/api/*`，所以最省心的生产拓扑是同一个正式域名承载 Pages 静态资源和 Worker API：
 
 ```text
 https://hikid.fun/       -> Cloudflare Pages
@@ -191,14 +191,6 @@ https://hikid.fun/api/*  -> Cloudflare Worker
 1. 将 `hikid.fun` 绑定到 Pages 项目。
 2. 给 Worker 添加 route：`hikid.fun/api/*`。
 3. 将 `CORS_ORIGIN` 设置为 `https://hikid.fun`。
-
-如果暂时只能使用 `*.pages.dev` 和 `*.workers.dev` 两个域名，可以在 Pages 的 `public/_redirects` 中添加代理规则：
-
-```text
-/api/*  https://hi-kid-fun-api.<your-subdomain>.workers.dev/api/:splat  200
-```
-
-这种方式适合预览和临时环境；正式环境仍建议使用自定义域名 + Worker route。
 
 ### 5. Workers 部署限制
 
