@@ -22,7 +22,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Audit CJK text
+      - name: Audit source for CJK text
         shell: bash
         run: |
           python - <<'PY'
@@ -46,11 +46,15 @@ jobs:
                   continue
               for line_no, line in enumerate(text.splitlines(), 1):
                   if cjk.search(line):
-                      matches.append((str(path), line_no, line.strip()))
+                      clean = line.strip().replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                      matches.append((str(path), line_no, clean))
 
           print(f'CJK_MATCH_COUNT={len(matches)}')
           for path, line_no, line in matches:
-              print(f'CJK {path}:{line_no}: {line[:240]}')
+              print(f'::error file={path},line={line_no}::CJK text: {line[:300]}')
+
+          if matches:
+              raise SystemExit(f'Found {len(matches)} source lines containing CJK characters')
           PY
 
       - name: Setup Node
@@ -71,21 +75,47 @@ jobs:
       - name: Prepare static Pages bundle
         shell: bash
         run: |
-          # The original HiKid portal expects /api/scenes. GitHub Pages is
-          # static, so feed it the same scene metadata as a static JSON file.
           cp server/data/scenes-metadata.json dist/scenes-metadata.json
 
-          # Keep the original UI/navigation while making root-absolute links
-          # work from the /EngKid/ project path.
           find dist/assets -type f -name '*.js' -print0 | xargs -0 sed -i \
             -e 's#/api/scenes#./scenes-metadata.json#g' \
             -e 's#/play.html?scene=#./play.html?scene=#g' \
             -e 's#location.href="/"#location.href="./"#g'
 
-          # GitHub Pages cannot set the cross-origin-isolation headers needed
-          # by the pthread Whisper build. Pages uses Safari/Web Speech ASR.
           sed -i 's#<script src="/whisper/whisper.js"></script>##' dist/play.html
           sed -i 's#<script src="\./whisper/whisper.js"></script>##' dist/play.html
+
+      - name: Audit production bundle for CJK text
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('dist')
+          cjk = re.compile(r'[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]')
+          allowed = {'.js', '.mjs', '.cjs', '.md', '.html', '.css', '.json', '.yml', '.yaml', '.txt', '.webmanifest', '.svg'}
+          matches = []
+
+          for path in root.rglob('*'):
+              if not path.is_file() or path.suffix.lower() not in allowed:
+                  continue
+              try:
+                  text = path.read_text(encoding='utf-8')
+              except UnicodeDecodeError:
+                  continue
+              for line_no, line in enumerate(text.splitlines(), 1):
+                  if cjk.search(line):
+                      clean = line.strip().replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                      matches.append((str(path), line_no, clean))
+
+          print(f'DIST_CJK_MATCH_COUNT={len(matches)}')
+          for path, line_no, line in matches:
+              print(f'::error file={path},line={line_no}::CJK text in production bundle: {line[:300]}')
+
+          if matches:
+              raise SystemExit(f'Found {len(matches)} production lines containing CJK characters')
+          PY
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
