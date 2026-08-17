@@ -22,18 +22,12 @@ The long-term direction is to combine strong language-learning principles with i
 
 <table>
   <tr>
-    <td width="50%"><img src="public/images/preview1.png" alt="HiKid.Fun scene selection and score overview" width="100%" /></td>
-    <td width="50%"><img src="public/images/preview2.png" alt="3D voxel classroom with NPC dialogue" width="100%" /></td>
+    <td width="33%"><img src="public/images/preview1.png" alt="HiKid.Fun scene selection and score overview" width="100%" /></td>
+    <td width="33%"><img src="public/images/preview3.png" alt="3D voxel farm exploration" width="100%" /></td>
+    <td width="33%"><img src="public/images/preview4.png" alt="Vocabulary collection overview" width="100%" /></td>
   </tr>
   <tr>
     <td align="center">Scene selection and learning progress</td>
-    <td align="center">NPC dialogue task in the school scene</td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="public/images/preview3.png" alt="3D voxel farm exploration" width="100%" /></td>
-    <td width="50%"><img src="public/images/preview4.png" alt="Vocabulary collection overview" width="100%" /></td>
-  </tr>
-  <tr>
     <td align="center">Farm exploration and vocabulary collection</td>
     <td align="center">Vocabulary collection and learning review</td>
   </tr>
@@ -218,7 +212,7 @@ Then create `src/scenes/clinic/index.ts` and export the scene module expected by
 
 ## GitHub Pages Preview
 
-The EngKid feature preview is deployed through GitHub Actions and is designed to work as a static iPad-friendly preview using browser speech fallbacks where the full backend is unavailable.
+The EngKid feature preview is designed to work as a static iPad-friendly preview using browser speech fallbacks where the full backend is unavailable.
 
 Preview URL:
 
