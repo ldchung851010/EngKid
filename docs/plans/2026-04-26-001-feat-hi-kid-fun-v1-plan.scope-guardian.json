@@ -5,27 +5,27 @@
       "title": "EventBus abstraction may not earn its keep for V1's 2-3 explicit hooks",
       "confidence": 75,
       "category": "complexity_new_abstraction",
-      "description": "U6 creates `src/engine/runtime/EventBus.ts` as a TypedEmitter pub/sub system so scene hooks can subscribe to state transitions via event names (`on('task:triggered', callback)`). However, R15 explicitly scopes V1 to '2-3 个显式函数 Hook' and U7's `restaurant/hooks.ts` demonstrates hooks as directly exported functions (`onBeforeDialogue(npcId, nodeId, ctx)`), not event subscribers. The EventBus adds an indirection layer (pub/sub dispatch) for a consumer pattern that V1 does not use. If the EventBus is intended for internal engine module communication (e.g., SessionMachine → VoxelWorld), the plan does not state this — it only describes hook subscription as the use case.",
-      "evidence": "Plan U6 description: 'TypedEmitter 模式——场景 Hook 通过事件名订阅状态转换（on('task:triggered', callback)）'. Plan U7 hooks.ts: 'onBeforeDialogue(npcId, nodeId, ctx)' — a direct function export, not an event subscriber. R15: 'V1 仅 2-3 个显式函数 Hook，DSL 推迟'. No other consumer of EventBus is described in any implementation unit.",
-      "recommendation": "Either (a) drop EventBus and have SessionMachine call the 2-3 hook functions directly, or (b) if EventBus serves internal engine communication, update U6 to explicitly describe those consumers and their justification."
+      "description": "U6 creates `src/engine/runtime/EventBus.ts` as a TypedEmitter pub/sub system so scene hooks can subscribe to state transitions via event names (`on('task:triggered', callback)`). However, R15 explicitly scopes V1 to 2-3 explicit function hooks and U7's `restaurant/hooks.ts` demonstrates hooks as directly exported functions (`onBeforeDialogue(npcId, nodeId, ctx)`), not event subscribers. The EventBus adds an indirection layer for a consumer pattern that V1 does not use. If the EventBus is intended for internal engine communication, the plan should state that explicitly.",
+      "evidence": "Plan U6 describes a TypedEmitter pattern where scene hooks subscribe to state transitions by event name. Plan U7 uses direct functions such as `onBeforeDialogue(npcId, nodeId, ctx)`. R15 limits V1 to 2-3 explicit function hooks and defers a DSL. No other EventBus consumer is described.",
+      "recommendation": "Either drop EventBus and have SessionMachine call the 2-3 hook functions directly, or explicitly document the internal engine consumers that justify EventBus."
     },
     {
       "id": "sg-2",
       "title": "SceneLoader + SceneEngine split may be premature for V1's single-scene scope",
       "confidence": 50,
       "category": "complexity_new_abstraction",
-      "description": "U7 creates both `SceneLoader.ts` (handles '校验 → 构建体素世界 → 放置 NPC Mesh → 启动状态机') and a `SceneEngine` class in `src/index.ts` (public API: `register()`, `activate()`, `getActiveScene()`). For V1 with one hardcoded restaurant scene and three public methods, separating the internal loading logic from the public facade creates two files and an indirection layer without clear payoff. SceneEngine could directly contain the loading logic at V1 scale.",
-      "evidence": "Plan U7: 'SceneLoader.ts：loadScene(config: SceneConfig)：校验 → 构建体素世界 → 放置 NPC Mesh → 启动状态机'. Plan U7 (src/index.ts): '暴露 SceneEngine 类：register(sceneConfig), activate(sceneId), getActiveScene()'. V1 scope: one hardcoded restaurant scene. The plan itself defers multi-scene switching to follow-up work.",
-      "recommendation": "Consider folding SceneLoader logic directly into SceneEngine for V1. The separation can be introduced in V2 when multi-scene management (scene卸载/切换, 计分上下文保留 per R4) makes the SRP split pay off. If kept, add a one-line justification in U7 explaining why the split is needed now."
+      "description": "U7 creates both `SceneLoader.ts`, which validates configuration, builds the voxel world, places NPC meshes, and starts the state machine, and a `SceneEngine` facade in `src/index.ts` exposing `register()`, `activate()`, and `getActiveScene()`. With one hard-coded V1 restaurant scene, this separation adds indirection without a clear immediate payoff.",
+      "evidence": "Plan U7 gives SceneLoader the full scene-loading sequence and gives SceneEngine three public methods. V1 contains one hard-coded restaurant scene, while multi-scene switching is deferred.",
+      "recommendation": "Consider folding SceneLoader logic directly into SceneEngine for V1. Introduce the separation in V2 when unloading/switching scenes and retaining per-scene scoring context make the SRP split more valuable."
     },
     {
       "id": "sg-3",
-      "title": "Separate server package.json/tsconfig adds overhead for ~3 proxy route files",
+      "title": "Separate server package.json/tsconfig adds overhead for a small proxy",
       "confidence": 50,
       "category": "complexity_custom_vs_existing",
-      "description": "The backend proxy (`server/`) consists of ~3 source files (index.ts, asr.ts, intent.ts) totaling approximately 100 lines, but receives its own `package.json`, `tsconfig.json`, and independent dependency management. This is standard monorepo practice and provides clean separation of browser vs. server concerns, but for V1 the overhead of managing a separate package may exceed the benefit — the proxy routes could live in the main project with a separate tsconfig include or a simple Node script.",
-      "evidence": "Plan U1 creates 'server/package.json, server/tsconfig.json, server/src/index.ts'. Plan U5 creates 'server/src/routes/asr.ts, server/src/routes/intent.ts'. Total server files: 5 (2 config + 3 source). The proxy routes are straightforward middleware: 'POST /api/asr：接收 multipart/form-data → 转发 GLM-ASR API' and 'POST /api/intent：接收 JSON → 转发 DeepSeek'.",
-      "recommendation": "Consider using a single package.json with a `server:dev` script using tsx, or keep the separation but document it as a deliberate architectural choice. Either approach is defensible; the finding is advisory."
+      "description": "The backend proxy has only a few source files but receives its own `package.json`, `tsconfig.json`, and dependency management. This is a standard separation of browser and server concerns, but it creates some overhead at V1 scale.",
+      "evidence": "U1 creates `server/package.json`, `server/tsconfig.json`, and `server/src/index.ts`; U5 creates the ASR and intent proxy routes. The routes mainly receive a request, validate it, and forward it to the configured provider.",
+      "recommendation": "A single root package with a `server:dev` script would also be viable. If the separate package is retained, document it as a deliberate architecture choice."
     }
   ],
   "summary": {
