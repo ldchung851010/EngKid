@@ -1,12 +1,15 @@
 /**
- * WhisperASR — 浏览器本地 whisper.cpp WASM 封装。
+ * WhisperASR — browser-local whisper.cpp WASM wrapper.
  *
- * 模型从远程下载，首次缓存到 IndexedDB，后续直接从 IndexedDB 读取。
- * 识别文本通过 stdout/stderr 异步输出，full_default 立即返回。
+ * The model is downloaded remotely, cached in IndexedDB on first use,
+ * and loaded directly from IndexedDB on later sessions.
+ * Recognition text is emitted asynchronously through stdout/stderr while
+ * full_default returns immediately.
  *
- * whisper.js 在加载时将 defaultPrint 绑定为 console.log.bind(console)。
- * 为了捕获其输出，play.html 在加载 whisper.js 之前安装了 console.log/error
- * 代理，我们通过 window.__whisperCollect 开关来控制是否收集。
+ * whisper.js binds defaultPrint to console.log.bind(console) during load.
+ * To capture that output, play.html installs console.log/error proxies before
+ * loading whisper.js, and window.__whisperCollect controls whether output
+ * should be collected.
  */
 
 declare const Module: WhisperModule;
