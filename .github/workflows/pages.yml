@@ -1,4 +1,4 @@
-name: Build and Deploy EngKid MVP
+name: Build EngKid MVP
 
 on:
   push:
@@ -8,9 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 concurrency:
   group: engkid-mvp-${{ github.ref }}
@@ -19,8 +17,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    outputs:
-      pages_ready: ${{ steps.pages.outcome == 'success' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,44 +39,3 @@ jobs:
           name: engkid-mvp-dist
           path: dist
           if-no-files-found: error
-
-      - name: Publish preview branch
-        if: github.ref == 'refs/heads/feat/space-rescue-mvp'
-        shell: bash
-        run: |
-          set -euo pipefail
-          cp -R dist "$RUNNER_TEMP/engkid-dist"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout --orphan mvp-preview
-          git rm -rf .
-          cp -R "$RUNNER_TEMP/engkid-dist"/. .
-          touch .nojekyll
-          git add -A
-          git commit -m "deploy: update EngKid MVP preview"
-          git push --force origin HEAD:mvp-preview
-
-      - name: Configure GitHub Pages
-        id: pages
-        continue-on-error: true
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - name: Upload Pages artifact
-        if: steps.pages.outcome == 'success'
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-  deploy-pages:
-    if: needs.build.outputs.pages_ready == 'true'
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
