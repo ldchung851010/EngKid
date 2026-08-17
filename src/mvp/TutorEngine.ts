@@ -128,6 +128,16 @@ export class TutorEngine {
   }
 
   private scaffoldReply(mission: MissionId, level: ScaffoldLevel, item?: string): string {
+    if (mission === 'listen-explore') {
+      const messages: Record<ScaffoldLevel, string> = {
+        0: 'Find the red planet.',
+        1: 'Look carefully at the planets. Which one is red?',
+        2: 'Is the red planet Earth or Mars?',
+        3: 'Look for Mars. It starts with M.',
+        4: 'Mars is the red planet. Tap Mars, then keep listening for the next mission.',
+      };
+      return messages[level];
+    }
     if (mission === 'ask-robot') {
       const messages: Record<ScaffoldLevel, string> = {
         0: 'Ask me where the battery is.',
@@ -161,6 +171,7 @@ export class TutorEngine {
 
   private scaffoldHint(mission: MissionId, level: ScaffoldLevel, item?: string): string | undefined {
     if (level === 0) return undefined;
+    if (mission === 'listen-explore') return level <= 1 ? '🔴 Look for the red planet.' : level === 2 ? '🌍 Earth or 🔴 Mars?' : '🔴 Mars is the red planet.';
     if (mission === 'ask-robot') return level <= 1 ? '👀 Look for the robot and the blue control panel.' : '💬 Where is the battery?';
     if (mission === 'transfer') return level <= 1 ? '🌙 The Moon is colder and darker.' : '💬 We should… because…';
     if (level <= 1) return `👀 Think: what is ${item ?? 'this'} used for?`;
