@@ -2,7 +2,9 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 export default defineConfig({
-  base: '/',
+  // Relative assets allow the original HiKid portal and play shell to run
+  // both at localhost / and under the GitHub Pages /EngKid/ project path.
+  base: './',
   worker: { format: 'es' },
   build: {
     target: 'esnext',
