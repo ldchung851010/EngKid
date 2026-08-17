@@ -1,6 +1,22 @@
 {
   "scenes": [
     {
+      "id": "space-rescue",
+      "name": "Space Rescue Lab",
+      "description": "Help NOVA prepare a rocket: listen, ask questions, explain choices, and adapt the plan for the Moon.",
+      "cefrLevel": "A1",
+      "targetVocabulary": [
+        "mars",
+        "planet",
+        "rocket",
+        "battery",
+        "water",
+        "flashlight",
+        "jacket",
+        "moon"
+      ]
+    },
+    {
       "id": "beach",
       "name": "Beach",
       "description": "Explore the beach, talk about weather, and ask a lifeguard for safe fun.",
