@@ -43,26 +43,26 @@ const onboardingSteps: OnboardingStep[] = [
   {
     icon: '🌈',
     title: 'Welcome!',
-    subtitle: '欢迎来到英语场景世界',
-    body: '在这里，孩子可以进入不同的 3D 场景，一边探索，一边开口练习英语。',
+    subtitle: 'Welcome to the English Adventure World',
+    body: 'Explore different 3D scenes and practice speaking English while you play.',
   },
   {
     icon: '🗺️',
     title: 'Pick a scene',
-    subtitle: '选择一个场景',
-    body: '点击已经解锁的场景卡片开始学习。每个场景都有不同的生活主题和英语任务。',
+    subtitle: 'Choose a scene',
+    body: 'Tap any unlocked scene card to start learning. Each scene has a different real-life theme and English missions.',
   },
   {
     icon: '⭐',
     title: 'Earn stars',
-    subtitle: '获得星星',
-    body: '和 NPC 对话、说出合适的句子、完成任务后，就能获得星星积分。',
+    subtitle: 'Earn stars',
+    body: 'Talk with NPCs, say the right sentences, and complete missions to earn star points.',
   },
   {
     icon: '📖',
     title: 'Collect words',
-    subtitle: '收集单词',
-    body: '找到词汇物件后，它们会进入词汇图鉴。进度和数据会保存在当前浏览器里。',
+    subtitle: 'Collect words',
+    body: 'When you find vocabulary objects, they are added to your word collection. Your progress and data stay in this browser.',
   },
 ];
 
