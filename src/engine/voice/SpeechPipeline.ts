@@ -1,10 +1,15 @@
 /**
- * Speech Pipeline — Push-to-Talk UI → MediaRecorder → ASR → Intent Router.
+ * Speech Pipeline — Push-to-Talk UI → ASR → Intent Router.
  *
- * Flow:
- *   press mic/Q → start recording → release → stop → WebM blob
- *   → browser decode + resample to 16kHz Float32Array → WhisperASR.transcribe()
- *   → transcript → IntentRouter.route() → matched intent
+ * Local/dev flow:
+ *   press mic → MediaRecorder → Float32Array → WhisperASR
+ *
+ * Static GitHub Pages flow:
+ *   press mic → Safari/Web SpeechRecognition → transcript
+ *
+ * The Pages fallback avoids whisper.cpp pthread requirements because GitHub
+ * Pages cannot provide the COOP/COEP headers required for cross-origin
+ * isolation.
  */
 
 export type PipelineState = 'idle' | 'listening' | 'transcribing' | 'routing' | 'error';
@@ -24,8 +29,40 @@ export type TranscribeFn = (
   options?: TranscriptionOptions
 ) => Promise<string> | string;
 
+type SpeechRecognitionResultLike = {
+  isFinal?: boolean;
+  0: { transcript: string };
+};
+
+type SpeechRecognitionEventLike = {
+  resultIndex?: number;
+  results: ArrayLike<SpeechRecognitionResultLike>;
+};
+
+type SpeechRecognitionLike = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+  abort(): void;
+};
+
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
+
 const SAMPLE_RATE = 16000;
 const MAX_RECORDING_S = 30;
+
+function getBrowserRecognitionCtor(): SpeechRecognitionCtor | null {
+  const w = window as unknown as {
+    SpeechRecognition?: SpeechRecognitionCtor;
+    webkitSpeechRecognition?: SpeechRecognitionCtor;
+  };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+}
 
 export class SpeechPipeline {
   private stream: MediaStream | null = null;
@@ -36,6 +73,9 @@ export class SpeechPipeline {
   private transcribeFn: TranscribeFn;
   private cloudAsrUrl: string | undefined;
   private state: PipelineState = 'idle';
+  private browserRecognition: SpeechRecognitionLike | null = null;
+  private browserTranscript = '';
+  private browserRecognitionError = '';
 
   private readonly MIN_DURATION_MS = 500;
 
@@ -49,6 +89,10 @@ export class SpeechPipeline {
     return this.state;
   }
 
+  private get useBrowserRecognition(): boolean {
+    return location.hostname.endsWith('github.io') && getBrowserRecognitionCtor() !== null;
+  }
+
   private setState(state: PipelineState): void {
     this.state = state;
     this.callbacks.onStateChange(state);
@@ -59,6 +103,10 @@ export class SpeechPipeline {
   }
 
   reset(): void {
+    if (this.browserRecognition) {
+      try { this.browserRecognition.abort(); } catch { /* already ended */ }
+      this.browserRecognition = null;
+    }
     if (this.recorder?.state === 'recording') {
       this.recorder.stop();
     }
@@ -66,18 +114,24 @@ export class SpeechPipeline {
     this.stream = null;
     this.recorder = null;
     this.chunks = [];
+    this.browserTranscript = '';
+    this.browserRecognitionError = '';
     this.recordStartTime = 0;
     this.setState('idle');
   }
 
-  /** Request mic permission and start recording */
+  /** Request mic permission and start recording / recognition. */
   async startRecording(): Promise<boolean> {
     if (this.state !== 'idle') {
       this.log(`⚠️ startRecording ignored — state is ${this.state}`);
       return false;
     }
-    this.log('🎤 requesting mic...');
 
+    if (this.useBrowserRecognition) {
+      return this.startBrowserRecognition();
+    }
+
+    this.log('🎤 requesting mic...');
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -109,8 +163,12 @@ export class SpeechPipeline {
     }
   }
 
-  /** Stop recording and process audio. Returns transcript or null if too short. */
+  /** Stop recording and process audio. */
   async stopRecording(options: TranscriptionOptions = {}): Promise<string | null> {
+    if (this.useBrowserRecognition && this.browserRecognition) {
+      return this.stopBrowserRecognition();
+    }
+
     if (!this.recorder || this.state !== 'listening') {
       this.log(`⚠️ stopRecording ignored — state is ${this.state}`);
       return null;
@@ -119,7 +177,6 @@ export class SpeechPipeline {
 
     return new Promise((resolve) => {
       this.recorder!.onstop = async () => {
-        // Clean up mic stream
         this.stream?.getTracks().forEach((t) => t.stop());
         this.stream = null;
         this.recorder = null;
@@ -136,26 +193,13 @@ export class SpeechPipeline {
 
         this.setState('transcribing');
         const blob = new Blob(this.chunks, { type: 'audio/webm' });
-        this.log(`WebM blob: ${(blob.size / 1024).toFixed(1)}KB`);
 
         try {
           let text: string;
-
           if (this.cloudAsrUrl) {
-            // Cloud ASR: send WebM blob directly to server
-            this.log(`sending ${(blob.size / 1024).toFixed(1)}KB to cloud ASR...`);
             text = await this.transcribeCloud(blob, options);
           } else {
-            // Local ASR: decode WebM to 16kHz mono Float32Array
-            this.log('decoding audio to Float32Array...');
             const floatData = await this.decodeToFloat32(blob);
-            this.log(`audio ready: ${(floatData.length / SAMPLE_RATE).toFixed(1)}s @ ${SAMPLE_RATE}Hz`);
-
-            // whisper.cpp does not support prompt/hotwords — ignore them
-            if (options.prompt || options.hotwords?.length) {
-              this.log('note: prompt/hotwords are not supported by local whisper, ignoring');
-            }
-
             text = await this.transcribeFn(floatData, options);
           }
 
@@ -177,15 +221,91 @@ export class SpeechPipeline {
     });
   }
 
-  /** Send audio blob to cloud ASR endpoint (converts WebM → WAV first) */
+  private async startBrowserRecognition(): Promise<boolean> {
+    const Recognition = getBrowserRecognitionCtor();
+    if (!Recognition) return false;
+
+    this.log('🎤 starting Safari/browser speech recognition...');
+    this.browserTranscript = '';
+    this.browserRecognitionError = '';
+    const recognition = new Recognition();
+    recognition.lang = 'en-US';
+    recognition.continuous = true;
+    recognition.interimResults = false;
+
+    recognition.onresult = (event) => {
+      const start = event.resultIndex ?? 0;
+      for (let i = start; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result?.[0]?.transcript) {
+          this.browserTranscript += `${result[0].transcript} `;
+        }
+      }
+    };
+    recognition.onerror = (event) => {
+      this.browserRecognitionError = event.error ?? 'recognition error';
+      this.log(`browser ASR error: ${this.browserRecognitionError}`);
+    };
+
+    try {
+      recognition.start();
+      this.browserRecognition = recognition;
+      this.recordStartTime = Date.now();
+      this.setState('listening');
+      return true;
+    } catch (err) {
+      this.browserRecognition = null;
+      this.setState('error');
+      throw err;
+    }
+  }
+
+  private async stopBrowserRecognition(): Promise<string | null> {
+    const recognition = this.browserRecognition;
+    if (!recognition || this.state !== 'listening') return null;
+
+    const duration = Date.now() - this.recordStartTime;
+    if (duration < this.MIN_DURATION_MS) {
+      try { recognition.abort(); } catch { /* ignore */ }
+      this.browserRecognition = null;
+      this.browserTranscript = '';
+      this.setState('idle');
+      return null;
+    }
+
+    this.setState('transcribing');
+    return new Promise<string>((resolve) => {
+      let resolved = false;
+      const finish = () => {
+        if (resolved) return;
+        resolved = true;
+        const text = this.browserTranscript.trim();
+        this.browserRecognition = null;
+        this.browserTranscript = '';
+        this.recordStartTime = 0;
+        this.log(`← browser ASR text: "${text}"`);
+        if (text) this.callbacks.onTranscript(text);
+        this.setState('idle');
+        resolve(text);
+      };
+
+      recognition.onend = finish;
+      try {
+        recognition.stop();
+      } catch {
+        finish();
+      }
+      window.setTimeout(finish, 2500);
+    });
+  }
+
+  /** Send audio blob to cloud ASR endpoint. */
   private async transcribeCloud(webmBlob: Blob, options: TranscriptionOptions = {}): Promise<string> {
-    // Convert WebM to WAV — GLM-ASR requires WAV format
     const audioCtx = new AudioContext({ sampleRate: 16000 });
     const arrayBuffer = await webmBlob.arrayBuffer();
     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
     const wavBlob = this.encodeWAV(audioBuffer);
     audioCtx.close();
-    this.log(`WAV ready: ${(wavBlob.size / 1024).toFixed(1)}KB`);
 
     const formData = new FormData();
     formData.append('file', wavBlob, 'recording.wav');
@@ -203,7 +323,6 @@ export class SpeechPipeline {
     return data.text ?? '';
   }
 
-  /** Encode AudioBuffer to WAV blob (PCM 16-bit mono) */
   private encodeWAV(audioBuffer: AudioBuffer): Blob {
     const numChannels = 1;
     const sampleRate = audioBuffer.sampleRate;
@@ -218,7 +337,7 @@ export class SpeechPipeline {
     this.writeString(view, 8, 'WAVE');
     this.writeString(view, 12, 'fmt ');
     view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true); // PCM
+    view.setUint16(20, 1, true);
     view.setUint16(22, numChannels, true);
     view.setUint32(24, sampleRate, true);
     view.setUint32(28, sampleRate * numChannels * (bitsPerSample / 8), true);
@@ -243,14 +362,12 @@ export class SpeechPipeline {
     }
   }
 
-  /** Decode WebM blob to 16kHz mono Float32Array */
   private async decodeToFloat32(webmBlob: Blob): Promise<Float32Array> {
     const audioCtx = new AudioContext();
     const arrayBuffer = await webmBlob.arrayBuffer();
     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
     audioCtx.close();
 
-    // Resample to 16kHz mono via OfflineAudioContext
     const targetLength = Math.min(
       Math.ceil(audioBuffer.duration * SAMPLE_RATE),
       MAX_RECORDING_S * SAMPLE_RATE
