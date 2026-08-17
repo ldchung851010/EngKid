@@ -1,9 +1,6 @@
 /**
- * TTS Engine — server-side Kitten TTS via local API.
- *
- * The backend spawns kitten-tts-server (native binary) and exposes
- * POST /api/tts. This engine fetches synthesized WAV audio and plays
- * it via AudioContext — no browser-side ONNX inference needed.
+ * TTS Engine — prefers server-side Kitten TTS and falls back to the browser
+ * speech synthesis API on static hosts such as GitHub Pages.
  */
 
 export type TTSEngineState = 'idle' | 'loading' | 'ready' | 'error';
@@ -21,36 +18,59 @@ export class TTSEngine {
   private currentSource: AudioBufferSourceNode | null = null;
   private status: TTSEngineStatus = { state: 'idle', progress: '', error: null };
   private onStatus: StatusCallback | null = null;
+  private browserFallback = false;
 
   onStatusChange(cb: StatusCallback): void {
     this.onStatus = cb;
     cb(this.status);
   }
 
-  /** Check if TTS server is reachable. Must succeed to proceed. */
+  /**
+   * Prefer the HiKid backend when available. On GitHub Pages there is no
+   * native Kitten TTS server, so use Safari/browser voices instead.
+   */
   async init(): Promise<void> {
-    this.setState('loading', 'Checking TTS server...');
+    this.setState('loading', 'Checking voice service...');
 
-    const deadline = Date.now() + 15000;
+    const isStaticHost = location.hostname.endsWith('github.io');
+    const deadline = Date.now() + (isStaticHost ? 1200 : 15000);
+
     while (Date.now() < deadline) {
       try {
-        const res = await fetch('/api/health');
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 1000);
+        const res = await fetch('/api/health', { signal: controller.signal });
+        window.clearTimeout(timeout);
         if (res.ok) {
+          this.browserFallback = false;
           this.setState('ready', 'TTS server ready');
           return;
         }
-      } catch { /* not ready */ }
-      await new Promise((r) => setTimeout(r, 500));
+      } catch {
+        // Backend may still be starting locally; keep trying until deadline.
+      }
+      await new Promise((r) => setTimeout(r, isStaticHost ? 100 : 500));
     }
 
-    this.setState('error', 'TTS server failed to start');
-    throw new Error('TTS server failed to start');
+    if ('speechSynthesis' in window) {
+      this.browserFallback = true;
+      this.setState('ready', 'Browser English voice ready');
+      return;
+    }
+
+    this.setState('error', 'No speech synthesis service available');
+    throw new Error('No speech synthesis service available');
   }
 
-  /** Speak text. Fetches audio from server and plays it. */
+  /** Speak text with Kitten TTS when available, otherwise Safari/browser TTS. */
   async speak(text: string, voice: string, speed = 1.0): Promise<void> {
     if (this.status.state !== 'ready') {
       throw new Error('TTS engine not ready');
+    }
+
+    if (this.browserFallback) {
+      await this.speakWithBrowser(text, speed);
+      return;
     }
 
     const start = Date.now();
@@ -63,10 +83,16 @@ export class TTSEngine {
     });
 
     if (!res.ok) {
-      let error = `TTS request failed: ${res.status}`;
-      if (res.status === 429) {
-        error = 'Voice quota is used up for now.';
+      // A backend can disappear after startup. Keep the lesson playable.
+      if ('speechSynthesis' in window) {
+        this.browserFallback = true;
+        this.setState('ready', 'Browser English voice ready');
+        await this.speakWithBrowser(text, speed);
+        return;
       }
+
+      let error = `TTS request failed: ${res.status}`;
+      if (res.status === 429) error = 'Voice quota is used up for now.';
       throw new Error(error);
     }
 
@@ -90,16 +116,41 @@ export class TTSEngine {
     });
   }
 
-  /** Interrupt current speech */
+  /** Interrupt current speech. */
   interrupt(): void {
     try { this.currentSource?.stop(); } catch { /* already stopped */ }
     this.currentSource = null;
+    if (this.browserFallback && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
   }
 
   dispose(): void {
     this.interrupt();
     this.audioContext?.close();
     this.audioContext = null;
+  }
+
+  private async speakWithBrowser(text: string, speed: number): Promise<void> {
+    if (!('speechSynthesis' in window)) throw new Error('Browser TTS unavailable');
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US';
+    utterance.rate = Math.max(0.65, Math.min(1.2, speed));
+
+    const voices = window.speechSynthesis.getVoices();
+    const preferred =
+      voices.find((v) => /en-US/i.test(v.lang) && /Samantha|Ava|Allison|Susan|Aaron|Alex/i.test(v.name)) ??
+      voices.find((v) => /en-US/i.test(v.lang)) ??
+      voices.find((v) => /^en/i.test(v.lang));
+    if (preferred) utterance.voice = preferred;
+
+    await new Promise<void>((resolve, reject) => {
+      utterance.onend = () => resolve();
+      utterance.onerror = (event) => reject(new Error(`Browser TTS failed: ${event.error}`));
+      window.speechSynthesis.speak(utterance);
+    });
   }
 
   private async ensureAudioContext(): Promise<AudioContext> {
