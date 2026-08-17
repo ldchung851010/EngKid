@@ -2,8 +2,7 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 export default defineConfig({
-  // Relative assets make the MVP work both on a custom domain and under /EngKid/ on GitHub Pages.
-  base: './',
+  base: '/',
   worker: { format: 'es' },
   build: {
     target: 'esnext',
@@ -11,7 +10,6 @@ export default defineConfig({
       input: {
         index: resolve(__dirname, 'index.html'),
         play: resolve(__dirname, 'play.html'),
-        spaceRescue: resolve(__dirname, 'space-rescue.html'),
       },
     },
   },
