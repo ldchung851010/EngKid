@@ -1,169 +1,177 @@
----
-date: 2026-04-29
-topic: cost-controlled-open-deployment
----
+# Cost-Controlled Open Deployment — Requirements
 
-# 成本可控的开源部署与在线体验 — 需求文档
+## Problem
 
-## Problem Frame
+HiKid.Fun is intended to be open source while also supporting a limited public online experience. The early implementation behaved like a local demo: learner progress and collected vocabulary lived in shared server SQLite, TTS requests were synthesized repeatedly, and AI calls were spread across several routes without unified cost governance.
 
-本项目目标是做一个开源的场景英语学习 Web 网站，同时提供在线公益体验。当前实现更偏本地 demo：用户进度和图鉴数据存放在服务端 SQLite，TTS 每次请求都实时调用本机 TTS 服务，用到大模型的能力分散在多个接口中，缺少统一的成本治理。
+That creates two problems:
 
-这会带来两个问题：自部署用户需要理解和维护服务端数据与多个 AI 配置；在线公益部署则可能因为 TTS CPU、ASR/LLM 调用和共享数据库状态而成本不可控、体验不可隔离。改造目标是在同一套产品形态下，同时满足“clone 后快速跑起来，只配置一个文本 AI key，本地 ASR 默认可用”和“在线体验资源有限但诚实可控”。
+1. Self-hosters must understand server-owned learner data and multiple AI configuration paths.
+2. A public free deployment can accumulate uncontrolled AI/TTS cost and accidentally mix learner state between visitors.
 
----
+The target product should use the same core code for both self-hosted and public operation while making ownership, privacy, resource limits, and degraded behavior explicit.
 
 ## Actors
 
-- A1. 儿童学习者：在浏览器里游玩场景、完成对话、收集词汇，并希望自己的进度只属于当前浏览器。
-- A2. 自部署使用者：clone 项目后在本机或自己的服务器上运行，希望配置尽量少、依赖尽量清楚。
-- A3. 在线公益站点运营者：提供有限的免费在线体验，需要限制 AI/TTS 成本和服务器资源消耗。
-- A4. 引擎/服务端系统：负责场景内容、TTS、ASR、意图路由、例句生成和资源限制。
+### A1. Child learner
 
----
+Plays scenes, speaks English, earns scores, and collects words. The learner expects progress to belong to the current browser unless an account/sync product is introduced later.
 
-## Key Flows
+### A2. Self-hosted operator
 
-- F1. 本地浏览器保存学习数据
-  - **Trigger:** 儿童在场景中完成任务、获得分数或搜集词汇
-  - **Actors:** A1, A4
-  - **Steps:** 浏览器更新本地学习数据；Portal 读取本地数据渲染分数、完成状态和图鉴；用户可在主页配置入口导出、导入或重置这些数据。
-  - **Outcome:** 学习进度不再依赖服务端 SQLite，也不会被其他访问者共享或覆盖。
-  - **Covered by:** R1, R2, R3, R4, R5, R6, R7
+Clones the project and wants a small, understandable configuration surface. The first target is one text-AI provider key plus clearly documented TTS/local-ASR requirements.
 
-- F2. TTS 请求命中磁盘缓存
-  - **Trigger:** 前端请求朗读一段文本
-  - **Actors:** A1, A3, A4
-  - **Steps:** 服务端根据文本、声音、语速等输入判断是否已有缓存；命中时直接返回缓存音频；未命中时调用 TTS 生成并写入缓存，再返回给浏览器。
-  - **Outcome:** 相同输入不会重复消耗 TTS CPU，常见对白、单词和例句会越用越便宜。
-  - **Covered by:** R8, R9, R10, R11
+### A3. Public-site operator
 
-- F3. 在线公益额度耗尽
-  - **Trigger:** 某个 IP 或全站当日 AI/TTS 资源使用量超过配置阈值
-  - **Actors:** A1, A3, A4
-  - **Steps:** 服务端拒绝新的 AI 请求或过量 TTS 生成请求；前端清楚提示今日在线 AI 额度已用完或语音资源暂时繁忙；非 AI 功能和已缓存语音仍保持可用。
-  - **Outcome:** 站点不会悄悄降质或无限烧钱，用户能理解这是公益资源限制。
-  - **Covered by:** R11, R14, R15, R16, R19
+Runs a limited free experience and needs predictable AI/TTS resource use, transparent limits, and useful observability without collecting child content.
 
-- F4. 自部署只配置一个文本 AI key
-  - **Trigger:** 自部署使用者 clone 项目并启动应用
-  - **Actors:** A2, A4
-  - **Steps:** 使用者配置一个文本 LLM provider key；意图路由和例句生成优先共用该 key；ASR 保持浏览器本地能力；缺少 key 时系统清楚提示哪些文本 AI 能力不可用。
-  - **Outcome:** 自部署心智负担显著降低，文档可以围绕一个文本 AI 配置入口展开，同时避免把儿童语音默认发送给第三方。
-  - **Covered by:** R13, R17, R18, R20, R21, R22
+### A4. Engine/server
 
----
+Provides scene metadata, voice capabilities, text-AI interpretation, examples, caching, and resource-policy enforcement.
+
+## Core Flows
+
+### F1. Browser-local learner data
+
+**Trigger:** the child completes a task, earns a score, changes a preference, or collects vocabulary.
+
+1. Update browser learner storage.
+2. Portal/runtime read the same local data service.
+3. Export, import, and reset are available through a parent/settings entry.
+
+**Outcome:** progress does not depend on shared server SQLite and does not automatically leak between visitors.
+
+### F2. TTS cache hit
+
+**Trigger:** the frontend requests speech for text.
+
+1. Build a cache key from output-affecting parameters.
+2. If cached audio exists, return it directly.
+3. Otherwise synthesize, store, and return it.
+
+**Outcome:** common dialogue, vocabulary, and repeated listening become cheaper over time.
+
+### F3. Public quota exhausted
+
+**Trigger:** a client or the whole public site exceeds configured AI/TTS policy.
+
+1. Reject new expensive requests with a typed response.
+2. Show a clear English message.
+3. Preserve non-AI functions and already cached/local functions where possible.
+
+**Outcome:** the site does not silently degrade or consume unbounded cost.
+
+### F4. Simple self-hosting
+
+**Trigger:** an operator clones and starts the project.
+
+1. Configure one server-side text LLM key.
+2. Intent routing and example generation share that provider boundary.
+3. ASR remains browser-local by default.
+4. Missing capabilities are clearly reported.
+
+**Outcome:** deployment configuration remains understandable without exposing secrets to the browser.
 
 ## Requirements
 
-**浏览器端学习数据**
+### Browser learner data
 
-- R1. 用户学习数据从服务端 SQLite 迁移到浏览器端存储，至少覆盖场景完成状态、分数、最后游玩时间、词汇搜集记录和未来可合理扩展的用户偏好。
-- R2. Portal 和场景运行时读取浏览器端数据来展示进度、图鉴和解锁状态；在线部署中的不同浏览器实例默认互不影响。
-- R3. 主页提供配置入口，用户可以导出完整学习数据为可读 JSON 文件。
-- R4. 主页配置入口支持导入学习数据和重置本地数据；导入前需要有清楚的覆盖确认，重置前需要二次确认。
-- R5. 配置入口需要清楚说明学习数据只保存在当前浏览器，导出 JSON 是第一版支持的备份和跨浏览器迁移方式。
-- R6. 导出的学习数据必须包含版本信息；导入前必须完成 schema 校验、大小限制检查和版本兼容检查。校验失败不得覆盖现有数据；校验成功后才允许用户确认覆盖，并且成功导入应原子替换完整本地学习数据。
-- R7. 配置入口偏向家长/自部署者使用，不应放在儿童主操作路径中。导入、重置等危险操作需要可取消的确认流程，错误提示不得依赖颜色作为唯一信号，关键弹窗应支持键盘访问、焦点管理和屏幕阅读器提示。
+- **R1.** Move learner-specific progress from required server SQLite to browser storage. Include scene completion, score, last-played time, collected words, and extensible preferences.
+- **R2.** Portal and scene runtime use this browser data to compute learner-specific state.
+- **R3.** Provide JSON export of the complete learner document.
+- **R4.** Support JSON import and reset with cancelable confirmation before destructive changes.
+- **R5.** Explain that data is stored in the current browser and export/import is the V1 backup/migration mechanism.
+- **R6.** Export includes a schema version. Import validates format, version, size, and structure before replacing existing data atomically.
+- **R7.** Parent/settings actions must be accessible without sitting in the child's main play path. Errors cannot rely on color alone; modals need basic keyboard/focus support.
 
-**TTS 成本控制**
+### TTS cost control
 
-- R8. 服务端 TTS 对所有请求做磁盘缓存，而不只缓存固定对白；只要输入文本、声音、语速和影响音频输出的 TTS 参数一致，就应复用已有缓存。
-- R9. TTS 缓存命中时不调用实时 TTS 生成服务；未命中时生成音频并写入缓存后返回。
-- R10. TTS 缓存需要有可运营的边界：能配置缓存位置，能避免明显无上限增长，并能在 TTS 模型或声音版本变化时避免返回错误旧音频。
-- R11. 在线部署必须把 TTS 纳入资源治理，至少覆盖按 IP 的生成频率限制、最大文本长度、允许的 voice/speed 参数范围、cache miss 预算和超限拒绝行为。默认限制应偏宽松，保护正常学习中的反复重听和常见例句朗读，不应频繁打断儿童体验。
+- **R8.** Cache all TTS requests whose output can be deterministically reused.
+- **R9.** Cache hits bypass live synthesis.
+- **R10.** Cache location and invalidation/version behavior must be configurable and operationally visible.
+- **R11.** Public TTS governance includes per-IP frequency, text-length bounds, allowed voice/speed ranges, cache-miss budget, and clear rejection behavior. Defaults should be generous enough for normal repeated listening.
 
-**统一 AI 能力与限额治理**
+### Unified text-AI governance
 
-- R12. 所有消耗文本 LLM 或 AI provider 的能力必须经过统一治理入口，包括意图路由、例句生成，以及后续新增的文本 AI 功能。
-- R13. ASR 第一版保持浏览器本地能力，不纳入 provider key 目标，也不消耗线上 AI 额度。未来如果增加 provider ASR，必须作为单独产品决策，并进入同一资源治理、隐私和额度体系。
-- R14. 在线部署支持按 IP 的频率限制，避免单个访问者或脚本快速耗尽公益资源。
-- R15. 在线部署支持全站每日总额度限制；达到阈值后，新的 AI 请求被明确拒绝。
-- R16. 当 AI 请求因为额度限制被拒绝时，前端要显示明确、儿童和家长都能理解的提示：今日在线 AI 额度已用完，非 AI 内容仍可继续使用。Portal、场景对话、图鉴例句等 AI 入口应使用一致的额度耗尽交互模型。
-- R17. 自部署第一版目标是配置一个文本 LLM key，并让意图路由和例句生成共用同一个供应商/key；ASR 默认由浏览器本地能力承担。
-- R18. 如果统一文本 AI provider 的某项能力不可用，系统必须清楚说明该能力缺失，而不是静默失败或要求用户理解多个散落的环境变量。
-- R19. AI 相关配置需要同时服务在线部署和本地自部署：本地默认易启动，线上默认可限额、可观测、可关闭。线上最小可观测面至少需要让运营者知道当日 AI/TTS 使用量、拒绝次数和是否已达到阈值。
-- R20. AI provider key 必须只存在于服务端环境变量或部署 secret 中，不得进入浏览器 bundle、localStorage、导出 JSON 或日志。线上和本地配置应分离，key 应能通过配置轮换而无需改代码。
-- R21. AI 调用必须明确隐私边界：只通过服务端代理发送最小必要内容，不记录儿童语音、转写文本或完整 prompt payload，不把 provider key 暴露给浏览器，并在部署文档中说明 provider 数据保留/训练使用假设。ASR 保持浏览器本地后，儿童原始语音默认不发送给第三方 provider。
+- **R12.** All text-LLM capabilities use one governed server-side provider boundary.
+- **R13.** Browser-local ASR is the default V1 path and does not consume text-AI quota.
+- **R14.** Public deployments support per-IP frequency limits.
+- **R15.** Public deployments support a site-wide daily AI allowance.
+- **R16.** Quota exhaustion produces one consistent UI model across dialogue, examples, and other AI entry points. The message should explain that today's online AI capacity is unavailable and that non-AI content can still be used.
+- **R17.** Self-hosting targets one text LLM provider/key for intent routing and example generation.
+- **R18.** Missing provider capability must be reported explicitly rather than as a generic failure.
+- **R19.** Operators can see aggregate usage, rejection counts, and quota state without seeing learner payloads.
+- **R20.** Provider keys stay only in server environment variables/deployment secrets and never enter browser bundles, local storage, learner exports, or logs.
+- **R21.** Send only minimum necessary content to external providers. Do not log raw child audio, transcripts, complete prompts, provider keys, or authorization headers. With local ASR, raw audio remains local by default.
 
-**开源部署体验**
+### Deployment experience
 
-- R22. 项目文档需要把两种运行方式讲清楚：本地自部署体验和在线公益体验；两者使用同一套核心能力，只是资源限制配置不同。
-- R23. 移除服务端用户进度数据库作为产品必需依赖后，服务端保留为 AI/TTS/场景内容代理，不再成为用户数据的默认归属地。
-- R24. 场景元数据接口不得继续作为用户进度事实来源；完成状态、分数、解锁状态等进度派生字段必须由浏览器端学习数据计算，或在客户端明确覆盖服务端静态场景元数据。
-
----
+- **R22.** Documentation describes both self-hosted/local and public-online modes.
+- **R23.** The server may provide AI/TTS/content services but is not the default owner of learner progress.
+- **R24.** Scene metadata endpoints do not remain the authoritative source of learner completion/score/unlock state.
 
 ## Acceptance Examples
 
-- AE1. **Covers R1, R2, R3, R4, R5, R6, R7.** 给定用户在浏览器 A 完成餐厅场景并搜集 3 个词，刷新 Portal 后仍看到自己的分数和图鉴进度。用户点击主页配置按钮导出 JSON，在浏览器 B 导入该 JSON，系统先展示数据摘要和覆盖确认，确认后浏览器 B 显示相同进度。若用户选择损坏 JSON、空文件、超大文件或不兼容版本，系统拒绝导入且不覆盖浏览器 B 的现有数据。用户在浏览器 B 重置数据并二次确认后，Portal 回到初始进度。
-- AE2. **Covers R8, R9, R10, R11.** 给定第一次请求 TTS 朗读 `hamburger`、voice 为 `Kiki`、speed 为 `0.75`，服务端生成音频并缓存。第二次相同请求直接返回缓存音频，不调用实时 TTS。若 speed 改为 `1.0`，则视为不同缓存项。若同一 IP 在短时间内制造大量不同文本导致 cache miss，系统在不影响正常重听的宽松阈值后拒绝新的生成请求，并清楚说明语音资源暂时繁忙。
-- AE3. **Covers R12, R13, R14, R15, R16, R19.** 给定在线部署设置了每日 AI 总额度，当额度耗尽后，儿童点击图鉴例句或进行需要意图路由的对话时，界面显示今日在线 AI 额度已用完；已加载的场景、图鉴、本地进度、浏览器本地 ASR 和不消耗 AI 的交互仍可使用。运营者能看到当日使用量、拒绝次数和额度状态。
-- AE4. **Covers R17, R18, R20, R21, R22.** 给定自部署使用者 clone 项目并配置一个服务端文本 LLM key，意图路由和例句生成能通过同一配置入口工作，ASR 使用浏览器本地能力。该 key 不出现在浏览器 bundle、localStorage、导出 JSON 或日志中。若文本 AI key 缺失，系统清楚提示文本 AI 能力不可用，并指向文档中的配置说明。
-- AE5. **Covers R2, R23, R24.** 给定服务端仍返回静态场景列表，Portal 使用浏览器端学习数据计算场景完成状态、分数和解锁状态；不同浏览器访问同一个在线站点时，不会因为服务端历史 SQLite 数据看到彼此的进度。
+### AE1 — Export/import/reset
 
----
+Browser A contains completed-scene and vocabulary data. Export creates a versioned JSON document. Browser B validates that document, shows a replacement confirmation, then imports it successfully. Corrupt, empty, oversized, or incompatible files are rejected without overwriting current data. Reset also requires explicit confirmation.
+
+### AE2 — TTS cache
+
+The first request for `hamburger` with voice `Kiki` and speed `0.75` synthesizes and caches audio. The second identical request is a cache hit. Speed `1.0` is a separate entry. Excessive unique cache misses from one IP can be rejected after a deliberately generous learning-friendly threshold.
+
+### AE3 — Daily AI limit
+
+When the public site's daily AI limit is reached, new intent/example requests return a clear limit state. Already loaded scenes, local progress, browser-local ASR, collected words, and non-AI interactions remain usable where possible. Operators can observe the limit state and aggregate counts.
+
+### AE4 — One text-AI key
+
+A self-hoster configures one server-side LLM key. Intent routing and example generation work through it. ASR remains local. The key is absent from browser code, local learner data, exported JSON, and logs.
+
+### AE5 — Independent browsers
+
+Two browser instances visit the same public deployment. Each computes score, completion, and unlock state from its own local learner data rather than shared historical server rows.
 
 ## Success Criteria
 
-- 自部署使用者可以通过清晰文档快速跑起完整体验，文本 AI 配置心智模型是“一个 provider/key”；ASR 默认本地运行，TTS 作为服务端语音能力单独说明但不要求额外 AI key。
-- 在线公益站点不会因为共享服务端数据库混淆用户进度，也不会因为无限 AI/TTS 请求导致不可控成本。
-- 儿童或家长在额度耗尽时能明确知道发生了什么：免费在线 AI 资源今天用完了，而不是误以为系统坏了。
-- 后续规划和实现不需要再发明产品行为，只需要决定浏览器存储方案、缓存策略、限流实现和 provider 适配细节。
+- Self-hosting has a clear configuration model centered on one text-AI provider key.
+- Public hosting cannot consume unlimited AI/TTS resources by default.
+- Learner progress does not mix between unrelated browsers.
+- Children and parents understand quota exhaustion as a resource limit rather than an application crash.
+- Implementation work can focus on storage, caching, quotas, and provider adapters without inventing new product behavior.
 
----
+## Out of Scope
 
-## Scope Boundaries
+- accounts and cloud sync;
+- automatic cross-device synchronization;
+- multiple family profiles inside one browser;
+- paid plans, quota purchases, or waiting queues;
+- a requirement that the entire product work fully offline;
+- provider/cloud ASR as the default V1 path;
+- server SQLite as the default learner-data owner;
+- detailed choice of a specific rate-limit library during requirement definition;
+- a full operations dashboard.
 
-- 不做账号系统、云同步或跨设备自动同步；导出/导入 JSON 是第一版的数据迁移方式。
-- 不做付费订阅、充值、排队或商业化额度购买；在线体验是公益有限资源。
-- 不做多人或家庭成员隔离；同一浏览器内默认是一份本地学习数据。
-- 不要求离线模式完整可玩；文本 AI 能力仍依赖服务端代理和配置的 provider。
-- 不把 ASR 作为第一版统一 provider/key 的一部分；浏览器本地 ASR 是第一版默认方向，provider ASR 留作后续单独评估。
-- 不把服务端 SQLite 作为用户学习数据的默认存储；如未来需要服务端数据，只能作为新的账号/同步产品能力重新讨论。
-- 不在 brainstorm 阶段指定具体限流库、缓存目录结构、数据库表或 provider SDK；这些留给实现规划。
+## Product Decisions
 
----
+- **Browser ownership:** solves public-user isolation and reduces self-hosting database burden.
+- **Export/import as V1 portability:** supports backup and deliberate browser-to-browser transfer without introducing accounts.
+- **Validate before replace:** imported JSON is untrusted input and cannot modify current data until validation succeeds.
+- **Full TTS caching:** dynamic examples and tutor phrases can be cached when all output inputs match.
+- **Caching is not rate limiting:** TTS generation still requires explicit resource policy.
+- **Honest quota UX:** when online AI is unavailable, say so directly rather than pretending a lower-quality response is equivalent.
+- **Local ASR by default:** reduces public AI cost and avoids uploading raw child speech unless a future product decision explicitly changes that.
+- **Server-only secrets:** simpler configuration cannot come at the cost of exposing provider credentials.
+- **Data minimization:** external AI receives only the context required for the feature.
+- **One product shape, configurable resources:** self-hosted and public modes should differ mainly in configuration and limits rather than product logic.
 
-## Key Decisions
+## Technical Questions for Implementation
 
-- 用户数据归属浏览器端：这同时解决在线体验的用户隔离和自部署数据库负担。
-- 配置入口包含导出、导入、重置：导出不是单向备份，而是支持用户跨浏览器迁移。
-- 导入数据必须先验证再覆盖：导入文件是非可信输入，校验失败不改变现有学习数据。
-- TTS 缓存覆盖所有请求：动态例句和引导语也参与缓存，只要输入一致就复用。
-- TTS 也进入线上资源治理：缓存不能替代限流，默认限制偏宽松以保护正常学习重听。
-- 在线额度耗尽时明确暂停 AI 功能：不伪装成低质量降级，也不让用户误以为系统故障。
-- ASR 第一版保持浏览器本地：不消耗线上 AI 额度，也避免默认上传儿童原始语音；统一 key 目标收敛为文本 LLM 能力。
-- AI key 只放服务端：配置简单不能以泄露 provider key 为代价。
-- AI provider 调用最小化儿童数据：服务端代理只发送必要文本上下文，并避免记录敏感 payload。
-- 同一套产品形态同时服务自部署和线上公益体验：通过配置差异控制资源，而不是维护两套行为。
+- Storage service interface and future migration from `localStorage` to IndexedDB if data grows.
+- TTS cache retention, size limit, and model-version invalidation.
+- Quota ledger storage for multi-instance deployments.
+- Trusted client-IP extraction behind reverse proxies/CDNs.
+- Provider adapter behavior when one text-AI feature is unsupported.
+- Consistent quota/error copy across child-facing screens.
 
----
-
-## Dependencies / Assumptions
-
-- 当前代码中进度和图鉴数据由 `server/src/routes/db.ts`、`server/src/routes/progress.ts`、`server/src/routes/collectibles.ts` 提供，`server/src/routes/scenes.ts` 也会返回进度派生的场景状态，规划时需要把这些产品职责迁移到浏览器端或让客户端明确覆盖服务端静态元数据。
-- 当前 TTS 入口为 `server/src/routes/tts.ts`，每次请求会转发到本机 TTS 服务并返回 WAV，规划时需要增加全请求缓存行为。
-- 当前 DeepSeek 调用分散在 `server/src/routes/intent.ts` 和 `server/src/routes/example.ts`，规划时需要统一 AI 调用治理。
-- ASR 第一版保持浏览器本地；规划时需要确认现有本地 ASR 能力与目标浏览器支持范围，并把 provider ASR 排除在本轮实现之外。
-- 统一文本 AI key 依赖所选 provider 满足意图路由和例句生成能力；如果 provider 能力不足，需要在规划中决定替代方案或明确降级。
-- 在线额度按 IP 限制的准确性依赖部署环境能提供可信客户端 IP；反向代理/CDN 场景需要在规划中校验。
-
----
-
-## Outstanding Questions
-
-### Deferred to Planning
-
-- [Affects R1, R2][Technical] 浏览器端学习数据使用 localStorage、IndexedDB，还是轻量封装层；需要结合数据量、导入导出和测试便利性决定。
-- [Affects R8, R10, R11][Technical] TTS 缓存 key、缓存文件格式、大小上限、清理策略、模型版本失效策略，以及偏宽松 cache-miss 阈值。
-- [Affects R12, R17][Needs research] 哪个统一文本 AI provider 最适合承担意图路由和例句生成，并满足中文儿童英语学习场景。
-- [Affects R14, R15, R19][Technical] IP 限频、全站日额度、TTS cache-miss 预算和最小可观测数据的计数存储放在哪里；需要兼顾本地自部署简单性和在线部署可靠性。
-- [Affects R16][Design] AI 额度耗尽提示在 Portal、场景对话、图鉴例句等不同入口的具体文案和视觉状态。
-- [Affects R22][Technical writing] README 和环境变量示例如何表达“本地自部署”和“在线公益部署”两种模式。
-
----
-
-## Next Steps
-
--> `/ce-plan` 进入结构化实现规划。
+These are implementation decisions, not reasons to weaken the product requirements above.
