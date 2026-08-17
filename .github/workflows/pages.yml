@@ -1,4 +1,4 @@
-name: Deploy EngKid MVP to GitHub Pages
+name: Build and Deploy EngKid MVP
 
 on:
   push:
@@ -8,39 +8,73 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
 concurrency:
-  group: pages
+  group: engkid-mvp-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      pages_ready: ${{ steps.pages.outcome == 'success' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+
       - name: Install dependencies
         run: npm ci
+
       - name: Type-check and build
         run: npm run build
-      - name: Configure Pages
+
+      - name: Upload production bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: engkid-mvp-dist
+          path: dist
+          if-no-files-found: error
+
+      - name: Publish preview branch
+        if: github.ref == 'refs/heads/feat/space-rescue-mvp'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -R dist "$RUNNER_TEMP/engkid-dist"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan mvp-preview
+          git rm -rf .
+          cp -R "$RUNNER_TEMP/engkid-dist"/. .
+          touch .nojekyll
+          git add -A
+          git commit -m "deploy: update EngKid MVP preview"
+          git push --force origin HEAD:mvp-preview
+
+      - name: Configure GitHub Pages
+        id: pages
+        continue-on-error: true
         uses: actions/configure-pages@v5
         with:
           enablement: true
-      - name: Upload artifact
+
+      - name: Upload Pages artifact
+        if: steps.pages.outcome == 'success'
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
-  deploy:
+  deploy-pages:
+    if: needs.build.outputs.pages_ready == 'true'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
