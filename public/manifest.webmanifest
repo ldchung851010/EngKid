@@ -1,0 +1,19 @@
+{
+  "name": "EngKid — Space Rescue",
+  "short_name": "EngKid",
+  "description": "A 3D English speaking adventure for children.",
+  "start_url": "./space-rescue.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#071126",
+  "theme_color": "#071126",
+  "icons": [
+    {
+      "src": "./engkid-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
