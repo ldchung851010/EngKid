@@ -1,75 +1,75 @@
-# HiKid.Fun 部署指南
+# HiKid.Fun Deployment Guide
 
-## 推荐部署拓扑
+## Recommended deployment topology
 
-公网推荐使用 Cloudflare 的静态站点 + 边缘 API 组合：
+For public deployment, the recommended setup is a Cloudflare static site plus an edge API:
 
-- Web 前端：Cloudflare Pages，构建根目录项目，输出 `dist/`。
-- Server API：Cloudflare Workers，入口为 `server/src/worker.ts`，部署产物为 `server/dist/worker.js`。
-- 缓存：Cloudflare R2，绑定名必须是 `CACHE_BUCKET`，用于 TTS WAV 和例句 JSON 缓存。
-- 语音：Workers 环境不能启动本地 Kitten TTS 二进制，所以线上 Workers 部署必须配置 `GLM_API_KEY`，TTS 和可选 ASR 都走智谱云端。
+- Web frontend: Cloudflare Pages, built from the repository root, outputting `dist/`.
+- Server API: Cloudflare Workers, entry point `server/src/worker.ts`, deployed artifact `server/dist/worker.js`.
+- Cache: Cloudflare R2, with the binding name `CACHE_BUCKET`, used for TTS WAV files and example-sentence JSON cache.
+- Voice: the Workers environment cannot start the local Kitten TTS binary, so public Workers deployments must configure `GLM_API_KEY`; TTS and optional ASR then use Zhipu GLM cloud services.
 
-如果需要使用本地 Kitten TTS，则不要把 server 部署到 Workers，改用本文后半部分的 Node/Hono 单机部署。
+If you need local Kitten TTS, do not deploy the server to Workers. Use the Node/Hono single-server deployment described later in this guide.
 
-## 服务端接口清单
+## Server API endpoints
 
-所有服务端接口都挂在 `/api` 下。Node 部署入口是 `server/src/index.ts`；Cloudflare Workers 部署入口是 `server/src/worker.ts`。
+All server endpoints are under `/api`. The Node deployment entry point is `server/src/index.ts`; the Cloudflare Workers entry point is `server/src/worker.ts`.
 
-| 方法 | 路径 | 用途 | 外部依赖 | 成本控制 |
+| Method | Path | Purpose | External dependency | Cost control |
 |---|---|---|---|---|
-| `GET` | `/api/health` | 检查 API 服务、TTS 模式、ASR 模式 | Node 本地 TTS 或云端 GLM | 无 |
-| `GET` | `/api/scenes` | 返回构建时生成的静态场景元数据 | `server/data/scenes-metadata.json` | 无 |
-| `POST` | `/api/intent` | 将儿童语音转写文本匹配到配置里的意图 | DeepSeek 兼容 Chat API | AI 全站每日额度 + 单 IP 小时额度 |
-| `POST` | `/api/example` | 为收集到的单词生成简单英文例句和中文解释 | DeepSeek 兼容 Chat API | 磁盘缓存；缓存未命中时计入 AI 额度 |
-| `POST` | `/api/tts` | 生成或返回已缓存的 WAV 语音 | 本地 Kitten TTS / 智谱 GLM-TTS（配置 GLM_API_KEY 时） | 仅缓存未命中时计入 TTS 额度 |
-| `POST` | `/api/asr` | 语音识别转发至智谱 GLM-ASR（仅配置 `GLM_API_KEY` 时注册） | 智谱 AI API | ASR 全站每日额度 + 单 IP 小时额度 |
-| `GET` | `/api/quota` | 返回当前请求 IP 对应的 AI/TTS/ASR 剩余额度 | 进程内额度账本 | 无 |
+| `GET` | `/api/health` | Check API service, TTS mode, and ASR mode | Local Node TTS or cloud GLM | None |
+| `GET` | `/api/scenes` | Return static scene metadata generated at build time | `server/data/scenes-metadata.json` | None |
+| `POST` | `/api/intent` | Match a child's speech transcript to configured intents | DeepSeek-compatible Chat API | Site-wide daily AI quota + per-IP hourly quota |
+| `POST` | `/api/example` | Generate a simple English example sentence and explanation for a collected word | DeepSeek-compatible Chat API | Disk cache; only cache misses count against AI quota |
+| `POST` | `/api/tts` | Generate or return cached WAV speech | Local Kitten TTS / Zhipu GLM-TTS when `GLM_API_KEY` is configured | Only cache misses count against TTS quota |
+| `POST` | `/api/asr` | Forward speech recognition to Zhipu GLM-ASR; registered only when `GLM_API_KEY` is configured | Zhipu AI API | Site-wide daily ASR quota + per-IP hourly quota |
+| `GET` | `/api/quota` | Return remaining AI/TTS/ASR quota for the current request IP | In-process quota ledger | None |
 
-学习进度、积分和单词收集记录保存在浏览器本地 `LearningDataStore` 中。服务端不需要用户学习数据数据库。
+Learning progress, points, and collected-word records are stored locally in the browser by `LearningDataStore`. The server does not require a database for learner progress.
 
-## 安全检查总结
+## Security review summary
 
-当前实现包含基础公网加固：CORS 白名单、生成接口输入边界、请求体大小限制、TTS/例句缓存，以及 AI/TTS/ASR 额度。部署时仍需要按你的真实域名和反向代理环境配置。
+The current implementation includes basic public-facing safeguards: a CORS allowlist, input bounds on generation endpoints, request-body size limits, TTS/example caching, and AI/TTS/ASR quotas. Production deployment still needs configuration for your real domain and reverse-proxy environment.
 
-### 风险清单
+### Risk list
 
-| 严重性 | 区域 | 风险 | 建议 |
+| Severity | Area | Risk | Recommendation |
 |---|---|---|---|
-| 中 | CORS 配置 | 生产环境未配置 `CORS_ORIGIN` 时，跨域前端无法调用 API；如果误设为过宽来源，仍会增加滥用面。 | 同域部署可不配置；跨域部署时将 `CORS_ORIGIN` 设置为正式前端域名，多个域名用英文逗号分隔。 |
-| 中 | 客户端 IP 识别 | 当前额度逻辑读取 `X-Forwarded-For` 的第一个 IP。如果边缘代理没有覆盖客户端伪造 header，单 IP 额度会不准确。 | 只在可信反向代理或 Cloudflare 后暴露 API，并由代理覆盖 `X-Forwarded-For`。 |
-| 中 | 额度持久性 | 额度账本存在进程内存里。服务重启会清零，多实例部署会各自计数。 | 单实例 demo 可以接受；多实例或更严格的公益额度应改成 Redis/KV 等共享存储。 |
-| 中 | `/api/quota` 暴露 | 额度状态是公开的。它不暴露密钥，但会让自动化客户端知道剩余容量。 | 透明体验可以保留公开；若出现滥用，可限制为同源或管理端访问。 |
-| 低 | TTS 缓存增长 | 缓存的 WAV 文件目前没有自动清理。 | 将 `TTS_CACHE_DIR` 放在有容量监控的卷上，公网服务建议定期清理。 |
-| 低 | 例句缓存增长 | `/api/example` 会把例句 JSON 缓存在磁盘，当前没有自动清理。 | 将 `EXAMPLE_CACHE_DIR` 放在有容量监控的卷上；必要时按文件时间定期清理。 |
-| 低 | 鼓励语音 manifest | 音频路径来自生成的 manifest。如果攻击者能改写磁盘文件，可能影响读取路径。 | 将 `server/data` 视为应用私有目录，不允许用户写入。 |
+| Medium | CORS configuration | If `CORS_ORIGIN` is not configured in production, a cross-origin frontend cannot call the API. If it is set too broadly, the abuse surface increases. | Same-origin deployments can omit it. For cross-origin deployments, set `CORS_ORIGIN` to the production frontend domains, separated by commas. |
+| Medium | Client IP detection | Quota logic currently reads the first IP from `X-Forwarded-For`. If the edge proxy does not overwrite a spoofed client header, per-IP quotas can be inaccurate. | Expose the API only behind a trusted reverse proxy or Cloudflare and have the proxy overwrite `X-Forwarded-For`. |
+| Medium | Quota persistence | The quota ledger is stored in process memory. A restart resets it, and multiple instances count independently. | A single-instance demo can accept this. For multiple instances or stricter public-service limits, move quotas to shared storage such as Redis or KV. |
+| Medium | `/api/quota` exposure | Quota status is public. It does not expose secrets, but automated clients can see remaining capacity. | Keeping it public is acceptable for transparency. If abuse appears, limit it to same-origin or admin access. |
+| Low | TTS cache growth | Cached WAV files are not currently cleaned automatically. | Put `TTS_CACHE_DIR` on a monitored volume and clean it periodically for public services. |
+| Low | Example cache growth | `/api/example` stores example JSON on disk and currently has no automatic cleanup. | Put `EXAMPLE_CACHE_DIR` on a monitored volume and clean old files by age when necessary. |
+| Low | Encouragement-audio manifest | Audio paths come from a generated manifest. If an attacker can rewrite disk files, read paths could be affected. | Treat `server/data` as an application-private directory and do not allow user writes. |
 
-### 公网部署最低要求
+### Minimum requirements for public deployment
 
-1. 全站使用 HTTPS。
-2. 同域部署优先；跨域部署时设置 `CORS_ORIGIN` 为生产前端域名。
-3. 反向代理必须覆盖 `X-Forwarded-For`，避免客户端伪造额度 IP。
-4. 首次上线使用偏保守的 `AI_*` 和 `TTS_*` 额度，观察流量后再提高。
-5. 增加或配置请求体大小和字段长度限制。
-6. `DEEPSEEK_API_KEY` 和 `GLM_API_KEY` 只放在服务端环境变量中。
-7. 生产日志不要记录 transcript 或 prompt。
-8. Node 部署时监控 `server/data/tts-cache` 和 `server/data/example-cache` 的磁盘占用；Pages 部署时鼓励语音位于 `public/quotes` 静态资源中。
+1. Use HTTPS everywhere.
+2. Prefer same-origin deployment; for cross-origin deployment, set `CORS_ORIGIN` to the production frontend domain.
+3. The reverse proxy must overwrite `X-Forwarded-For` to prevent clients from spoofing the quota IP.
+4. Start with conservative `AI_*` and `TTS_*` quotas and increase them after observing traffic.
+5. Add or configure request-body and field-length limits.
+6. Keep `DEEPSEEK_API_KEY` and `GLM_API_KEY` only in server-side environment variables.
+7. Do not log transcripts or prompts in production logs.
+8. For Node deployments, monitor disk usage in `server/data/tts-cache` and `server/data/example-cache`. For Pages deployments, encouragement audio is stored under the static `public/quotes` assets.
 
-## 环境变量
+## Environment variables
 
-必填：
+Required:
 
 ```bash
 DEEPSEEK_API_KEY=your-deepseek-key
 ```
 
-推荐配置：
+Recommended configuration:
 
 ```bash
 DEEPSEEK_MODEL=deepseek-v4-flash
 
-GLM_API_KEY=your-glm-key        # 可选，配置后 ASR 和 TTS 均走云端（智谱 GLM）
-TTS_VOICE=luodo                 # 云端 TTS 语音，默认 luodo
-TTS_PORT=8081                   # 仅本地 TTS 模式使用
+GLM_API_KEY=your-glm-key        # Optional. When set, ASR and TTS both use Zhipu GLM cloud services.
+TTS_VOICE=luodo                 # Cloud TTS voice; default: luodo
+TTS_PORT=8081                   # Used only in local TTS mode
 TTS_MODEL_PATH=/srv/hi-kid-fun/server/model
 TTS_CACHE_DIR=/var/lib/hi-kid-fun/tts-cache
 EXAMPLE_CACHE_DIR=/var/lib/hi-kid-fun/example-cache
@@ -78,22 +78,22 @@ AI_DAILY_LIMIT=5000
 AI_IP_HOURLY_LIMIT=300
 TTS_DAILY_LIMIT=10000
 TTS_IP_HOURLY_LIMIT=600
-ASR_DAILY_LIMIT=5000            # 仅云端 ASR 模式生效
-ASR_IP_HOURLY_LIMIT=300         # 仅云端 ASR 模式生效
+ASR_DAILY_LIMIT=5000            # Applies only in cloud ASR mode
+ASR_IP_HOURLY_LIMIT=300         # Applies only in cloud ASR mode
 
 CORS_ORIGIN=https://hikid.fun
 SERVER_BODY_LIMIT=262144
 ```
 
-ASR 默认在浏览器本地运行，不需要服务端 ASR key。如果配置了 `GLM_API_KEY`，ASR 自动走后端转发至智谱云端（`POST /api/asr`），客户端自动检测并切换模式。
+ASR runs locally in the browser by default and does not require a server-side ASR key. If `GLM_API_KEY` is configured, ASR automatically switches to the backend proxy for Zhipu cloud ASR (`POST /api/asr`); the client detects this and switches modes automatically.
 
-TTS 默认使用本地 Kitten TTS（需要二进制和模型文件）。如果配置了 `GLM_API_KEY`，TTS 自动走智谱 GLM-TTS 云端（`POST /api/tts`），无需本地 TTS 二进制和模型。`TTS_VOICE` 控制云端语音，默认 `tongtong`。
+TTS uses local Kitten TTS by default and therefore needs the binary and model files. If `GLM_API_KEY` is configured, TTS automatically uses Zhipu GLM-TTS through `POST /api/tts`, with no local TTS binary or model required. `TTS_VOICE` controls the cloud voice; the default in the current configuration is `tongtong`.
 
-## Cloudflare Workers 部署 server
+## Deploying the server with Cloudflare Workers
 
-### 1. 准备 Cloudflare 资源
+### 1. Prepare Cloudflare resources
 
-先登录 Wrangler，并创建 R2 bucket：
+Log in with Wrangler and create the R2 bucket:
 
 ```bash
 cd server
@@ -102,7 +102,7 @@ npx wrangler login
 npx wrangler r2 bucket create hi-kid-fun-cache
 ```
 
-仓库已经包含 `server/wrangler.toml`：
+The repository already includes `server/wrangler.toml`:
 
 ```toml
 name = "hi-kid-fun-api"
@@ -118,11 +118,11 @@ binding = "CACHE_BUCKET"
 bucket_name = "hi-kid-fun-cache"
 ```
 
-如果 R2 bucket 名称不同，需要同步修改 `bucket_name`。绑定名 `CACHE_BUCKET` 不要改，`server/src/worker.ts` 会用这个名字初始化 R2 缓存。
+If your R2 bucket uses a different name, update `bucket_name`. Do not change the binding name `CACHE_BUCKET`; `server/src/worker.ts` uses that name to initialize the R2 cache.
 
-### 2. 配置 Workers 环境变量和密钥
+### 2. Configure Workers environment variables and secrets
 
-敏感值使用 Wrangler Secret：
+Use Wrangler Secrets for sensitive values:
 
 ```bash
 cd server
@@ -130,15 +130,15 @@ npx wrangler secret put DEEPSEEK_API_KEY
 npx wrangler secret put GLM_API_KEY
 ```
 
-`GLM_API_KEY` 在 Workers 部署中强烈建议配置。没有它时 `/api/tts` 会返回 `503 TTS not available`，浏览器端无法播放 NPC 语音。
+`GLM_API_KEY` is strongly recommended for Workers deployments. Without it, `/api/tts` returns `503 TTS not available`, so the browser cannot play NPC speech.
 
-生产环境还必须配置 CORS。当前前端使用相对路径请求 `/api/*`；如果 Pages 和 Worker 不是同源，浏览器会带 `Origin`，Worker 必须允许 Pages 域名。可以在 Cloudflare Dashboard 的 Worker 变量中添加普通变量：
+Production also requires CORS configuration. The frontend currently calls `/api/*` with relative paths. If Pages and the Worker are not on the same origin, the browser sends an `Origin` header and the Worker must allow the Pages domain. Add a normal variable in the Worker settings in the Cloudflare Dashboard:
 
 ```text
 CORS_ORIGIN=https://hikid.fun,https://hi-kid-fun.pages.dev
 ```
 
-也可以把它写入 `server/wrangler.toml` 的 `[vars]`：
+You can also put it in the `[vars]` section of `server/wrangler.toml`:
 
 ```toml
 [vars]
@@ -147,7 +147,7 @@ TTS_VOICE = "tongtong"
 CORS_ORIGIN = "https://hikid.fun,https://hi-kid-fun.pages.dev"
 ```
 
-### 3. 构建并发布 Worker
+### 3. Build and deploy the Worker
 
 ```bash
 cd server
@@ -155,9 +155,9 @@ npm run build
 npm run deploy
 ```
 
-`npm run build` 会执行 TypeScript 编译，并在 `postbuild` 中生成 `server/data/scenes-metadata.json`。`npm run deploy` 会调用 `wrangler deploy` 发布 `dist/worker.js`。
+`npm run build` compiles TypeScript and generates `server/data/scenes-metadata.json` during `postbuild`. `npm run deploy` runs `wrangler deploy` to publish `dist/worker.js`.
 
-部署后验证：
+Verify after deployment:
 
 ```bash
 curl https://hi-kid-fun-api.<your-subdomain>.workers.dev/api/health
@@ -165,7 +165,7 @@ curl https://hi-kid-fun-api.<your-subdomain>.workers.dev/api/scenes
 curl https://hi-kid-fun-api.<your-subdomain>.workers.dev/api/quota
 ```
 
-期望 `/api/health` 返回类似：
+Expected `/api/health` response:
 
 ```json
 {
@@ -175,83 +175,83 @@ curl https://hi-kid-fun-api.<your-subdomain>.workers.dev/api/quota
 }
 ```
 
-如果 `tts` 是 `unavailable`，说明 `GLM_API_KEY` 没有生效。
+If `tts` is `unavailable`, `GLM_API_KEY` is not active.
 
-### 4. 绑定正式域名或路由
+### 4. Bind the production domain or route
 
-前端默认请求相对路径 `/api/*`，所以最省心的生产拓扑是同一个正式域名承载 Pages 静态资源和 Worker API：
+The frontend calls `/api/*` with relative paths by default, so the simplest production topology uses one production domain for both Pages static assets and the Worker API:
 
 ```text
 https://hikid.fun/       -> Cloudflare Pages
 https://hikid.fun/api/*  -> Cloudflare Worker
 ```
 
-在 Cloudflare Dashboard 中：
+In the Cloudflare Dashboard:
 
-1. 将 `hikid.fun` 绑定到 Pages 项目。
-2. 给 Worker 添加 route：`hikid.fun/api/*`。
-3. 将 `CORS_ORIGIN` 设置为 `https://hikid.fun`。
+1. Bind `hikid.fun` to the Pages project.
+2. Add the Worker route `hikid.fun/api/*`.
+3. Set `CORS_ORIGIN` to `https://hikid.fun`.
 
-### 5. Workers 部署限制
+### 5. Workers deployment limitations
 
-- Workers 不支持启动 `server/bin/kitten-tts-server-*`，只能用 GLM 云端 TTS。
-- TTS 和例句缓存写入 R2；R2 不会自动过期，后续如需清理可加 lifecycle rule 或手动删除对象前缀。
-- 额度计数仍是 Worker isolate 内存 Map，不是全局强一致限流。它适合 demo 和成本保护的第一层防线，不适合严格计费。
-- `AI_DAILY_LIMIT`、`TTS_DAILY_LIMIT` 等额度环境变量目前只在 Node 入口读取；Workers 入口使用代码默认值。
-- Worker 入口没有 `SERVER_BODY_LIMIT` 中间件；仍应依赖路由字段校验、Cloudflare 平台请求限制和上游 API 限制。
+- Workers cannot start `server/bin/kitten-tts-server-*`; they can only use GLM cloud TTS.
+- TTS and example caches are stored in R2. R2 objects do not expire automatically unless you add a lifecycle rule or delete prefixes manually.
+- Quota counters remain in an in-memory Map inside each Worker isolate. This is suitable as a first layer for demos and cost protection, not for strict billing or globally consistent rate limiting.
+- Quota environment variables such as `AI_DAILY_LIMIT` and `TTS_DAILY_LIMIT` are currently read only by the Node entry point; the Workers entry point uses code defaults.
+- The Worker entry point does not use the `SERVER_BODY_LIMIT` middleware. Continue to rely on route-level field validation, Cloudflare platform request limits, and upstream API limits.
 
-### 6. 配置 Cloudflare WAF Rate Limiting
+### 6. Configure Cloudflare WAF rate limiting
 
-应用内 quota 用于返回友好的额度信息，但 Worker isolate 内存不是全局强一致存储，不能作为生产级强限流。公网部署必须在 Cloudflare WAF 上再加一层 Rate Limiting，挡住明显滥用和成本攻击。
+The application quota endpoint provides friendly quota feedback, but per-isolate memory is not globally consistent and cannot be the only production rate limiter. Add Cloudflare WAF Rate Limiting to block obvious abuse and cost attacks.
 
-在 Cloudflare Dashboard 中：
+In the Cloudflare Dashboard:
 
-1. 进入 `hikid.fun` zone。
-2. 打开 `Security` -> `WAF` -> `Rate limiting rules`。
-3. 新建规则，匹配 `http.host eq "hikid.fun"`，并按下面建议分别保护高成本接口。
+1. Open the `hikid.fun` zone.
+2. Go to `Security` -> `WAF` -> `Rate limiting rules`.
+3. Create rules matching `http.host eq "hikid.fun"` and protect the expensive endpoints separately.
 
-建议规则：
+Suggested rules:
 
-| 规则名 | 匹配表达式 | 建议阈值 | 动作 |
+| Rule | Match expression | Suggested threshold | Action |
 |---|---|---|---|
-| `limit-asr` | `(http.host eq "hikid.fun" and http.request.uri.path eq "/api/asr")` | 每 IP 10 次 / 1 分钟 | Block 10 分钟 |
-| `limit-tts` | `(http.host eq "hikid.fun" and http.request.uri.path eq "/api/tts")` | 每 IP 60 次 / 1 分钟 | Block 10 分钟 |
-| `limit-ai-text` | `(http.host eq "hikid.fun" and http.request.uri.path in {"/api/intent" "/api/example"})` | 每 IP 60 次 / 1 分钟 | Block 10 分钟 |
-| `limit-api-global` | `(http.host eq "hikid.fun" and starts_with(http.request.uri.path, "/api/"))` | 每 IP 300 次 / 5 分钟 | Managed Challenge 或 Block 10 分钟 |
+| `limit-asr` | `(http.host eq "hikid.fun" and http.request.uri.path eq "/api/asr")` | 10 requests per IP per minute | Block for 10 minutes |
+| `limit-tts` | `(http.host eq "hikid.fun" and http.request.uri.path eq "/api/tts")` | 60 requests per IP per minute | Block for 10 minutes |
+| `limit-ai-text` | `(http.host eq "hikid.fun" and http.request.uri.path in {"/api/intent" "/api/example"})` | 60 requests per IP per minute | Block for 10 minutes |
+| `limit-api-global` | `(http.host eq "hikid.fun" and starts_with(http.request.uri.path, "/api/"))` | 300 requests per IP per 5 minutes | Managed Challenge or block for 10 minutes |
 
-配置要点：
+Configuration notes:
 
-- 计数特征选择客户端 IP。
-- 先用 `Log` 或 `Managed Challenge` 观察 1-2 天也可以；确认不会误伤课堂使用后改为 `Block`。
-- ASR 成本和请求体都更重，阈值应明显低于 TTS 和文本 AI。
-- 如果开放 `*.workers.dev` 直连 Worker，WAF 规则不会覆盖 `workers.dev` 域名；生产建议关闭或避免公开使用 `workers.dev`，只通过 `hikid.fun/api/*` 访问。
-- 仍保留应用内 quota，因为它能给前端返回明确的 `429` 和 `Retry-After`，但不要把它视为唯一防线。
+- Use client IP as the counting characteristic.
+- You can begin with `Log` or `Managed Challenge` for one or two days, then switch to `Block` after confirming normal classroom use is unaffected.
+- ASR has higher cost and larger request bodies, so its threshold should be much lower than TTS and text AI.
+- If the Worker remains directly accessible through `*.workers.dev`, WAF rules for your custom zone do not protect the `workers.dev` hostname. For production, avoid public direct use of `workers.dev` and route traffic through `hikid.fun/api/*`.
+- Keep the in-application quota layer because it gives the frontend clear `429` and `Retry-After` responses, but do not treat it as the only defense.
 
-## Cloudflare Pages 部署 web
+## Deploying the web app with Cloudflare Pages
 
-### 1. 创建 Pages 项目
+### 1. Create the Pages project
 
-可以用 Dashboard/Git 集成，也可以用 Wrangler CLI 直接发布 `dist/`。仓库默认使用根目录 `wrangler.toml` 作为 Pages 配置来源。
+You can use the Dashboard/Git integration or deploy `dist/` directly with Wrangler CLI. The repository uses the root `wrangler.toml` as the Pages configuration source.
 
-Dashboard/Git 集成方式：在 Cloudflare Dashboard 中进入 Workers & Pages，创建 Pages 项目并连接 Git 仓库。构建配置：
+For Dashboard/Git integration, open Workers & Pages in the Cloudflare Dashboard, create a Pages project, and connect the Git repository. Build settings:
 
-| 配置项 | 值 |
+| Setting | Value |
 |---|---|
-| Framework preset | `Vite` 或 `None` |
-| Root directory | 仓库根目录 |
+| Framework preset | `Vite` or `None` |
+| Root directory | Repository root |
 | Build command | `npm ci && npm run build` |
 | Build output directory | `dist` |
 | Node version | `22` |
 
-如果 Dashboard 使用环境变量控制 Node 版本，添加：
+If the Dashboard uses an environment variable to select Node, add:
 
 ```text
 NODE_VERSION=22
 ```
 
-前端不会读取 `DEEPSEEK_API_KEY`、`GLM_API_KEY` 等服务端密钥，不要把这些密钥配置到 Pages 项目。
+The frontend does not read server-side secrets such as `DEEPSEEK_API_KEY` or `GLM_API_KEY`. Do not configure those secrets in the Pages project.
 
-Wrangler CLI 方式：仓库根目录提供了 Pages 专用的 `wrangler.toml`：
+For Wrangler CLI, the repository root contains a Pages-specific `wrangler.toml`:
 
 ```toml
 name = "hi-kid-fun"
@@ -259,7 +259,7 @@ pages_build_output_dir = "./dist"
 compatibility_date = "2024-12-01"
 ```
 
-本地构建后直接部署：
+Build locally and deploy:
 
 ```bash
 npm ci
@@ -267,48 +267,49 @@ npm run build
 npm run deploy
 ```
 
-如果 Pages 项目还不存在，Wrangler 会引导创建；如果已经在 Cloudflare 上创建过，`wrangler.toml` 里的 `name` 必须和 Pages 项目名一致。需要区分的是：`wrangler pages deploy` 只发布前端静态产物，不会部署 `server` Worker；API 仍要按上一节执行 `cd server && npm run deploy`。
+If the Pages project does not yet exist, Wrangler guides you through creation. If it already exists in Cloudflare, the `name` in `wrangler.toml` must match the Pages project name. Note that `wrangler pages deploy` publishes only the frontend static output; it does not deploy the `server` Worker. Deploy the API separately with `cd server && npm run deploy`.
 
-也可以用 preview 分支名发布一次性预览：
+You can also publish a one-off preview using a preview branch name:
 
 ```bash
 npm run deploy -- --branch preview
 ```
 
-### 2. 路由 API
+### 2. Route the API
 
-Pages 发布后，浏览器会从当前域名请求 `/api/health`、`/api/scenes`、`/api/tts`、`/api/intent`、`/api/example` 和可选的 `/api/asr`。因此正式域名需要给 Worker 配置 route：`hikid.fun/api/*`，Pages 和 Worker 共用同一个 `hikid.fun`。
+After Pages is published, the browser requests `/api/health`, `/api/scenes`, `/api/tts`, `/api/intent`, `/api/example`, and optional `/api/asr` from the current domain. The production domain therefore needs the Worker route `hikid.fun/api/*`, with Pages and the Worker sharing the same `hikid.fun` origin.
 
-没有 API 路由时，前端页面可以打开，但场景列表、NPC 语音、意图匹配和例句生成都会失败。
+Without the API route, the frontend can open, but scene lists, NPC speech, intent matching, and example generation fail.
 
-### 3. Pages 部署后验证
+### 3. Verify after Pages deployment
 
-打开 Pages 域名后检查：
+After opening the Pages domain, check:
 
 ```bash
 curl https://hikid.fun/api/health
 curl https://hikid.fun/api/scenes
 ```
 
-然后在浏览器里验证：
+Then verify in the browser:
 
-- 首页能加载场景卡片。
-- 进入任意场景后，`/api/health` 显示 `tts: "cloud"`。
-- NPC 语音可以播放。
-- 按住说话并松开后，云端 ASR 或本地 Whisper 能返回文本。
-- 完成任务后，首页进度保存在当前浏览器；导出、导入、重置数据可用。
+- The home page loads scene cards.
+- After entering any scene, `/api/health` reports `tts: "cloud"`.
+- NPC speech plays.
+- Holding and releasing the talk button returns text through cloud ASR or local Whisper.
+- After completing a task, home-page progress remains stored in the current browser.
+- Export, import, and reset learner data all work.
 
-## Cloudflare 参考资料
+## Cloudflare references
 
-- [Workers Wrangler 配置](https://developers.cloudflare.com/workers/wrangler/configuration/)
-- [Wrangler Workers 命令](https://developers.cloudflare.com/workers/wrangler/commands/workers/)
+- [Workers Wrangler configuration](https://developers.cloudflare.com/workers/wrangler/configuration/)
+- [Wrangler Workers commands](https://developers.cloudflare.com/workers/wrangler/commands/workers/)
 - [R2 from Workers](https://developers.cloudflare.com/r2/api/workers/workers-api-usage/)
-- [Pages 构建配置](https://developers.cloudflare.com/pages/configuration/build-configuration/)
+- [Pages build configuration](https://developers.cloudflare.com/pages/configuration/build-configuration/)
 - [Pages redirects](https://developers.cloudflare.com/pages/configuration/redirects/)
 
-## 构建
+## Build
 
-项目要求 Node 22，和仓库里的 `.nvmrc` 保持一致。
+The project requires Node 22, matching the repository `.nvmrc`.
 
 ```bash
 nvm use
@@ -321,25 +322,25 @@ npm install
 npm run build
 ```
 
-前端产物输出到 `dist/`，服务端编译产物输出到 `server/dist/`。
+Frontend output is written to `dist/`; server output is written to `server/dist/`.
 
-## 安装 Kitten TTS 二进制和模型
+## Install the Kitten TTS binary and model
 
-本项目使用 `second-state/kitten_tts_rs` 的 OpenAI 兼容 TTS server。上游仓库是 [second-state/kitten_tts_rs](https://github.com/second-state/kitten_tts_rs)。
+This project uses the OpenAI-compatible TTS server from `second-state/kitten_tts_rs`. The upstream repository is [second-state/kitten_tts_rs](https://github.com/second-state/kitten_tts_rs).
 
-上游 release 包里包含两个程序：
+The upstream release contains two programs:
 
-- `kitten-tts`：命令行一次性生成语音的 CLI，本项目不使用。
-- `kitten-tts-server`：OpenAI 兼容 API server，本项目需要这个文件。
+- `kitten-tts`: a one-shot command-line TTS CLI; this project does not use it.
+- `kitten-tts-server`: the OpenAI-compatible API server required by this project.
 
-本项目要求把不同平台的 `kitten-tts-server` 放在 `server/bin/` 下，并使用固定文件名：
+Place platform-specific `kitten-tts-server` binaries under `server/bin/` with fixed file names:
 
-| 平台 | 上游下载包 | 解压后的文件 | 放入本项目后的文件名 |
+| Platform | Upstream package | Extracted file | File name in this project |
 |---|---|---|---|
 | macOS Apple Silicon / arm64 | `kitten-tts-aarch64-macos.tar.gz` | `kitten-tts-server` | `server/bin/kitten-tts-server-aarch64-macos` |
 | Linux x86_64 | `kitten-tts-x86_64-linux.tar.gz` | `kitten-tts-server` | `server/bin/kitten-tts-server-x86_64-linux` |
 
-示例安装命令：
+Example installation commands:
 
 ```bash
 mkdir -p server/bin /tmp/kitten-tts
@@ -359,12 +360,12 @@ cp /tmp/kitten-tts/kitten-tts-server server/bin/kitten-tts-server-x86_64-linux
 chmod +x server/bin/kitten-tts-server-x86_64-linux
 ```
 
-服务端启动时会自动选择当前平台对应的文件：
+At server startup, the platform-specific file is selected automatically:
 
 - macOS arm64: `server/bin/kitten-tts-server-aarch64-macos`
 - Linux x86_64: `server/bin/kitten-tts-server-x86_64-linux`
 
-模型也来自同一个上游 release。下载模型包：
+The models come from the same upstream release. Download the model package:
 
 ```bash
 curl -L -o /tmp/kitten-tts/kitten-tts-models.tar.gz \
@@ -372,7 +373,7 @@ curl -L -o /tmp/kitten-tts/kitten-tts-models.tar.gz \
 tar -xzf /tmp/kitten-tts/kitten-tts-models.tar.gz -C /tmp/kitten-tts
 ```
 
-上游模型包会解出 `models/` 目录，里面通常包含：
+The upstream model package extracts a `models/` directory that usually contains:
 
 ```text
 models/
@@ -382,14 +383,14 @@ models/
   kitten-tts-nano-int8/
 ```
 
-本项目默认 `TTS_MODEL_PATH` 指向 `server/model`，当前只使用 micro 模型文件。`server/model/` 需要包含：
+This project points `TTS_MODEL_PATH` to `server/model` by default and currently uses only the micro model. `server/model/` must contain:
 
 ```text
 server/model/
   kitten_tts_micro_v0_8.onnx
 ```
 
-安装 micro 模型示例：
+Example micro-model installation:
 
 ```bash
 rm -rf server/model
@@ -397,11 +398,11 @@ mkdir -p server/model
 cp /tmp/kitten-tts/models/kitten-tts-micro/kitten_tts_micro_v0_8.onnx server/model/
 ```
 
-如果你把模型文件放在其他目录，可以设置 `TTS_MODEL_PATH` 指向该目录。
+If you store the model elsewhere, set `TTS_MODEL_PATH` to that directory.
 
-## 运行
+## Run
 
-单机部署示例：
+Single-server deployment example:
 
 ```bash
 cd server
@@ -411,14 +412,14 @@ EXAMPLE_CACHE_DIR=/var/lib/hi-kid-fun/example-cache \
 npm start
 ```
 
-服务端会在 `3001` 端口启动 Hono Node server，并在 `TTS_PORT` 上启动匹配当前平台的 TTS 二进制：
+The server starts the Hono Node server on port `3001` and starts the TTS binary for the current platform on `TTS_PORT`:
 
 - macOS arm64: `server/bin/kitten-tts-server-aarch64-macos`
 - Linux x86_64: `server/bin/kitten-tts-server-x86_64-linux`
 
-前端 `dist/` 可以交给 Nginx、Caddy、CDN 或其他静态文件服务托管。将 `/api/*` 代理到 Hono Node server。
+The frontend `dist/` can be hosted by Nginx, Caddy, a CDN, or any other static-file service. Proxy `/api/*` to the Hono Node server.
 
-## Nginx 示例
+## Nginx example
 
 ```nginx
 server {
@@ -444,11 +445,11 @@ server {
 }
 ```
 
-线上建议只保留一个 canonical 前端域名。如果应用服务仍启用 CORS，请配置为只允许该域名。
+For production, keep a single canonical frontend domain where possible. If the application server still has CORS enabled, allow only that domain.
 
-## 进程管理示例
+## Process management example
 
-systemd 示例：
+Example systemd unit:
 
 ```ini
 [Unit]
@@ -479,7 +480,7 @@ Environment=SERVER_BODY_LIMIT=262144
 WantedBy=multi-user.target
 ```
 
-启动前创建可写数据目录：
+Create writable data directories before starting the service:
 
 ```bash
 sudo mkdir -p /var/lib/hi-kid-fun/tts-cache
@@ -487,29 +488,29 @@ sudo mkdir -p /var/lib/hi-kid-fun/example-cache
 sudo chown -R hi-kid-fun:hi-kid-fun /var/lib/hi-kid-fun
 ```
 
-## 部署后验证
+## Verify after deployment
 
-部署完成后先检查接口：
+After deployment, check the API first:
 
 ```bash
-curl https://hikid.fun/api/health    # 确认 tts/asr 的 cloud/local 模式
+curl https://hikid.fun/api/health    # Confirm the cloud/local modes for TTS and ASR.
 curl https://hikid.fun/api/scenes
-curl https://hikid.fun/api/quota     # 确认 ai/tts/asr 额度
+curl https://hikid.fun/api/quota     # Confirm AI/TTS/ASR quota status.
 ```
 
-然后打开前端，进入一个场景，确认：
+Then open the frontend, enter a scene, and verify:
 
-- 浏览器本地麦克风录音正常。
-- NPC 语音可以播放。
-- 重复相同 TTS 请求时返回 `X-TTS-Cache: HIT`。
-- 重复相同例句请求时返回 `X-Example-Cache: HIT`。
-- 完成任务后，首页能看到场景进度。
-- 首页 `Data` 按钮可以导出和导入学习数据。
+- Browser microphone recording works.
+- NPC speech plays.
+- Repeating the same TTS request returns `X-TTS-Cache: HIT`.
+- Repeating the same example request returns `X-Example-Cache: HIT`.
+- After completing a task, the home page shows scene progress.
+- The home-page `Data` button can export and import learner data.
 
-## 运维说明
+## Operations notes
 
-- `public/quotes` 保存预生成的鼓励语音，可重新生成并随前端静态资源发布。
-- `TTS_CACHE_DIR` 保存生成语音缓存；如果希望重新部署后保留热缓存，可以备份该目录。
-- `EXAMPLE_CACHE_DIR` 保存例句缓存；如果希望减少大模型调用，可以跨部署保留该目录。
-- 浏览器学习数据属于用户本地数据，不属于服务端备份范围。
-- 多实例部署时，需要 sticky routing，或将进程内额度账本替换成共享存储。
+- `public/quotes` stores pregenerated encouragement audio that can be regenerated and shipped with the frontend static assets.
+- `TTS_CACHE_DIR` stores generated speech cache. Back up this directory if you want to keep a warm cache across redeployments.
+- `EXAMPLE_CACHE_DIR` stores example-sentence cache. Keep it across deployments if you want to reduce LLM calls.
+- Browser learner data is user-local data and is not part of server backups.
+- For multi-instance deployment, use sticky routing or replace the in-process quota ledger with shared storage.
